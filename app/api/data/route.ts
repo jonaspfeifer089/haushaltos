@@ -12,41 +12,36 @@ const auth = new google.auth.GoogleAuth({
 const sheets = google.sheets({ version: "v4", auth });
 const spreadsheetId = "1Dj3_N9ybEhIDX5HukIELYtE2E3LToq4DiuPV3EBjOiA";
 
-// 1. Daten lesen (GET)
+// 1. Alle Tabellenblätter laden (GET)
 export async function GET() {
   try {
-    const einkaufRes = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: "Einkauf!A:B",
-    });
-
-    const vorratRes = await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: "Vorrat!A:C",
-    });
+    const haushaltRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: "Haushalt!A:D" });
+    const einkaufRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: "Einkauf!A:B" });
+    const vorratRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: "Vorrat!A:C" });
 
     return NextResponse.json({
+      haushalt: haushaltRes.data.values || [],
       einkauf: einkaufRes.data.values || [],
       vorrat: vorratRes.data.values || [],
     });
   } catch (error) {
-    return NextResponse.json({ error: "Fehler beim Lesen" }, { status: 500 });
+    console.error("Sheets Read Error:", error);
+    return NextResponse.json({ error: "Fehler beim Lesen der Sheets" }, { status: 500 });
   }
 }
 
-// 2. Daten schreiben (POST)
+// 2. Daten in die jeweiligen Tabellen schreiben (POST)
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { sheetName, values } = body; // z.B. sheetName = "Einkauf", values = ["Milch"]
+    const { sheetName, values } = body; 
+    // sheetName kann "Haushalt", "Einkauf" oder "Vorrat" sein
 
     await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: `${sheetName}!A:B`,
+      range: `${sheetName}!A:D`,
       valueInputOption: "USER_ENTERED",
-      requestBody: {
-        values: [values],
-      },
+      requestBody: { values: [values] },
     });
 
     return NextResponse.json({ success: true });
