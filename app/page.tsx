@@ -59,24 +59,23 @@ export default function DashboardPage() {
     fetch("/api/data")
       .then(res => res.json())
       .then(data => {
-        if (data.einkauf) {
-          // Wandelt das Google-Sheet-Array in ein sauberes Objekt um
+        if (data.einkauf && Array.isArray(data.einkauf)) {
           const mappedEinkauf = data.einkauf.slice(1).map((row: any, index: number) => ({
             id: index,
             artikel: row[0] || ""
-          }));
+          })).filter((i: any) => i.artikel !== "");
           setEinkauf(mappedEinkauf);
         }
-        if (data.vorrat) {
+        if (data.vorrat && Array.isArray(data.vorrat)) {
           const mappedVorrat = data.vorrat.slice(1).map((row: any, index: number) => ({
             id: index,
             artikel: row[0] || "",
             mhd: row[1] || ""
-          }));
+          })).filter((i: any) => i.artikel !== "");
           setVorrat(mappedVorrat);
         }
       })
-      .catch(err => console.error("Fehler beim Abrufen der Sheets:", err));
+      .catch(err => console.error("Fehler beim Laden der Google-Daten:", err));
   }, []);
 
   // Live ÖPNV (MVG OEZ)
