@@ -323,9 +323,18 @@ export default function DashboardPage() {
                       onChange={(e) => setNeuerArtikel(e.target.value)}
                       className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
                     />
-                    <Button onClick={() => {
+                    <Button onClick={async () => {
                       if(neuerArtikel) {
+                        // 1. Lokal sofort anzeigen
                         setEinkauf([...einkauf, { id: Date.now(), artikel: neuerArtikel }]);
+                        
+                        // 2. An Google Sheets API senden
+                        await fetch("/api/data", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ sheetName: "Einkauf", values: [neuerArtikel] })
+                        });
+
                         setNeuerArtikel("");
                       }
                     }} className="bg-blue-600 hover:bg-blue-500 text-xs">
