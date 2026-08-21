@@ -40,9 +40,8 @@ export default function DashboardPage() {
   const [neuerArtikel, setNeuerArtikel] = useState("");
 
   const [aufgaben, setAufgaben] = useState<{ id: number; aufgabe: string; letztesDatum: string; intervall: string }[]>([]);
-  const [neueAufgabe, setNeueAufgabe] = useState("");
-
   const [vorrat, setVorrat] = useState<{ id: number; artikel: string; ablaufdatum: string; anbruchsdatum: string }[]>([]);
+  const [termine, setTermine] = useState<{ title: string; date: string }[]>([]);
 
   // 1. Live Wetter
   useEffect(() => {
@@ -102,6 +101,18 @@ export default function DashboardPage() {
       .catch(err => console.error("Fehler beim Laden:", err));
   }, []);
 
+  // 4. Kalender Termine laden
+  useEffect(() => {
+    fetch("/api/calendar")
+      .then(res => res.json())
+      .then(data => {
+        if (data.events) {
+          setTermine(data.events);
+        }
+      })
+      .catch(err => console.error("Fehler beim Laden des Kalenders:", err));
+  }, []);
+
   return (
     <div className="flex min-h-screen bg-[#07090e] text-slate-100 selection:bg-blue-600 selection:text-white">
       {/* SIDEBAR */}
@@ -120,6 +131,7 @@ export default function DashboardPage() {
             <button onClick={() => setActiveTab("einkauf")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${activeTab === "einkauf" ? "bg-blue-600/15 text-blue-400 border border-blue-500/30" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"}`}><ShoppingCart className="h-4 w-4" /> Einkaufsliste</button>
             <button onClick={() => setActiveTab("putzplan")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${activeTab === "putzplan" ? "bg-blue-600/15 text-blue-400 border border-blue-500/30" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"}`}><ClipboardList className="h-4 w-4" /> Putzplan & Aufgaben</button>
             <button onClick={() => setActiveTab("vorrat")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${activeTab === "vorrat" ? "bg-blue-600/15 text-blue-400 border border-blue-500/30" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"}`}><Package className="h-4 w-4" /> Vorratskammer (KI)</button>
+            <button onClick={() => setActiveTab("kalender")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${activeTab === "kalender" ? "bg-blue-600/15 text-blue-400 border border-blue-500/30" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"}`}><CalendarIcon className="h-4 w-4" /> Termine</button>
           </nav>
         </div>
 
@@ -146,18 +158,18 @@ export default function DashboardPage() {
             <>
               <div>
                 <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">Overview <span className="text-blue-500">.</span></h2>
-                <p className="text-xs text-slate-400 mt-1">Echte Google Sheets Daten in Echtzeit.</p>
+                <p className="text-xs text-slate-400 mt-1">Echte Google Sheets & Kalender Daten in Echtzeit.</p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-xs font-medium text-slate-400">Wetter OEZ</CardTitle><CloudSun className="h-4 w-4 text-blue-400" /></CardHeader><CardContent><div className="text-2xl font-bold text-white">{weather}</div><div className="text-[11px] text-emerald-400 mt-1"><TrendingUp className="h-3 w-3 inline" /> Live Forecast</div></CardContent></Card>
                 <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-xs font-medium text-slate-400">Putzplan Aufgaben</CardTitle><CheckCircle2 className="h-4 w-4 text-amber-400" /></CardHeader><CardContent><div className="text-2xl font-bold text-white">{aufgaben.length}</div><div className="text-[11px] text-amber-400 mt-1">Aktiv</div></CardContent></Card>
-                <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-xs font-medium text-slate-400">Einkaufsliste</CardTitle><ShoppingCart className="h-4 w-4 text-emerald-400" /></CardHeader><CardContent><div className="text-2xl font-bold text-white">{einkauf.filter(i => i.status === "Offen").length} Offen</div><div className="text-[11px] text-slate-400 mt-1">Google Sheet</div></CardContent></Card>
+                <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-xs font-medium text-slate-400">Apple Kalender</CardTitle><CalendarIcon className="h-4 w-4 text-emerald-400" /></CardHeader><CardContent><div className="text-2xl font-bold text-white">{termine.length} Termine</div><div className="text-[11px] text-slate-400 mt-1">ICS Sync</div></CardContent></Card>
                 <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-xs font-medium text-slate-400">Vorratskammer</CardTitle><AlertTriangle className="h-4 w-4 text-rose-400" /></CardHeader><CardContent><div className="text-2xl font-bold text-white">{vorrat.length} Artikel</div><div className="text-[11px] text-emerald-400 mt-1">Gepflegt</div></CardContent></Card>
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="lg:col-span-2 bg-[#0e131f]/80 border-slate-800/80"><CardHeader><CardTitle className="text-sm font-semibold text-white">📝 Status Briefing</CardTitle></CardHeader><CardContent className="text-xs text-slate-300">Alle Google Tabellen ("Haushalt", "Einkauf", "Vorrat") sind erfolgreich angebunden und synchronisieren bidirektional.</CardContent></Card>
+                <Card className="lg:col-span-2 bg-[#0e131f]/80 border-slate-800/80"><CardHeader><CardTitle className="text-sm font-semibold text-white">📝 Status Briefing</CardTitle></CardHeader><CardContent className="text-xs text-slate-300">Alle Google Tabellen und der ICS-Kalender sind aktiv eingebunden.</CardContent></Card>
                 <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-sm font-semibold text-white flex items-center gap-2"><Train className="h-4 w-4 text-blue-400" /> ÖPNV (OEZ)</CardTitle><Badge variant="secondary" className="text-[10px] bg-slate-800 text-slate-300">Live</Badge></CardHeader><CardContent>{loadingTransit ? <p className="text-xs text-slate-400">Lade...</p> : <div className="space-y-2.5">{departures.map((d, i) => <div key={i} className="flex justify-between text-xs py-1 border-b border-slate-800/50"><span className="font-bold text-blue-400">{d.line} {d.destination}</span><span className="font-mono text-slate-400">{d.time}</span></div>)}</div>}</CardContent></Card>
               </div>
             </>
@@ -209,6 +221,25 @@ export default function DashboardPage() {
                     <span className="text-slate-400">Ablaufdatum: {v.ablaufdatum} | Anbruch: {v.anbruchsdatum || "Nein"}</span>
                   </div>
                 ))}
+              </CardContent></Card>
+            </div>
+          )}
+
+          {/* TAB 5: KALENDER */}
+          {activeTab === "kalender" && (
+            <div className="space-y-6">
+              <div><h2 className="text-2xl font-bold text-white">Termine & Kalender <span className="text-blue-500">.</span></h2><p className="text-xs text-slate-400">Echtzeit-Synchronisation über ICS-Kalender-Link.</p></div>
+              <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardContent className="pt-6 space-y-3">
+                {termine.length === 0 ? (
+                  <p className="text-xs text-slate-400 py-4 text-center">Keine Termine gefunden oder kein ICS-Link in den Vercel-Umgebungsvariablen hinterlegt (`APPLE_CALENDAR_URL`).</p>
+                ) : (
+                  termine.map((t, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-800/60 text-xs">
+                      <span className="font-medium text-slate-200">📅 {t.title}</span>
+                      <span className="text-blue-400 font-mono">{t.date}</span>
+                    </div>
+                  ))
+                )}
               </CardContent></Card>
             </div>
           )}
