@@ -18,7 +18,7 @@ export async function GET(request: Request) {
 
     // 3. Push-Nachricht über ntfy senden
     // WICHTIG: Ersetze "haushalt_os_jonas_geheim" durch dein eigenes, sicheres ntfy-Topic
-    await fetch("https://ntfy.sh/haushalt_os_jonas_geheim", {
+    await fetch("https://ntfy.sh/HaushaltLenaJonas", {
       method: "POST",
       body: nachricht,
       headers: {
