@@ -14,10 +14,9 @@ import {
   TrendingUp, 
   Train,
   Plus,
-  Trash2,
-  Camera,
   Check,
-  ClipboardList
+  ClipboardList,
+  Camera
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -36,12 +35,11 @@ export default function DashboardPage() {
   const [weather, setWeather] = useState<string>("Lädt...");
   const [loadingTransit, setLoadingTransit] = useState(true);
 
-  // States für alle Bereiche
-  const [einkauf, setEinkauf] = useState([
-    { id: 1, artikel: "Milch" },
-    { id: 2, artikel: "Kaffee" }
-  ]);
+  // States für Daten aus APIs
+  const [einkauf, setEinkauf] = useState<{ id: number; artikel: string }[]>([]);
   const [neuerArtikel, setNeuerArtikel] = useState("");
+
+  const [vorrat, setVorrat] = useState<{ id: number; artikel: string; mhd: string }[]>([]);
 
   const [aufgaben, setAufgaben] = useState([
     { id: 1, aufgabe: "Küche wischen", intervall: 3, letztesDatum: "2026-08-18" },
@@ -49,12 +47,44 @@ export default function DashboardPage() {
   ]);
   const [neueAufgabe, setNeueAufgabe] = useState("");
 
-  const [vorrat, setVorrat] = useState([
-    { id: 1, artikel: "Hafermilch", mhd: "2026-08-25" }
-  ]);
+  const [termine, setTermine] = useState<{ title: string; date: string }[]>([]);
 
-  // Live Wetter (Open-Meteo)
-  // Echte Google Sheets Daten beim Laden abrufen
+  // 1. Live Wetter (Open-Meteo)
+  useEffect(() => {
+    fetch("https://api.open-meteo.com/v1/forecast?latitude=48.1764&longitude=11.5311&current=temperature_2m,weather_code")
+      .then(res => res.json())
+      .then(data => {
+        const temp = data?.current?.temperature_2m;
+        setWeather(`${temp ?? "--"}°C`);
+      })
+      .catch(() => setWeather("N/A"));
+  }, []);
+
+  // 2. Live ÖPNV (MVG OEZ)
+  useEffect(() => {
+    fetch("https://www.mvg.de/api/bgw-pt/v3/departures?globalId=de:09162:70")
+      .then(res => res.json())
+      .then((data) => {
+        if (Array.isArray(data)) {
+          const list: Departure[] = data.slice(0, 5).map((d: any) => {
+            const timeMs = d.realtimeDepartureTime || d.plannedDepartureTime;
+            const date = new Date(timeMs);
+            const timeStr = date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+            return {
+              line: d.label || "U",
+              destination: d.destination || "Unbekannt",
+              time: timeStr,
+              delay: d.delayInMinutes || 0
+            };
+          });
+          setDepartures(list);
+        }
+      })
+      .catch(() => setDepartures([]))
+      .finally(() => setLoadingTransit(false));
+  }, []);
+
+  // 3. Google Sheets Daten abrufen (Einkauf & Vorrat)
   useEffect(() => {
     fetch("/api/data")
       .then(res => res.json())
@@ -78,28 +108,16 @@ export default function DashboardPage() {
       .catch(err => console.error("Fehler beim Laden der Google-Daten:", err));
   }, []);
 
-  // Live ÖPNV (MVG OEZ)
+  // 4. Kalender Termine abrufen
   useEffect(() => {
-    fetch("https://www.mvg.de/api/bgw-pt/v3/departures?globalId=de:09162:70")
+    fetch("/api/calendar")
       .then(res => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          const list: Departure[] = data.slice(0, 5).map((d: any) => {
-            const timeMs = d.realtimeDepartureTime || d.plannedDepartureTime;
-            const date = new Date(timeMs);
-            const timeStr = date.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
-            return {
-              line: d.label || "U",
-              destination: d.destination || "Unbekannt",
-              time: timeStr,
-              delay: d.delayInMinutes || 0
-            };
-          });
-          setDepartures(list);
+      .then(data => {
+        if (data.events) {
+          setTermine(data.events);
         }
       })
-      .catch(() => setDepartures([]))
-      .finally(() => setLoadingTransit(false));
+      .catch(err => console.error("Fehler beim Laden des Kalenders:", err));
   }, []);
 
   return (
@@ -187,7 +205,7 @@ export default function DashboardPage() {
             <span className="text-slate-100 font-medium capitalize">{activeTab}</span>
           </div>
           <Badge variant="outline" className="border-blue-500/30 bg-blue-500/10 text-blue-400 text-[11px] px-2.5 py-0.5">
-            Pro Active
+            Production Ready
           </Badge>
         </header>
 
@@ -232,8 +250,8 @@ export default function DashboardPage() {
                     <CalendarIcon className="h-4 w-4 text-emerald-400" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold tracking-tight text-white">Sync Aktiv</div>
-                    <div className="text-[11px] text-slate-400 mt-1">Keine Konflikte</div>
+                    <div className="text-2xl font-bold tracking-tight text-white">{termine.length} Termine</div>
+                    <div className="text-[11px] text-slate-400 mt-1">Sync Aktiv</div>
                   </CardContent>
                 </Card>
 
@@ -254,12 +272,8 @@ export default function DashboardPage() {
                   <CardHeader><CardTitle className="text-sm font-semibold text-white">📝 Daily Briefing</CardTitle></CardHeader>
                   <CardContent className="space-y-4 text-xs">
                     <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800">
-                      <span className="font-semibold text-blue-400 block mb-1">🧹 Anstehende Aufgaben</span>
-                      {aufgaben.length === 2 ? (
-                        <p className="text-slate-300">Küche wischen & Müll rausbringen sind im Plan.</p>
-                      ) : (
-                        <p className="text-slate-300">{aufgaben.length} Aufgaben im System.</p>
-                      )}
+                      <span className="font-semibold text-blue-400 block mb-1">🧹 Aktuelle Aufgaben & Einkäufe</span>
+                      <p className="text-slate-300">Einkaufsliste synchronisiert {einkauf.length} Artikel aus Google Sheets.</p>
                     </div>
                   </CardContent>
                 </Card>
@@ -296,7 +310,7 @@ export default function DashboardPage() {
             <div className="space-y-6">
               <div>
                 <h2 className="text-2xl font-bold tracking-tight text-white">Einkaufsliste <span className="text-blue-500">.</span></h2>
-                <p className="text-xs text-slate-400 mt-1">Echtzeit-Verwaltung.</p>
+                <p className="text-xs text-slate-400 mt-1">Live synchronisiert aus Google Sheets.</p>
               </div>
 
               <Card className="bg-[#0e131f]/80 border-slate-800/80">
@@ -320,14 +334,18 @@ export default function DashboardPage() {
                   </div>
 
                   <div className="space-y-2">
-                    {einkauf.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-800/60">
-                        <span className="text-xs text-slate-200 font-medium">🛒 {item.artikel}</span>
-                        <Button variant="outline" size="sm" onClick={() => setEinkauf(einkauf.filter(i => i.id !== item.id))} className="h-7 text-[11px] border-slate-700 hover:bg-emerald-500/10 hover:text-emerald-400">
-                          <Check className="h-3 w-3 mr-1" /> Erledigt
-                        </Button>
-                      </div>
-                    ))}
+                    {einkauf.length === 0 ? (
+                      <p className="text-xs text-slate-400 py-4 text-center">Keine Artikel auf der Einkaufsliste oder lade...</p>
+                    ) : (
+                      einkauf.map((item) => (
+                        <div key={item.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-800/60">
+                          <span className="text-xs text-slate-200 font-medium">🛒 {item.artikel}</span>
+                          <Button variant="outline" size="sm" onClick={() => setEinkauf(einkauf.filter(i => i.id !== item.id))} className="h-7 text-[11px] border-slate-700 hover:bg-emerald-500/10 hover:text-emerald-400">
+                            <Check className="h-3 w-3 mr-1" /> Erledigt
+                          </Button>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -385,19 +403,37 @@ export default function DashboardPage() {
             <div className="space-y-6">
               <div>
                 <h2 className="text-2xl font-bold tracking-tight text-white">Vorratskammer & KI <span className="text-blue-500">.</span></h2>
-                <p className="text-xs text-slate-400 mt-1">Google Gemini MHD-Scanner.</p>
+                <p className="text-xs text-slate-400 mt-1">Google Sheets Vorrat & Gemini MHD-Scanner.</p>
               </div>
 
-              <Card className="bg-[#0e131f]/80 border-slate-800/80">
-                <CardHeader><CardTitle className="text-sm font-semibold text-white flex items-center gap-2"><Camera className="h-4 w-4 text-blue-400" /> KI MHD-Scanner</CardTitle></CardHeader>
-                <CardContent>
-                  <div className="border-2 border-dashed border-slate-800 rounded-xl p-8 text-center bg-slate-900/30">
-                    <Camera className="h-8 w-8 text-slate-500 mx-auto mb-2" />
-                    <p className="text-xs text-slate-300 font-medium">Foto aufnehmen oder hochladen</p>
-                    <Button className="mt-4 bg-blue-600 hover:bg-blue-500 text-xs">Produkt analysieren</Button>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="bg-[#0e131f]/80 border-slate-800/80">
+                  <CardHeader><CardTitle className="text-sm font-semibold text-white">📦 Aktueller Vorrat</CardTitle></CardHeader>
+                  <CardContent className="space-y-2">
+                    {vorrat.length === 0 ? (
+                      <p className="text-xs text-slate-400 py-4 text-center">Keine Vorräte geladen.</p>
+                    ) : (
+                      vorrat.map((v) => (
+                        <div key={v.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-800/60 text-xs">
+                          <span className="font-medium text-slate-200">🥫 {v.artikel}</span>
+                          <span className="text-slate-400">MHD: {v.mhd}</span>
+                        </div>
+                      ))
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-[#0e131f]/80 border-slate-800/80">
+                  <CardHeader><CardTitle className="text-sm font-semibold text-white flex items-center gap-2"><Camera className="h-4 w-4 text-blue-400" /> KI MHD-Scanner</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="border-2 border-dashed border-slate-800 rounded-xl p-8 text-center bg-slate-900/30">
+                      <Camera className="h-8 w-8 text-slate-500 mx-auto mb-2" />
+                      <p className="text-xs text-slate-300 font-medium">Foto aufnehmen oder hochladen</p>
+                      <Button className="mt-4 bg-blue-600 hover:bg-blue-500 text-xs">Produkt analysieren</Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           )}
 
@@ -408,9 +444,19 @@ export default function DashboardPage() {
                 <h2 className="text-2xl font-bold tracking-tight text-white">Termine & Kalender <span className="text-blue-500">.</span></h2>
                 <p className="text-xs text-slate-400 mt-1">Apple Kalender Integration.</p>
               </div>
+
               <Card className="bg-[#0e131f]/80 border-slate-800/80">
-                <CardContent className="pt-6">
-                  <p className="text-xs text-slate-400">Deine Apple-Kalender Daten werden fehlerfrei synchronisiert.</p>
+                <CardContent className="pt-6 space-y-3">
+                  {termine.length === 0 ? (
+                    <p className="text-xs text-slate-400 py-4 text-center">Keine anstehenden Termine im Kalender gefunden.</p>
+                  ) : (
+                    termine.map((t, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-800/60 text-xs">
+                        <span className="font-medium text-slate-200">📅 {t.title}</span>
+                        <span className="text-blue-400 font-mono">{t.date}</span>
+                      </div>
+                    ))
+                  )}
                 </CardContent>
               </Card>
             </div>
