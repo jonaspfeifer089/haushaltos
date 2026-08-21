@@ -1,117 +1,99 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { 
-  Home, 
-  ShoppingCart, 
-  Package, 
-  Calendar as CalendarIcon, 
-  LogOut, 
-  CloudSun, 
-  CheckCircle2, 
-  Clock, 
-  AlertTriangle, 
-  TrendingUp, 
-  Train,
-  Plus,
-  Check,
-  ClipboardList,
-  Camera
+  Home, ShoppingCart, Package, Calendar as CalendarIcon, LogOut, CloudSun, CheckCircle2, Clock, AlertTriangle, TrendingUp, Train, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-interface Departure {
-  line: string;
-  destination: string;
-  time: string;
-  delay?: number;
-}
+interface Departure { line: string; destination: string; time: string; }
+interface EinkaufItem { rowIndex: number; artikel: string; status: string; }
+interface PutzItem { rowIndex: number; aufgabe: string; letztesDatum: string; intervall: string; }
+interface VorratItem { rowIndex: number; artikel: string; ablaufdatum: string; anbruch: string; }
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("home");
   const [departures, setDepartures] = useState<Departure[]>([]);
   const [weather, setWeather] = useState<string>("Lädt...");
-  const [loadingTransit, setLoadingTransit] = useState(true);
-
-  // States exakt nach deinen Tabellen
-  const [einkauf, setEinkauf] = useState<{ id: number; artikel: string; status: string }[]>([]);
+  const [termine, setTermine] = useState<{ title: string; date: string }[]>([]);
+  
+  const [einkauf, setEinkauf] = useState<EinkaufItem[]>([]);
   const [neuerArtikel, setNeuerArtikel] = useState("");
 
-  const [aufgaben, setAufgaben] = useState<{ id: number; aufgabe: string; letztesDatum: string; intervall: string }[]>([]);
-  const [vorrat, setVorrat] = useState<{ id: number; artikel: string; ablaufdatum: string; anbruchsdatum: string }[]>([]);
-  const [termine, setTermine] = useState<{ title: string; date: string }[]>([]);
+  const [aufgaben, setAufgaben] = useState<PutzItem[]>([]);
+  const [vorrat, setVorrat] = useState<VorratItem[]>([]);
+  
+  const [isScanning, setIsScanning] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // 1. Live Wetter
+  const fetchData = async () => {
+    try {
+      const res = await fetch("/api/data");
+      const data = await res.json();
+      
+      if (data.einkauf) setEinkauf(data.einkauf.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, artikel: r[0], status: r[1] || "Offen" })).filter((x: any) => x.artikel));
+      if (data.haushalt) setAufgaben(data.haushalt.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, aufgabe: r[0], letztesDatum: r[1], intervall: r[2] })).filter((x: any) => x.aufgabe));
+      if (data.vorrat) setVorrat(data.vorrat.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, artikel: r[0], ablaufdatum: r[1], anbruch: r[2] || "" })).filter((x: any) => x.artikel));
+    } catch (e) { console.error(e); }
+  };
+
   useEffect(() => {
+    fetchData();
+    fetch("/api/calendar").then(res => res.json()).then(data => setTermine(data.events || []));
     fetch("https://api.open-meteo.com/v1/forecast?latitude=48.1764&longitude=11.5311&current=temperature_2m,weather_code")
-      .then(res => res.json())
-      .then(data => setWeather(`${data?.current?.temperature_2m ?? "--"}°C`))
-      .catch(() => setWeather("N/A"));
-  }, []);
-
-  // 2. Live ÖPNV (MVG OEZ)
-  useEffect(() => {
+      .then(res => res.json()).then(data => setWeather(`${data?.current?.temperature_2m ?? "--"}°C`));
     fetch("https://www.mvg.de/api/bgw-pt/v3/departures?globalId=de:09162:70")
-      .then(res => res.json())
-      .then((data) => {
-        if (Array.isArray(data)) {
-          const list: Departure[] = data.slice(0, 5).map((d: any) => ({
-            line: d.label || "U",
-            destination: d.destination || "Unbekannt",
-            time: new Date(d.realtimeDepartureTime || d.plannedDepartureTime).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }),
-          }));
-          setDepartures(list);
-        }
-      })
-      .catch(() => setDepartures([]))
-      .finally(() => setLoadingTransit(false));
+      .then(res => res.json()).then(data => {
+        if (Array.isArray(data)) setDepartures(data.slice(0, 5).map((d: any) => ({
+          line: d.label || "U", destination: d.destination || "Unbekannt", time: new Date(d.realtimeDepartureTime || d.plannedDepartureTime).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
+        })));
+      });
   }, []);
 
-  // 3. Echte Google Sheets Daten laden (Haushalt, Einkauf, Vorrat)
-  useEffect(() => {
-    fetch("/api/data")
-      .then(res => res.json())
-      .then(data => {
-        if (data.einkauf && Array.isArray(data.einkauf)) {
-          setEinkauf(data.einkauf.slice(1).map((row: any, i: number) => ({
-            id: i,
-            artikel: row[0] || "",
-            status: row[1] || "Offen"
-          })).filter((i: any) => i.artikel));
-        }
-        if (data.haushalt && Array.isArray(data.haushalt)) {
-          setAufgaben(data.haushalt.slice(1).map((row: any, i: number) => ({
-            id: i,
-            aufgabe: row[0] || "",
-            letztesDatum: row[1] || "",
-            intervall: row[2] || ""
-          })).filter((i: any) => i.aufgabe));
-        }
-        if (data.vorrat && Array.isArray(data.vorrat)) {
-          setVorrat(data.vorrat.slice(1).map((row: any, i: number) => ({
-            id: i,
-            artikel: row[0] || "",
-            ablaufdatum: row[1] || "",
-            anbruchsdatum: row[2] || ""
-          })).filter((i: any) => i.artikel));
-        }
-      })
-      .catch(err => console.error("Fehler beim Laden:", err));
-  }, []);
+  const addEinkauf = async () => {
+    if (!neuerArtikel) return;
+    const newItem = { rowIndex: einkauf.length + 2, artikel: neuerArtikel, status: "Offen" };
+    setEinkauf([...einkauf, newItem]);
+    setNeuerArtikel("");
+    await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Einkauf", values: [newItem.artikel, newItem.status] }) });
+    fetchData(); // Refresh DB
+  };
 
-  // 4. Kalender Termine laden
-  useEffect(() => {
-    fetch("/api/calendar")
-      .then(res => res.json())
-      .then(data => {
-        if (data.events) {
-          setTermine(data.events);
+  const markEinkaufErledigt = async (item: EinkaufItem) => {
+    setEinkauf(einkauf.map(e => e.rowIndex === item.rowIndex ? { ...e, status: "Erledigt" } : e));
+    await fetch("/api/data", { method: "PUT", body: JSON.stringify({ sheetName: "Einkauf", rowIndex: item.rowIndex, values: [item.artikel, "Erledigt"] }) });
+  };
+
+  const markAufgabeErledigt = async (item: PutzItem) => {
+    const today = new Date().toISOString().split("T")[0];
+    setAufgaben(aufgaben.map(a => a.rowIndex === item.rowIndex ? { ...a, letztesDatum: today } : a));
+    await fetch("/api/data", { method: "PUT", body: JSON.stringify({ sheetName: "Haushalt", rowIndex: item.rowIndex, values: [item.aufgabe, today, item.intervall, "Jonas"] }) });
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsScanning(true);
+    
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64 = (reader.result as string).split(',')[1];
+      try {
+        const res = await fetch("/api/vision", { method: "POST", body: JSON.stringify({ imageBase64: base64 }) });
+        const aiData = await res.json();
+        if (aiData.artikel && aiData.mhd) {
+          await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Vorrat", values: [aiData.artikel, aiData.mhd, ""] }) });
+          fetchData(); // Liste aktualisieren
         }
-      })
-      .catch(err => console.error("Fehler beim Laden des Kalenders:", err));
-  }, []);
+      } catch (err) { console.error(err); }
+      setIsScanning(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const offeneEinkaeufe = einkauf.filter(e => e.status !== "Erledigt");
 
   return (
     <div className="flex min-h-screen bg-[#07090e] text-slate-100 selection:bg-blue-600 selection:text-white">
@@ -120,26 +102,18 @@ export default function DashboardPage() {
         <div>
           <div className="flex items-center gap-3 px-3 py-4 mb-6 border-b border-slate-800/60">
             <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20">🏠</div>
-            <div>
-              <h1 className="font-semibold text-sm tracking-tight text-white">Haushalt OS</h1>
-              <p className="text-xs text-slate-400">Pro Dashboard v2.0</p>
-            </div>
+            <div><h1 className="font-semibold text-sm tracking-tight text-white">Haushalt OS</h1><p className="text-xs text-slate-400">Pro Dashboard v2.0</p></div>
           </div>
-
           <nav className="space-y-1">
-            <button onClick={() => setActiveTab("home")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${activeTab === "home" ? "bg-blue-600/15 text-blue-400 border border-blue-500/30" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"}`}><Home className="h-4 w-4" /> Overview</button>
-            <button onClick={() => setActiveTab("einkauf")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${activeTab === "einkauf" ? "bg-blue-600/15 text-blue-400 border border-blue-500/30" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"}`}><ShoppingCart className="h-4 w-4" /> Einkaufsliste</button>
-            <button onClick={() => setActiveTab("putzplan")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${activeTab === "putzplan" ? "bg-blue-600/15 text-blue-400 border border-blue-500/30" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"}`}><ClipboardList className="h-4 w-4" /> Putzplan & Aufgaben</button>
-            <button onClick={() => setActiveTab("vorrat")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${activeTab === "vorrat" ? "bg-blue-600/15 text-blue-400 border border-blue-500/30" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"}`}><Package className="h-4 w-4" /> Vorratskammer (KI)</button>
-            <button onClick={() => setActiveTab("kalender")} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${activeTab === "kalender" ? "bg-blue-600/15 text-blue-400 border border-blue-500/30" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"}`}><CalendarIcon className="h-4 w-4" /> Termine</button>
+            {[{id: "home", icon: Home, label: "Overview"}, {id: "einkauf", icon: ShoppingCart, label: "Einkaufsliste"}, {id: "putzplan", icon: ClipboardList, label: "Putzplan & Aufgaben"}, {id: "vorrat", icon: Package, label: "Vorratskammer (KI)"}, {id: "kalender", icon: CalendarIcon, label: "Termine"}].map(tab => (
+              <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? "bg-blue-600/15 text-blue-400 border border-blue-500/30" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"}`}>
+                <tab.icon className="h-4 w-4" /> {tab.label}
+              </button>
+            ))}
           </nav>
         </div>
-
         <div className="pt-4 border-t border-slate-800/60 flex items-center justify-between px-2">
-          <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-semibold text-slate-300">J</div>
-            <span className="text-xs text-slate-300 font-medium">Jonas</span>
-          </div>
+          <div className="flex items-center gap-2"><div className="h-7 w-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-semibold text-slate-300">J</div><span className="text-xs text-slate-300 font-medium">Jonas</span></div>
           <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-400 hover:bg-red-500/10"><LogOut className="h-4 w-4" /></Button>
         </div>
       </aside>
@@ -152,98 +126,101 @@ export default function DashboardPage() {
         </header>
 
         <div className="p-8 max-w-7xl mx-auto w-full space-y-8">
-          
-          {/* TAB 1: HOME */}
           {activeTab === "home" && (
             <>
-              <div>
-                <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">Overview <span className="text-blue-500">.</span></h2>
-                <p className="text-xs text-slate-400 mt-1">Echte Google Sheets & Kalender Daten in Echtzeit.</p>
-              </div>
-
+              <div><h2 className="text-2xl font-bold text-white">Overview <span className="text-blue-500">.</span></h2><p className="text-xs text-slate-400 mt-1">Dein Cockpit.</p></div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-xs font-medium text-slate-400">Wetter OEZ</CardTitle><CloudSun className="h-4 w-4 text-blue-400" /></CardHeader><CardContent><div className="text-2xl font-bold text-white">{weather}</div><div className="text-[11px] text-emerald-400 mt-1"><TrendingUp className="h-3 w-3 inline" /> Live Forecast</div></CardContent></Card>
-                <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-xs font-medium text-slate-400">Putzplan Aufgaben</CardTitle><CheckCircle2 className="h-4 w-4 text-amber-400" /></CardHeader><CardContent><div className="text-2xl font-bold text-white">{aufgaben.length}</div><div className="text-[11px] text-amber-400 mt-1">Aktiv</div></CardContent></Card>
-                <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-xs font-medium text-slate-400">Apple Kalender</CardTitle><CalendarIcon className="h-4 w-4 text-emerald-400" /></CardHeader><CardContent><div className="text-2xl font-bold text-white">{termine.length} Termine</div><div className="text-[11px] text-slate-400 mt-1">ICS Sync</div></CardContent></Card>
-                <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-xs font-medium text-slate-400">Vorratskammer</CardTitle><AlertTriangle className="h-4 w-4 text-rose-400" /></CardHeader><CardContent><div className="text-2xl font-bold text-white">{vorrat.length} Artikel</div><div className="text-[11px] text-emerald-400 mt-1">Gepflegt</div></CardContent></Card>
+                <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-xs font-medium text-slate-400">Wetter OEZ</CardTitle><CloudSun className="h-4 w-4 text-blue-400" /></CardHeader><CardContent><div className="text-2xl font-bold text-white">{weather}</div></CardContent></Card>
+                <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-xs font-medium text-slate-400">Offene Aufgaben</CardTitle><CheckCircle2 className="h-4 w-4 text-amber-400" /></CardHeader><CardContent><div className="text-2xl font-bold text-white">{aufgaben.length}</div></CardContent></Card>
+                <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-xs font-medium text-slate-400">Einkaufsliste</CardTitle><ShoppingCart className="h-4 w-4 text-emerald-400" /></CardHeader><CardContent><div className="text-2xl font-bold text-white">{offeneEinkaeufe.length}</div></CardContent></Card>
+                <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardHeader className="flex flex-row items-center justify-between pb-2"><CardTitle className="text-xs font-medium text-slate-400">Kalender</CardTitle><CalendarIcon className="h-4 w-4 text-blue-400" /></CardHeader><CardContent><div className="text-2xl font-bold text-white">{termine.length}</div></CardContent></Card>
               </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <Card className="lg:col-span-2 bg-[#0e131f]/80 border-slate-800/80"><CardHeader><CardTitle className="text-sm font-semibold text-white">📝 Status Briefing</CardTitle></CardHeader><CardContent className="text-xs text-slate-300">Alle Google Tabellen und der ICS-Kalender sind aktiv eingebunden.</CardContent></Card>
-                <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardHeader className="flex flex-row items-center justify-between"><CardTitle className="text-sm font-semibold text-white flex items-center gap-2"><Train className="h-4 w-4 text-blue-400" /> ÖPNV (OEZ)</CardTitle><Badge variant="secondary" className="text-[10px] bg-slate-800 text-slate-300">Live</Badge></CardHeader><CardContent>{loadingTransit ? <p className="text-xs text-slate-400">Lade...</p> : <div className="space-y-2.5">{departures.map((d, i) => <div key={i} className="flex justify-between text-xs py-1 border-b border-slate-800/50"><span className="font-bold text-blue-400">{d.line} {d.destination}</span><span className="font-mono text-slate-400">{d.time}</span></div>)}</div>}</CardContent></Card>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardHeader><CardTitle className="text-sm font-semibold text-white flex items-center gap-2"><Train className="h-4 w-4 text-blue-400" /> ÖPNV (OEZ)</CardTitle></CardHeader><CardContent><div className="space-y-2.5">{departures.map((d, i) => <div key={i} className="flex justify-between text-xs py-1 border-b border-slate-800/50"><span className="font-bold text-blue-400">{d.line} {d.destination}</span><span className="font-mono text-slate-400">{d.time}</span></div>)}</div></CardContent></Card>
+                <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardHeader><CardTitle className="text-sm font-semibold text-white">Anstehende Termine</CardTitle></CardHeader><CardContent><div className="space-y-2.5">{termine.slice(0,3).map((t, i) => <div key={i} className="flex justify-between text-xs py-1 border-b border-slate-800/50"><span className="text-slate-200">{t.title}</span><span className="font-mono text-blue-400">{t.date}</span></div>)}</div></CardContent></Card>
               </div>
             </>
           )}
 
-          {/* TAB 2: EINKAUFSLISTE */}
           {activeTab === "einkauf" && (
             <div className="space-y-6">
-              <div><h2 className="text-2xl font-bold text-white">Einkaufsliste <span className="text-blue-500">.</span></h2><p className="text-xs text-slate-400">Schreibt direkt in dein Google Sheet.</p></div>
+              <div><h2 className="text-2xl font-bold text-white">Einkaufsliste <span className="text-blue-500">.</span></h2></div>
               <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardContent className="pt-6">
                 <div className="flex gap-3 mb-6">
-                  <input type="text" placeholder="Neuer Artikel..." value={neuerArtikel} onChange={(e) => setNeuerArtikel(e.target.value)} className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 text-xs text-slate-200 focus:outline-none focus:border-blue-500" />
-                  <Button onClick={async () => {
-                    if(neuerArtikel) {
-                      setEinkauf([...einkauf, { id: Date.now(), artikel: neuerArtikel, status: "Offen" }]);
-                      await fetch("/api/data", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sheetName: "Einkauf", values: [neuerArtikel, "Offen"] }) });
-                      setNeuerArtikel("");
-                    }
-                  }} className="bg-blue-600 hover:bg-blue-500 text-xs"><Plus className="h-4 w-4 mr-1" /> Hinzufügen</Button>
+                  <input type="text" placeholder="Neuer Artikel..." value={neuerArtikel} onChange={(e) => setNeuerArtikel(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addEinkauf()} className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 text-xs text-slate-200 focus:outline-none focus:border-blue-500" />
+                  <Button onClick={addEinkauf} className="bg-blue-600 hover:bg-blue-500 text-xs"><Plus className="h-4 w-4 mr-1" /> Hinzufügen</Button>
                 </div>
-                <div className="space-y-2">{einkauf.map((item, idx) => <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-800/60"><span className="text-xs text-slate-200 font-medium">🛒 {item.artikel}</span><Badge variant="outline" className="text-[10px] border-slate-700 text-slate-300">{item.status}</Badge></div>)}</div>
+                <div className="space-y-2">
+                  {offeneEinkaeufe.map((item, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-800/60">
+                      <span className="text-xs text-slate-200 font-medium">🛒 {item.artikel}</span>
+                      <Button onClick={() => markEinkaufErledigt(item)} variant="outline" size="sm" className="h-7 text-[11px] border-slate-700 hover:bg-emerald-500/10 hover:text-emerald-400"><Check className="h-3 w-3 mr-1" /> Erledigt</Button>
+                    </div>
+                  ))}
+                </div>
               </CardContent></Card>
             </div>
           )}
 
-          {/* TAB 3: PUTZPLAN */}
           {activeTab === "putzplan" && (
             <div className="space-y-6">
-              <div><h2 className="text-2xl font-bold text-white">Putzplan & Aufgaben <span className="text-blue-500">.</span></h2><p className="text-xs text-slate-400">Aus dem Tabellenblatt "Haushalt".</p></div>
+              <div><h2 className="text-2xl font-bold text-white">Putzplan <span className="text-blue-500">.</span></h2></div>
               <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardContent className="pt-6 space-y-2">
                 {aufgaben.map((a, idx) => (
                   <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-800/60 text-xs">
-                    <div><span className="font-medium text-slate-200">🧹 {a.aufgabe}</span><span className="text-slate-400 block text-[11px]">Intervall: Alle {a.intervall} Tage | Letztes Mal: {a.letztesDatum}</span></div>
-                    <Button variant="outline" size="sm" className="h-7 text-[11px] border-slate-700 hover:bg-emerald-500/10 hover:text-emerald-400">Erledigt</Button>
+                    <div><span className="font-medium text-slate-200">🧹 {a.aufgabe}</span><span className="text-slate-400 block text-[11px]">Intervall: {a.intervall} Tage | Letztes Mal: {a.letztesDatum}</span></div>
+                    <Button onClick={() => markAufgabeErledigt(a)} variant="outline" size="sm" className="h-7 text-[11px] border-slate-700 hover:bg-emerald-500/10 hover:text-emerald-400"><Check className="h-3 w-3 mr-1" /> Heute erledigt</Button>
                   </div>
                 ))}
               </CardContent></Card>
             </div>
           )}
 
-          {/* TAB 4: VORRAT */}
           {activeTab === "vorrat" && (
             <div className="space-y-6">
-              <div><h2 className="text-2xl font-bold text-white">Vorratskammer <span className="text-blue-500">.</span></h2><p className="text-xs text-slate-400">Aus dem Tabellenblatt "Vorrat".</p></div>
-              <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardContent className="pt-6 space-y-2">
-                {vorrat.map((v, idx) => (
+              <div><h2 className="text-2xl font-bold text-white">Vorratskammer & KI <span className="text-blue-500">.</span></h2></div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardHeader><CardTitle className="text-sm font-semibold text-white">📦 Aktueller Vorrat</CardTitle></CardHeader>
+                  <CardContent className="space-y-2">
+                    {vorrat.map((v, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-800/60 text-xs">
+                        <span className="font-medium text-slate-200">🥫 {v.artikel}</span><span className="text-slate-400">MHD: {v.ablaufdatum}</span>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+                <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardHeader><CardTitle className="text-sm font-semibold text-white flex items-center gap-2"><Camera className="h-4 w-4 text-blue-400" /> KI MHD-Scanner</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="border-2 border-dashed border-slate-800 rounded-xl p-8 text-center bg-slate-900/30 flex flex-col items-center justify-center">
+                      {isScanning ? (
+                        <div className="flex flex-col items-center gap-3"><Loader2 className="h-8 w-8 text-blue-500 animate-spin" /><p className="text-xs text-slate-300">Gemini analysiert Produkt & MHD...</p></div>
+                      ) : (
+                        <>
+                          <UploadCloud className="h-8 w-8 text-slate-500 mb-2" />
+                          <p className="text-xs text-slate-300 font-medium mb-4">Foto aufnehmen oder hochladen</p>
+                          <input type="file" accept="image/*" ref={fileInputRef} className="hidden" onChange={handleImageUpload} />
+                          <Button onClick={() => fileInputRef.current?.click()} className="bg-blue-600 hover:bg-blue-500 text-xs">Produkt scannen</Button>
+                        </>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "kalender" && (
+            <div className="space-y-6">
+              <div><h2 className="text-2xl font-bold text-white">Kalender <span className="text-blue-500">.</span></h2></div>
+              <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardContent className="pt-6 space-y-3">
+                {termine.length === 0 ? <p className="text-xs text-slate-400 text-center">Keine Termine gefunden.</p> : termine.map((t, idx) => (
                   <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-800/60 text-xs">
-                    <span className="font-medium text-slate-200">🥫 {v.artikel}</span>
-                    <span className="text-slate-400">Ablaufdatum: {v.ablaufdatum} | Anbruch: {v.anbruchsdatum || "Nein"}</span>
+                    <span className="font-medium text-slate-200">📅 {t.title}</span><span className="text-blue-400 font-mono">{t.date}</span>
                   </div>
                 ))}
               </CardContent></Card>
             </div>
           )}
-
-          {/* TAB 5: KALENDER */}
-          {activeTab === "kalender" && (
-            <div className="space-y-6">
-              <div><h2 className="text-2xl font-bold text-white">Termine & Kalender <span className="text-blue-500">.</span></h2><p className="text-xs text-slate-400">Echtzeit-Synchronisation über ICS-Kalender-Link.</p></div>
-              <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardContent className="pt-6 space-y-3">
-                {termine.length === 0 ? (
-                  <p className="text-xs text-slate-400 py-4 text-center">Keine Termine gefunden oder kein ICS-Link in den Vercel-Umgebungsvariablen hinterlegt (`APPLE_CALENDAR_URL`).</p>
-                ) : (
-                  termine.map((t, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-800/60 text-xs">
-                      <span className="font-medium text-slate-200">📅 {t.title}</span>
-                      <span className="text-blue-400 font-mono">{t.date}</span>
-                    </div>
-                  ))
-                )}
-              </CardContent></Card>
-            </div>
-          )}
-
         </div>
       </main>
     </div>
