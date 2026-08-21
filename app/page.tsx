@@ -16,7 +16,8 @@ import {
   Plus,
   Trash2,
   Camera,
-  Check
+  Check,
+  ClipboardList
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -35,20 +36,47 @@ export default function DashboardPage() {
   const [weather, setWeather] = useState<string>("Lädt...");
   const [loadingTransit, setLoadingTransit] = useState(true);
 
-  // States für Live-Daten
-  const [einkauf, setEinkauf] = useState<any[]>([]);
+  // States für alle Bereiche
+  const [einkauf, setEinkauf] = useState([
+    { id: 1, artikel: "Milch" },
+    { id: 2, artikel: "Kaffee" }
+  ]);
   const [neuerArtikel, setNeuerArtikel] = useState("");
-  const [vorrat, setVorrat] = useState<any[]>([]);
 
-  // Live Wetter (Open-Meteo für München OEZ / Umgebung)
+  const [aufgaben, setAufgaben] = useState([
+    { id: 1, aufgabe: "Küche wischen", intervall: 3, letztesDatum: "2026-08-18" },
+    { id: 2, aufgabe: "Müll rausbringen", intervall: 2, letztesDatum: "2026-08-20" }
+  ]);
+  const [neueAufgabe, setNeueAufgabe] = useState("");
+
+  const [vorrat, setVorrat] = useState([
+    { id: 1, artikel: "Hafermilch", mhd: "2026-08-25" }
+  ]);
+
+  // Live Wetter (Open-Meteo)
+  // Echte Google Sheets Daten beim Laden abrufen
   useEffect(() => {
-    fetch("https://api.open-meteo.com/v1/forecast?latitude=48.1764&longitude=11.5311&current=temperature_2m,weather_code")
+    fetch("/api/data")
       .then(res => res.json())
       .then(data => {
-        const temp = data?.current?.temperature_2m;
-        setWeather(`${temp ?? "--"}°C`);
+        if (data.einkauf) {
+          // Wandelt das Google-Sheet-Array in ein sauberes Objekt um
+          const mappedEinkauf = data.einkauf.slice(1).map((row: any, index: number) => ({
+            id: index,
+            artikel: row[0] || ""
+          }));
+          setEinkauf(mappedEinkauf);
+        }
+        if (data.vorrat) {
+          const mappedVorrat = data.vorrat.slice(1).map((row: any, index: number) => ({
+            id: index,
+            artikel: row[0] || "",
+            mhd: row[1] || ""
+          }));
+          setVorrat(mappedVorrat);
+        }
       })
-      .catch(() => setWeather("N/A"));
+      .catch(err => console.error("Fehler beim Abrufen der Sheets:", err));
   }, []);
 
   // Live ÖPNV (MVG OEZ)
@@ -110,6 +138,15 @@ export default function DashboardPage() {
             </button>
 
             <button
+              onClick={() => setActiveTab("putzplan")}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${
+                activeTab === "putzplan" ? "bg-blue-600/15 text-blue-400 border border-blue-500/30" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
+              }`}
+            >
+              <ClipboardList className="h-4 w-4" /> Putzplan & Aufgaben
+            </button>
+
+            <button
               onClick={() => setActiveTab("vorrat")}
               className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${
                 activeTab === "vorrat" ? "bg-blue-600/15 text-blue-400 border border-blue-500/30" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"
@@ -151,7 +188,7 @@ export default function DashboardPage() {
             <span className="text-slate-100 font-medium capitalize">{activeTab}</span>
           </div>
           <Badge variant="outline" className="border-blue-500/30 bg-blue-500/10 text-blue-400 text-[11px] px-2.5 py-0.5">
-            Production Ready
+            Pro Active
           </Badge>
         </header>
 
@@ -185,8 +222,8 @@ export default function DashboardPage() {
                     <CheckCircle2 className="h-4 w-4 text-amber-400" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold tracking-tight text-white">0</div>
-                    <div className="flex items-center gap-1 text-[11px] text-emerald-400 mt-1"><Clock className="h-3 w-3" /> Alles erledigt</div>
+                    <div className="text-2xl font-bold tracking-tight text-white">{aufgaben.length}</div>
+                    <div className="flex items-center gap-1 text-[11px] text-amber-400 mt-1"><Clock className="h-3 w-3" /> Aufgaben aktiv</div>
                   </CardContent>
                 </Card>
 
@@ -207,20 +244,23 @@ export default function DashboardPage() {
                     <AlertTriangle className="h-4 w-4 text-rose-400" />
                   </CardHeader>
                   <CardContent>
-                    <div className="text-2xl font-bold tracking-tight text-white">Optimal</div>
-                    <div className="text-[11px] text-emerald-400 mt-1">Keine Artikel kritisch</div>
+                    <div className="text-2xl font-bold tracking-tight text-white">{vorrat.length} Artikel</div>
+                    <div className="text-[11px] text-emerald-400 mt-1">Gepflegt</div>
                   </CardContent>
                 </Card>
               </div>
 
-              {/* BRIEFING & ÖPNV */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <Card className="lg:col-span-2 bg-[#0e131f]/80 border-slate-800/80">
                   <CardHeader><CardTitle className="text-sm font-semibold text-white">📝 Daily Briefing</CardTitle></CardHeader>
                   <CardContent className="space-y-4 text-xs">
                     <div className="p-3 rounded-lg bg-slate-900/60 border border-slate-800">
-                      <span className="font-semibold text-blue-400 block mb-1">📅 System-Status</span>
-                      <p className="text-slate-300">Alle APIs (MVG, Open-Meteo, Sheets) arbeiten fehlerfrei im Hintergrund.</p>
+                      <span className="font-semibold text-blue-400 block mb-1">🧹 Anstehende Aufgaben</span>
+                      {aufgaben.length === 2 ? (
+                        <p className="text-slate-300">Küche wischen & Müll rausbringen sind im Plan.</p>
+                      ) : (
+                        <p className="text-slate-300">{aufgaben.length} Aufgaben im System.</p>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -272,7 +312,7 @@ export default function DashboardPage() {
                     />
                     <Button onClick={() => {
                       if(neuerArtikel) {
-                        setEinkauf([...einkauf, { artikel: neuerArtikel }]);
+                        setEinkauf([...einkauf, { id: Date.now(), artikel: neuerArtikel }]);
                         setNeuerArtikel("");
                       }
                     }} className="bg-blue-600 hover:bg-blue-500 text-xs">
@@ -281,10 +321,10 @@ export default function DashboardPage() {
                   </div>
 
                   <div className="space-y-2">
-                    {einkauf.map((item, idx) => (
-                      <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-800/60">
+                    {einkauf.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-800/60">
                         <span className="text-xs text-slate-200 font-medium">🛒 {item.artikel}</span>
-                        <Button variant="outline" size="sm" onClick={() => setEinkauf(einkauf.filter((_, i) => i !== idx))} className="h-7 text-[11px] border-slate-700 hover:bg-emerald-500/10 hover:text-emerald-400">
+                        <Button variant="outline" size="sm" onClick={() => setEinkauf(einkauf.filter(i => i.id !== item.id))} className="h-7 text-[11px] border-slate-700 hover:bg-emerald-500/10 hover:text-emerald-400">
                           <Check className="h-3 w-3 mr-1" /> Erledigt
                         </Button>
                       </div>
@@ -295,7 +335,53 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* TAB 3: VORRAT */}
+          {/* TAB 3: PUTZPLAN & AUFGABEN */}
+          {activeTab === "putzplan" && (
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-2xl font-bold tracking-tight text-white">Putzplan & Aufgaben <span className="text-blue-500">.</span></h2>
+                <p className="text-xs text-slate-400 mt-1">Haushaltsorganisation im Intervall.</p>
+              </div>
+
+              <Card className="bg-[#0e131f]/80 border-slate-800/80">
+                <CardContent className="pt-6 space-y-4">
+                  <div className="flex gap-3 mb-6">
+                    <input 
+                      type="text" 
+                      placeholder="Neue Aufgabe (z.B. Bad putzen)..." 
+                      value={neueAufgabe}
+                      onChange={(e) => setNeueAufgabe(e.target.value)}
+                      className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 text-xs text-slate-200 focus:outline-none focus:border-blue-500"
+                    />
+                    <Button onClick={() => {
+                      if(neueAufgabe) {
+                        setAufgaben([...aufgaben, { id: Date.now(), aufgabe: neueAufgabe, intervall: 7, letztesDatum: new Date().toISOString().split('T')[0] }]);
+                        setNeueAufgabe("");
+                      }
+                    }} className="bg-blue-600 hover:bg-blue-500 text-xs">
+                      <Plus className="h-4 w-4 mr-1" /> Hinzufügen
+                    </Button>
+                  </div>
+
+                  <div className="space-y-2">
+                    {aufgaben.map((a) => (
+                      <div key={a.id} className="flex items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-800/60 text-xs">
+                        <div>
+                          <span className="font-medium text-slate-200">🧹 {a.aufgabe}</span>
+                          <span className="text-slate-400 block text-[11px]">Intervall: Alle {a.intervall} Tage (Zuletzt: {a.letztesDatum})</span>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={() => setAufgaben(aufgaben.filter(item => item.id !== a.id))} className="h-7 text-[11px] border-slate-700 hover:bg-emerald-500/10 hover:text-emerald-400">
+                          Erledigt
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* TAB 4: VORRAT */}
           {activeTab === "vorrat" && (
             <div className="space-y-6">
               <div>
@@ -316,11 +402,11 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* TAB 4: KALENDER */}
+          {/* TAB 5: KALENDER */}
           {activeTab === "kalender" && (
             <div className="space-y-6">
               <div>
-                <h2 className="text-2xl font-bold tracking-tight text-white">Termine & Aufgaben <span className="text-blue-500">.</span></h2>
+                <h2 className="text-2xl font-bold tracking-tight text-white">Termine & Kalender <span className="text-blue-500">.</span></h2>
                 <p className="text-xs text-slate-400 mt-1">Apple Kalender Integration.</p>
               </div>
               <Card className="bg-[#0e131f]/80 border-slate-800/80">
