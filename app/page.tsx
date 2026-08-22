@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  Home, ShoppingCart, Package, Calendar as CalendarIcon, Clock, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2, Bell, Settings, Sun, Moon, ChevronDown, ChevronUp, Sparkles, Hourglass, UserCheck, Trash2, StickyNote, ArrowUpRight, CloudSun, Pin, Sparkle, ArrowRight, X, ChevronLeft, ChevronRight
+  Home, ShoppingCart, Package, Calendar as CalendarIcon, Clock, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2, Bell, Settings, Sun, Moon, ChevronDown, ChevronUp, Sparkles, Hourglass, UserCheck, Trash2, StickyNote, ArrowUpRight, CloudSun, Pin, Sparkle, ArrowRight, X, ChevronLeft, ChevronRight, CalendarDays, LayoutGrid
 } from "lucide-react";
 
 interface Departure { line: string; destination: string; time: string; }
@@ -39,9 +39,9 @@ export default function DashboardPage() {
   const [weatherLabel, setWeatherLabel] = useState<string>("Standort");
   const [termine, setTermine] = useState<CalendarEvent[]>([]);
   
-  // Kalender Ansicht State
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  // Vollwertiger Kalender State
+  const [calendarMode, setCalendarMode] = useState<"month" | "week">("month");
+  const [currentDate, setCurrentDate] = useState(new Date());
 
   const [einkauf, setEinkauf] = useState<EinkaufItem[]>([]);
   const [neuerArtikel, setNeuerArtikel] = useState("");
@@ -191,26 +191,63 @@ export default function DashboardPage() {
     return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
   };
 
-  // Kalender Helper Logik
-  const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
-  const getFirstDayOfMonth = (year: number, month: number) => {
-    let day = new Date(year, month, 1).getDay();
-    return day === 0 ? 6 : day - 1; // Montag als Start der Woche
-  };
-
-  const year = currentMonth.getFullYear();
-  const month = currentMonth.getMonth();
-  const daysInMonth = getDaysInMonth(year, month);
-  const firstDay = getFirstDayOfMonth(year, month);
+  // Kalender Navigation & Datumsberechnung
   const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 
-  const handlePrevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
-  const handleNextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
+  const handlePrev = () => {
+    const newDate = new Date(currentDate);
+    if (calendarMode === "month") {
+      newDate.setMonth(newDate.getMonth() - 1);
+    } else {
+      newDate.setDate(newDate.getDate() - 7);
+    }
+    setCurrentDate(newDate);
+  };
 
-  // Prüfen ob ein Termin an einem bestimmten Kalendertag stattfindet
-  const getEventsForDay = (day: number) => {
-    const dateStrFormatted = `${String(day).padStart(2, '0')}.${String(month + 1).padStart(2, '0')}.`;
-    return termine.filter(t => t.date.includes(dateStrFormatted) || t.date.includes(`${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`));
+  const handleNext = () => {
+    const newDate = new Date(currentDate);
+    if (calendarMode === "month") {
+      newDate.setMonth(newDate.getMonth() + 1);
+    } else {
+      newDate.setDate(newDate.getDate() + 7);
+    }
+    setCurrentDate(newDate);
+  };
+
+  const handleToday = () => setCurrentDate(new Date());
+
+  // Generierung der Tage für die Monatsansicht
+  const year = currentDate.getFullYear();
+  const month = currentDate.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDayOfMonth = new Date(year, month, 1).getDay();
+  const startDayIndex = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1; // Mo Start
+
+  // Generierung der Tage für die Wochenansicht
+  const getWeekDays = () => {
+    const startOfWeek = new Date(currentDate);
+    const day = startOfWeek.getDay();
+    const diff = startOfWeek.getDate() - day + (day === 0 ? -6 : 1);
+    startOfWeek.setDate(diff);
+
+    const weekDays = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(startOfWeek);
+      d.setDate(startOfWeek.getDate() + i);
+      weekDays.push(d);
+    }
+    return weekDays;
+  };
+
+  // Event Matching Helper
+  const getEventsForDate = (dateObj: Date) => {
+    const y = dateObj.getFullYear();
+    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const d = String(dateObj.getDate()).padStart(2, '0');
+    const isoDateStr = `${y}-${m}-${d}`;
+    const germanDateStr = `${d}.${m}.`;
+
+    return termine.filter(t => t.date.includes(isoDateStr) || t.date.includes(germanDateStr));
   };
 
   const offeneEinkaeufe = einkauf.filter(e => e.status !== "Erledigt");
@@ -231,7 +268,7 @@ export default function DashboardPage() {
     { id: "putzplan", icon: ClipboardList, label: "Putzplan" },
     { id: "vorrat", icon: Package, label: "Vorrat" },
     { id: "notizen", icon: StickyNote, label: "Pinnwand" },
-    { id: "kalender", icon: CalendarIcon, label: "Termine" }
+    { id: "kalender", icon: CalendarIcon, label: "Kalender" }
   ];
 
   // FARBPALETTE
@@ -700,66 +737,128 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* TAB 6: ECHTE VISUELLE KALENDERÜBERSICHT */}
+          {/* TAB 6: VOLLWERTIGER KALENDER */}
           {activeTab === "kalender" && (
-            <div className="space-y-8">
+            <div className="space-y-6">
               
-              {/* VISUELLER MONATSKALENDER */}
+              {/* KALENDER HEADER & VIEW SWITCHER */}
               <div className={`${bgCard} rounded-3xl p-6 border space-y-6`}>
-                <div className="flex items-center justify-between">
-                  <h2 className={`text-lg font-bold tracking-tight ${textTitle}`}>
-                    {monthNames[month]} {year}
-                  </h2>
-                  <div className="flex items-center gap-1">
-                    <button onClick={handlePrevMonth} className={`p-2 rounded-xl border ${bgItem} hover:border-[#005377] transition-colors`}><ChevronLeft className="h-4 w-4" /></button>
-                    <button onClick={handleNextMonth} className={`p-2 rounded-xl border ${bgItem} hover:border-[#005377] transition-colors`}><ChevronRight className="h-4 w-4" /></button>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>
+                      {calendarMode === "month" 
+                        ? `${monthNames[currentDate.getMonth()]} ${currentDate.getFullYear()}` 
+                        : `Woche vom ${getWeekDays()[0].toLocaleDateString("de-DE", { day: '2-digit', month: '2-digit' })}`
+                      }
+                    </h2>
+                    <button onClick={handleToday} className={`text-xs px-3 py-1 rounded-lg border ${bgItem} font-bold hover:border-[#005377] transition-colors`}>
+                      Heute
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                    {/* View Switcher */}
+                    <div className={`flex p-1 rounded-xl border ${bgItem}`}>
+                      <button onClick={() => setCalendarMode("month")} className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${calendarMode === "month" ? "bg-[#005377] text-white shadow-sm" : textSub}`}>
+                        Monat
+                      </button>
+                      <button onClick={() => setCalendarMode("week")} className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${calendarMode === "week" ? "bg-[#005377] text-white shadow-sm" : textSub}`}>
+                        Woche
+                      </button>
+                    </div>
+
+                    {/* Navigation Arrows */}
+                    <div className="flex items-center gap-1">
+                      <button onClick={handlePrev} className={`p-2 rounded-xl border ${bgItem} hover:border-[#005377] transition-colors`}><ChevronLeft className="h-4 w-4" /></button>
+                      <button onClick={handleNext} className={`p-2 rounded-xl border ${bgItem} hover:border-[#005377] transition-colors`}><ChevronRight className="h-4 w-4" /></button>
+                    </div>
                   </div>
                 </div>
 
-                {/* Wochentage Header */}
-                <div className="grid grid-cols-7 text-center text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
-                </div>
+                {/* 1. MONATSANSICHT */}
+                {calendarMode === "month" && (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-7 text-center text-[11px] font-bold uppercase tracking-wider text-slate-400 py-2">
+                      <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
+                    </div>
 
-                {/* Tage Grid */}
-                <div className="grid grid-cols-7 gap-2">
-                  {/* Leere Zellen für den Monatsersten */}
-                  {Array.from({ length: firstDay }).map((_, i) => (
-                    <div key={`empty-${i}`} className="h-20 rounded-2xl opacity-20 bg-black/5 dark:bg-white/5" />
-                  ))}
+                    <div className="grid grid-cols-7 gap-2">
+                      {Array.from({ length: startDayIndex }).map((_, i) => (
+                        <div key={`empty-${i}`} className="h-24 rounded-2xl opacity-10 bg-black/5 dark:bg-white/5" />
+                      ))}
 
-                  {/* Monatstage */}
-                  {Array.from({ length: daysInMonth }).map((_, i) => {
-                    const dayNum = i + 1;
-                    const dayEvents = getEventsForDay(dayNum);
-                    const isToday = new Date().getDate() === dayNum && new Date().getMonth() === month && new Date().getFullYear() === year;
+                      {Array.from({ length: daysInMonth }).map((_, i) => {
+                        const dayNum = i + 1;
+                        const dateObj = new Date(year, month, dayNum);
+                        const dayEvents = getEventsForDate(dateObj);
+                        const isToday = new Date().toDateString() === dateObj.toDateString();
 
-                    return (
-                      <div 
-                        key={`day-${dayNum}`} 
-                        className={`h-24 rounded-2xl p-2 border flex flex-col justify-between transition-all ${isToday ? "border-[#005377] bg-[#005377]/10" : `${bgItem} hover:border-slate-400`}`}
-                      >
-                        <div className="flex justify-between items-center">
-                          <span className={`text-xs font-bold font-mono ${isToday ? accentBlue : textTitle}`}>{dayNum}</span>
-                          {dayEvents.length > 0 && (
-                            <span className="h-2 w-2 rounded-full bg-[#5B8C5A]" />
-                          )}
-                        </div>
-                        
-                        <div className="space-y-1 overflow-y-auto max-h-[50px] scrollbar-hide">
-                          {dayEvents.map((ev, idx) => (
-                            <div key={idx} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#005377]/20 text-[#3A8EBA] dark:text-[#82CBEE] truncate">
-                              {ev.title}
+                        return (
+                          <div 
+                            key={`day-${dayNum}`} 
+                            className={`h-28 rounded-2xl p-2.5 border flex flex-col justify-between transition-all ${isToday ? "border-[#005377] bg-[#005377]/10" : `${bgItem} hover:border-slate-400`}`}
+                          >
+                            <div className="flex justify-between items-center">
+                              <span className={`text-xs font-bold font-mono ${isToday ? accentBlue : textTitle}`}>{dayNum}</span>
+                              {dayEvents.length > 0 && (
+                                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-[#5B8C5A]/20 text-[#7DB47C]">
+                                  {dayEvents.length}
+                                </span>
+                              )}
                             </div>
-                          ))}
+                            
+                            <div className="space-y-1 overflow-y-auto max-h-[60px] scrollbar-hide">
+                              {dayEvents.map((ev, idx) => (
+                                <div key={idx} className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#005377]/20 text-[#3A8EBA] dark:text-[#82CBEE] truncate">
+                                  {ev.title}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 2. WOCHENANSICHT */}
+                {calendarMode === "week" && (
+                  <div className="grid grid-cols-1 sm:grid-cols-7 gap-3">
+                    {getWeekDays().map((d, i) => {
+                      const dayEvents = getEventsForDate(d);
+                      const isToday = new Date().toDateString() === d.toDateString();
+
+                      return (
+                        <div 
+                          key={i} 
+                          className={`min-h-[220px] rounded-2xl p-4 border flex flex-col justify-between ${isToday ? "border-[#005377] bg-[#005377]/10" : bgItem}`}
+                        >
+                          <div>
+                            <div className={`text-[10px] font-bold uppercase tracking-wider ${textSub}`}>
+                              {d.toLocaleDateString("de-DE", { weekday: 'short' })}
+                            </div>
+                            <div className={`text-lg font-extrabold font-mono ${isToday ? accentBlue : textTitle} mb-3`}>
+                              {d.getDate()}. {d.toLocaleDateString("de-DE", { month: 'short' })}
+                            </div>
+                          </div>
+
+                          <div className="space-y-2 flex-1 overflow-y-auto max-h-[150px]">
+                            {dayEvents.map((ev, idx) => (
+                              <div key={idx} className="p-2 rounded-xl bg-[#005377]/20 border border-[#005377]/30 text-xs font-bold text-[#3A8EBA] dark:text-[#82CBEE]">
+                                {ev.title}
+                              </div>
+                            ))}
+                            {dayEvents.length === 0 && <span className="text-[11px] text-slate-500 italic">Keine Termine</span>}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
+
               </div>
 
-              {/* COUNTDOWNS ANLEGEN */}
+              {/* COUNTDOWNS VERWALTEN */}
               <div className="space-y-3">
                 <h3 className={`text-base font-bold tracking-tight ${textTitle} flex items-center gap-2`}>
                   <Hourglass className={`h-4 w-4 ${accentBlue}`} /> Countdowns verwalten
