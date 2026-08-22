@@ -55,10 +55,30 @@ export default function DashboardPage() {
   const addEinkauf = async () => {
     if (!neuerArtikel) return;
     const newItem = { rowIndex: einkauf.length + 2, artikel: neuerArtikel, status: "Offen" };
+    
+    // 1. Direkt lokal im Dashboard anzeigen
     setEinkauf([...einkauf, newItem]);
     setNeuerArtikel("");
-    await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Einkauf", values: [newItem.artikel, newItem.status] }) });
-    fetchData(); 
+    
+    // 2. In die Google Sheets Datenbank schreiben
+    await fetch("/api/data", { 
+      method: "POST", 
+      body: JSON.stringify({ sheetName: "Einkauf", values: [newItem.artikel, newItem.status] }) 
+    });
+
+    // 3. NEU: Push-Nachricht über ntfy senden
+    // WICHTIG: Ersetze "DEIN_NTFY_TOPIC_HIER" durch deinen echten Kanalnamen!
+    await fetch("https://ntfy.sh/HaushaltLenaJonas", {
+      method: "POST",
+      body: `🛒 "${newItem.artikel}" wurde zur Einkaufsliste hinzugefügt.`,
+      headers: {
+        "Title": "Haushalt OS",
+        "Tags": "shopping_cart",
+        "Priority": "default"
+      }
+    });
+
+    fetchData(); // Liste nochmal sauber von der Datenbank laden
   };
 
   const markEinkaufErledigt = async (item: EinkaufItem) => {
