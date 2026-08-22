@@ -11,7 +11,7 @@ export async function POST(request: Request) {
     }
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.5-flash",
       contents: [
         {
           inlineData: {
@@ -25,8 +25,8 @@ export async function POST(request: Request) {
       ],
     });
 
-    const textResult = response.text ? response.text() : "{}";
-    // Bereinige den Text von eventuellen Markdown-Code-Blöcken
+    // Korrektur: response.text ist eine Eigenschaft (keine Funktion mit Klammern)
+    const textResult = response.text || "{}";
     const cleanJson = textResult.replace(/```json/g, "").replace(/```/g, "").trim();
     const parsed = JSON.parse(cleanJson);
 
