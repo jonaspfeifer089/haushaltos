@@ -213,7 +213,7 @@ export default function DashboardPage() {
   const bgItem = isDarkMode ? "bg-[#05070A] border-[#1e293b]" : "bg-slate-50 border-slate-200";
 
   return (
-    <div className={`flex h-screen overflow-hidden ${bgMain} font-sans transition-colors duration-300`}>
+    <div className={`flex h-[100dvh] min-h-[100dvh] w-full overflow-hidden ${bgMain} font-sans transition-colors duration-300`}>
       
       {/* SIDEBAR */}
       <aside className={`hidden md:flex w-64 ${bgSidebar} border-r flex-col justify-between p-4 h-full transition-colors duration-300`}>

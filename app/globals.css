@@ -25,19 +25,18 @@
   }
 }
 
-body {
-  background-color: #07090e;
-  color: #f1f5f9;
+html, body {
+  height: 100%;
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+  background-color: #05070A;
+  overscroll-behavior-y: none;
 }
 
-@layer utilities {
-  .pt-safe {
-    padding-top: env(safe-area-inset-top, 0px);
-  }
-  .pb-safe {
-    padding-bottom: env(safe-area-inset-bottom, 0px);
-  }
-  .h-safe-top {
-    height: env(safe-area-inset-top, 0px);
-  }
+.pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
