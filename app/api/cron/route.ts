@@ -98,33 +98,61 @@ export async function GET(request: Request) {
 
   // 5. ntfy Push versenden
   try {
-    if (targetUser) {
-      // Manueller Test-Trigger für eine spezifische Person
-      await fetch("https://ntfy.sh/HaushaltLenaJonas", {
+    const results: string[] = [];
+
+    if (targetUser === "Jonas") {
+      // Manueller Einzeltest für Jonas (?user=Jonas)
+      await fetch("https://ntfy.sh/HaushaltJonas", {
         method: "POST",
-        body: createBody(targetUser),
+        body: createBody("Jonas"),
         headers: {
-          "Title": `Haushalt OS - Briefing fuer ${targetUser}`,
+          "Title": "Haushalt OS - Briefing Jonas",
           "Tags": "sunrise,sparkles",
           "Priority": "default"
         }
       });
-    } else {
-      // Automatischer Vercel Cron: Sendet an den gemeinsamen Kanal
-      await fetch("https://ntfy.sh/HaushaltLenaJonas", {
+      results.push("Briefing an Jonas gesendet (Topic: HaushaltJonas)");
+    } else if (targetUser === "Lena") {
+      // Manueller Einzeltest für Lena (?user=Lena)
+      await fetch("https://ntfy.sh/HaushaltLena", {
         method: "POST",
-        body: createBody("Jonas & Lena"),
+        body: createBody("Lena"),
         headers: {
-          "Title": "Haushalt OS - Morgenbericht",
-          "Tags": "house,sunrise,clipboard",
+          "Title": "Haushalt OS - Briefing Lena",
+          "Tags": "sunrise,sparkles",
           "Priority": "default"
         }
       });
+      results.push("Briefing an Lena gesendet (Topic: HaushaltLena)");
+    } else {
+      // AUTOMATISCHER VERCEL CRON: Sendet morgens an BEIDE Handys getrennt
+      await Promise.all([
+        fetch("https://ntfy.sh/HaushaltJonas", {
+          method: "POST",
+          body: createBody("Jonas"),
+          headers: {
+            "Title": "Haushalt OS - Guten Morgen Jonas",
+            "Tags": "sunrise,clipboard",
+            "Priority": "default"
+          }
+        }),
+        fetch("https://ntfy.sh/HaushaltLena", {
+          method: "POST",
+          body: createBody("Lena"),
+          headers: {
+            "Title": "Haushalt OS - Guten Morgen Lena",
+            "Tags": "sunrise,clipboard",
+            "Priority": "default"
+          }
+        })
+      ]);
+      results.push("Getrennte Briefings an HaushaltJonas und HaushaltLena gesendet.");
     }
 
     return NextResponse.json({ 
       success: true, 
-      sentMessage: targetUser ? createBody(targetUser) : createBody("Jonas & Lena"),
+      sentTo: targetUser || "Jonas & Lena (getrennt)",
+      details: results,
       warnings: errors.length > 0 ? errors : undefined 
     });
   } catch (e: any) {
