@@ -1,14 +1,20 @@
 import { NextResponse } from "next/server";
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
 export async function POST(request: Request) {
   try {
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.error("GEMINI_API_KEY ist auf dem Server nicht gesetzt!");
+      return NextResponse.json({ error: "API-Key fehlt auf dem Server" }, { status: 500 });
+    }
+
     const { imageBase64 } = await request.json();
     if (!imageBase64) {
       return NextResponse.json({ error: "Kein Bild übergeben" }, { status: 400 });
     }
+
+    const ai = new GoogleGenAI({ apiKey });
 
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash",
@@ -25,7 +31,6 @@ export async function POST(request: Request) {
       ],
     });
 
-    // Korrektur: response.text ist eine Eigenschaft (keine Funktion mit Klammern)
     const textResult = response.text || "{}";
     const cleanJson = textResult.replace(/```json/g, "").replace(/```/g, "").trim();
     const parsed = JSON.parse(cleanJson);
@@ -35,7 +40,7 @@ export async function POST(request: Request) {
       mhd: parsed.mhd || new Date().toISOString().split("T")[0],
     });
   } catch (error: any) {
-    console.error("Vision API Error:", error);
+    console.error("Vision API Error Details:", error);
     return NextResponse.json({ error: "Fehler bei der KI-Analyse", details: error.message }, { status: 500 });
   }
 }

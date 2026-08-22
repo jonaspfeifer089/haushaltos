@@ -189,18 +189,56 @@ export default function DashboardPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     setIsScanning(true);
+
     const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64 = (reader.result as string).split(',')[1];
-      try {
-        const res = await fetch("/api/vision", { method: "POST", body: JSON.stringify({ imageBase64: base64 }) });
-        const aiData = await res.json();
-        if (aiData.artikel && aiData.mhd) {
-          await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Vorrat", values: [aiData.artikel, aiData.mhd, ""] }) });
-          fetchData(); 
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = async () => {
+        // Canvas zum Verkleinern des Bildes (max 800px Breite/Höhe)
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 800;
+
+        if (width > height && width > maxDim) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else if (height > maxDim) {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
         }
-      } catch (err) { console.error(err); }
-      setIsScanning(false);
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        // Komprimiertes JPEG als Base64
+        const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7).split(',')[1];
+
+        try {
+          const res = await fetch("/api/vision", { 
+            method: "POST", 
+            body: JSON.stringify({ imageBase64: compressedBase64 }) 
+          });
+          const aiData = await res.json();
+          
+          if (aiData.artikel && aiData.mhd) {
+            await fetch("/api/data", { 
+              method: "POST", 
+              body: JSON.stringify({ sheetName: "Vorrat", values: [aiData.artikel, aiData.mhd, ""] }) 
+            });
+            fetchData(); 
+          } else {
+            alert("Konnte kein Produkt erkennen. Bitte versuche es erneut.");
+          }
+        } catch (err) {
+          console.error("Scan Upload Fehler:", err);
+          alert("Fehler beim Hochladen des Bildes.");
+        }
+        setIsScanning(false);
+      };
+      img.src = event.target?.result as string;
     };
     reader.readAsDataURL(file);
   };
