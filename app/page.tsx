@@ -185,21 +185,38 @@ export default function DashboardPage() {
     fetchData();
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsScanning(true);
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64 = (reader.result as string).split(',')[1];
+      try {
+        const res = await fetch("/api/vision", { method: "POST", body: JSON.stringify({ imageBase64: base64 }) });
+        const aiData = await res.json();
+        if (aiData.artikel && aiData.mhd) {
+          await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Vorrat", values: [aiData.artikel, aiData.mhd, ""] }) });
+          fetchData(); 
+        }
+      } catch (err) { console.error(err); }
+      setIsScanning(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const calculateDaysLeft = (targetDateStr: string) => {
     const target = new Date(targetDateStr);
     const now = new Date();
     return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
   };
 
-  // Putzaufgaben in Kalender-Events umwandeln (berechnet anhand Intervall)
   const getPutzEventsForDate = (dateObj: Date) => {
     const events: { title: string; type: "putz" }[] = [];
     aufgaben.forEach(a => {
       if (!a.letztesDatum || !a.intervall) return;
       const lastDate = new Date(a.letztesDatum);
       const intervalDays = parseInt(a.intervall, 10);
-      
-      // Nächstes Fälligkeitsdatum berechnen
       const dueDate = new Date(lastDate);
       dueDate.setDate(dueDate.getDate() + intervalDays);
 
@@ -210,7 +227,6 @@ export default function DashboardPage() {
     return events;
   };
 
-  // Kalender Navigation
   const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 
   const handlePrev = () => {
@@ -284,7 +300,6 @@ export default function DashboardPage() {
     { id: "kalender", icon: CalendarIcon, label: "Kalender" }
   ];
 
-  // FARBPALETTE
   const bgMain = isDarkMode ? "bg-[#100A0B] text-[#EDE7E3]" : "bg-[#FAF8F5] text-[#2D2A26]";
   const bgSidebar = isDarkMode ? "bg-[#180F12] border-white/[0.08]" : "bg-[#FFFFFF] border-[#E8E2D9]";
   const bgCard = isDarkMode ? "bg-[#1E1418] border border-white/[0.08] text-[#FAF8F5] shadow-[0_4px_20px_rgba(0,0,0,0.4)]" : "bg-[#FFFFFF] border border-[#E8E2D9] shadow-[0_2px_8px_rgba(80,36,25,0.04)] text-[#2D2A26]";
@@ -302,7 +317,6 @@ export default function DashboardPage() {
   return (
     <div className={`flex h-[100dvh] min-h-[100dvh] w-full overflow-hidden ${bgMain} font-sans transition-colors duration-300 relative`}>
       
-      {/* SIDEBAR */}
       <aside className={`hidden md:flex w-64 ${bgSidebar} border-r flex-col justify-between p-4 h-full z-20`}>
         <div>
           <div className="flex items-center gap-3 px-3 py-4 mb-4">
@@ -347,10 +361,8 @@ export default function DashboardPage() {
         </div>
       </aside>
 
-      {/* MAIN CONTENT */}
       <main className="flex-1 flex flex-col h-full overflow-y-auto relative z-10">
         
-        {/* HEADER */}
         <header className={`pt-safe sticky top-0 z-30 ${isDarkMode ? "bg-[#100A0B]/85 border-white/[0.08]" : "bg-[#FAF8F5]/85 border-[#E8E2D9]"} backdrop-blur-md border-b transition-colors duration-300`}>
           <div className="h-14 px-4 md:px-8 flex items-center justify-between">
             <div className={`flex items-center gap-2 text-xs ${textSub} font-medium tracking-wide`}>
@@ -360,13 +372,9 @@ export default function DashboardPage() {
             </div>
             
             <div className="flex items-center gap-2">
-              <button 
-                onClick={toggleTheme} 
-                className={`h-8 w-8 flex items-center justify-center rounded-lg ${bgCard} transition-transform active:scale-95`}
-              >
+              <button onClick={toggleTheme} className={`h-8 w-8 flex items-center justify-center rounded-lg ${bgCard} transition-transform active:scale-95`}>
                 {isDarkMode ? <Sun className="h-4 w-4 text-[#CFD186]" /> : <Moon className="h-4 w-4 text-[#49111C]" />}
               </button>
-
               <button className={`h-8 w-8 flex items-center justify-center rounded-lg ${bgCard}`}>
                 <Bell className="h-4 w-4 text-slate-400" />
               </button>
@@ -376,7 +384,6 @@ export default function DashboardPage() {
 
         <div className="p-4 md:p-8 pb-32 md:pb-12 max-w-[1400px] mx-auto w-full space-y-8">
           
-          {/* TAB 1: EDITORIAL HUB LAYOUT */}
           {activeTab === "home" && (
             <div className="space-y-8">
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-[#E8E2D9] dark:border-white/[0.08]">
@@ -414,11 +421,7 @@ export default function DashboardPage() {
                         {countdowns.map((cd, idx) => {
                           const days = calculateDaysLeft(cd.date);
                           return (
-                            <motion.div 
-                              whileHover={{ x: 4 }}
-                              key={idx} 
-                              className={`${bgCard} rounded-2xl p-4 flex items-center justify-between border relative overflow-hidden transition-all`}
-                            >
+                            <motion.div whileHover={{ x: 4 }} key={idx} className={`${bgCard} rounded-2xl p-4 flex items-center justify-between border relative overflow-hidden transition-all`}>
                               <div className="flex items-center gap-3.5">
                                 <span className="text-2xl p-2 rounded-xl bg-[#5B8C5A]/15 border border-[#5B8C5A]/30">{cd.icon}</span>
                                 <div>
@@ -530,7 +533,6 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* TAB 2: EINKAUF */}
           {activeTab === "einkauf" && (
             <div className="space-y-6">
               <div className="flex justify-between items-center">
@@ -556,17 +558,8 @@ export default function DashboardPage() {
 
               <div className={`${bgCard} rounded-2xl p-6`}>
                 <div className={`flex flex-col md:flex-row gap-3 mb-6 pb-6 border-b ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"}`}>
-                  <input 
-                    type="text" 
-                    placeholder="Neuer Artikel (z.B. Hafermilch)..." 
-                    value={neuerArtikel} 
-                    onChange={(e) => setNeuerArtikel(e.target.value)} 
-                    onKeyDown={(e) => e.key === 'Enter' && addEinkauf()} 
-                    className={`flex-1 ${bgInput} border rounded-xl px-4 py-2.5 text-sm focus:outline-none transition-all font-medium`} 
-                  />
-                  <button onClick={() => addEinkauf()} className={`px-6 py-2.5 ${buttonPrimary} text-xs font-bold rounded-xl transition-all`}>
-                    Hinzufügen
-                  </button>
+                  <input type="text" placeholder="Neuer Artikel (z.B. Hafermilch)..." value={neuerArtikel} onChange={(e) => setNeuerArtikel(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addEinkauf()} className={`flex-1 ${bgInput} border rounded-xl px-4 py-2.5 text-sm focus:outline-none transition-all font-medium`} />
+                  <button onClick={() => addEinkauf()} className={`px-6 py-2.5 ${buttonPrimary} text-xs font-bold rounded-xl transition-all`}>Hinzufügen</button>
                 </div>
 
                 <div className="space-y-6">
@@ -615,7 +608,6 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* TAB 3: PUTZPLAN */}
           {activeTab === "putzplan" && (
             <div className="space-y-6">
               <div>
@@ -644,7 +636,6 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* TAB 4: VORRAT */}
           {activeTab === "vorrat" && (
             <div className="space-y-6">
               <div>
@@ -661,9 +652,7 @@ export default function DashboardPage() {
                         <UploadCloud className="h-8 w-8 text-slate-400 mb-2" />
                         <p className={`text-[11px] ${textSub} mb-3 font-medium`}>Foto machen $\rightarrow$ KI erfasst MHD</p>
                         <input type="file" accept="image/*" capture="environment" ref={fileInputRef} className="hidden" onChange={handleImageUpload} />
-                        <button onClick={() => fileInputRef.current?.click()} className={`text-xs ${buttonPrimary} px-4 py-2 rounded-xl transition-all font-bold`}>
-                          Kamera starten
-                        </button>
+                        <button onClick={() => fileInputRef.current?.click()} className={`text-xs ${buttonPrimary} px-4 py-2 rounded-xl transition-all font-bold`}>Kamera starten</button>
                       </>
                     )}
                   </div>
@@ -694,7 +683,6 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* TAB 5: PINNWAND */}
           {activeTab === "notizen" && (
             <div className="space-y-6">
               <div className="flex justify-between items-center">
@@ -750,7 +738,6 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* TAB 6: VOLLWERTIGER KALENDER INKL. PUTZPLAN */}
           {activeTab === "kalender" && (
             <div className="space-y-6">
               
@@ -837,10 +824,7 @@ export default function DashboardPage() {
                       const isToday = new Date().toDateString() === d.toDateString();
 
                       return (
-                        <div 
-                          key={i} 
-                          className={`min-h-[220px] rounded-2xl p-4 border flex flex-col justify-between ${isToday ? "border-[#005377] bg-[#005377]/10" : bgItem}`}
-                        >
+                        <div key={i} className={`min-h-[220px] rounded-2xl p-4 border flex flex-col justify-between ${isToday ? "border-[#005377] bg-[#005377]/10" : bgItem}`}>
                           <div>
                             <div className={`text-[10px] font-bold uppercase tracking-wider ${textSub}`}>
                               {d.toLocaleDateString("de-DE", { weekday: 'short' })}
@@ -888,7 +872,6 @@ export default function DashboardPage() {
         </div>
       </main>
 
-      {/* DYNAMIC FLOATING ACTION BUTTON (FAB) */}
       <div className="fixed bottom-20 md:bottom-8 right-5 md:right-8 z-50">
         <AnimatePresence>
           {isFabOpen && (
@@ -920,7 +903,6 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {/* MOBILE BOTTOM NAVIGATION */}
       <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-40 ${isDarkMode ? "bg-[#100A0B]/90 border-white/[0.08]" : "bg-[#FAF8F5]/90 border-[#E8E2D9]"} backdrop-blur-xl border-t px-3 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] flex justify-around items-center`}>
         {TABS.map(tab => {
           const isActive = activeTab === tab.id;
