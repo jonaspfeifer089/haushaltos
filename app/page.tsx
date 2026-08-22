@@ -185,6 +185,26 @@ export default function DashboardPage() {
     fetchData();
   };
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsScanning(true);
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64 = (reader.result as string).split(',')[1];
+      try {
+        const res = await fetch("/api/vision", { method: "POST", body: JSON.stringify({ imageBase64: base64 }) });
+        const aiData = await res.json();
+        if (aiData.artikel && aiData.mhd) {
+          await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Vorrat", values: [aiData.artikel, aiData.mhd, ""] }) });
+          fetchData(); 
+        }
+      } catch (err) { console.error(err); }
+      setIsScanning(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const calculateDaysLeft = (targetDateStr: string) => {
     const target = new Date(targetDateStr);
     const now = new Date();
@@ -216,14 +236,12 @@ export default function DashboardPage() {
 
   const handleToday = () => setCurrentDate(new Date());
 
-  // Generierung der Tage für die Monatsansicht
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const firstDayOfMonth = new Date(year, month, 1).getDay();
-  const startDayIndex = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1; // Mo Start
+  const startDayIndex = firstDayOfMonth === 0 ? 6 : firstDayOfMonth - 1;
 
-  // Generierung der Tage für die Wochenansicht
   const getWeekDays = () => {
     const startOfWeek = new Date(currentDate);
     const day = startOfWeek.getDay();
@@ -239,7 +257,6 @@ export default function DashboardPage() {
     return weekDays;
   };
 
-  // Event Matching Helper
   const getEventsForDate = (dateObj: Date) => {
     const y = dateObj.getFullYear();
     const m = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -741,7 +758,6 @@ export default function DashboardPage() {
           {activeTab === "kalender" && (
             <div className="space-y-6">
               
-              {/* KALENDER HEADER & VIEW SWITCHER */}
               <div className={`${bgCard} rounded-3xl p-6 border space-y-6`}>
                 <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
@@ -757,7 +773,6 @@ export default function DashboardPage() {
                   </div>
 
                   <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-                    {/* View Switcher */}
                     <div className={`flex p-1 rounded-xl border ${bgItem}`}>
                       <button onClick={() => setCalendarMode("month")} className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${calendarMode === "month" ? "bg-[#005377] text-white shadow-sm" : textSub}`}>
                         Monat
@@ -767,7 +782,6 @@ export default function DashboardPage() {
                       </button>
                     </div>
 
-                    {/* Navigation Arrows */}
                     <div className="flex items-center gap-1">
                       <button onClick={handlePrev} className={`p-2 rounded-xl border ${bgItem} hover:border-[#005377] transition-colors`}><ChevronLeft className="h-4 w-4" /></button>
                       <button onClick={handleNext} className={`p-2 rounded-xl border ${bgItem} hover:border-[#005377] transition-colors`}><ChevronRight className="h-4 w-4" /></button>
@@ -775,7 +789,6 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* 1. MONATSANSICHT */}
                 {calendarMode === "month" && (
                   <div className="space-y-2">
                     <div className="grid grid-cols-7 text-center text-[11px] font-bold uppercase tracking-wider text-slate-400 py-2">
@@ -821,7 +834,6 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                {/* 2. WOCHENANSICHT */}
                 {calendarMode === "week" && (
                   <div className="grid grid-cols-1 sm:grid-cols-7 gap-3">
                     {getWeekDays().map((d, i) => {
@@ -858,7 +870,6 @@ export default function DashboardPage() {
 
               </div>
 
-              {/* COUNTDOWNS VERWALTEN */}
               <div className="space-y-3">
                 <h3 className={`text-base font-bold tracking-tight ${textTitle} flex items-center gap-2`}>
                   <Hourglass className={`h-4 w-4 ${accentBlue}`} /> Countdowns verwalten
