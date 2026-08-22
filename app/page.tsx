@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  Home, ShoppingCart, Package, Calendar as CalendarIcon, Clock, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2, Bell, Settings, Sun, Moon, ChevronDown, ChevronUp, Sparkles, Hourglass, UserCheck, Trash2, StickyNote, ArrowUpRight, CloudSun, Pin, Sparkle, ArrowRight, X
+  Home, ShoppingCart, Package, Calendar as CalendarIcon, Clock, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2, Bell, Settings, Sun, Moon, ChevronDown, ChevronUp, Sparkles, Hourglass, UserCheck, Trash2, StickyNote, ArrowUpRight, CloudSun, Pin, Sparkle, ArrowRight, X, ChevronLeft, ChevronRight
 } from "lucide-react";
 
 interface Departure { line: string; destination: string; time: string; }
@@ -12,6 +12,7 @@ interface PutzItem { rowIndex: number; aufgabe: string; letztesDatum: string; in
 interface VorratItem { rowIndex: number; artikel: string; ablaufdatum: string; anbruch: string; }
 interface CountdownItem { rowIndex: number; title: string; date: string; icon: string; }
 interface NoteItem { rowIndex: number; title: string; content: string; category: string; color: string; }
+interface CalendarEvent { title: string; date: string; }
 
 const KATEGORIEN = ["Obst & Gemüse", "Kühlregal", "Vorrat & Teigwaren", "Getränke", "Drogerie & Haushalt", "Sonstiges"] as const;
 
@@ -36,8 +37,12 @@ export default function DashboardPage() {
   const [departures, setDepartures] = useState<Departure[]>([]);
   const [weather, setWeather] = useState<string>("Lädt...");
   const [weatherLabel, setWeatherLabel] = useState<string>("Standort");
-  const [termine, setTermine] = useState<{ title: string; date: string }[]>([]);
+  const [termine, setTermine] = useState<CalendarEvent[]>([]);
   
+  // Kalender Ansicht State
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
   const [einkauf, setEinkauf] = useState<EinkaufItem[]>([]);
   const [neuerArtikel, setNeuerArtikel] = useState("");
   const [showErledigt, setShowErledigt] = useState(false);
@@ -131,15 +136,9 @@ export default function DashboardPage() {
       await fetch("https://ntfy.sh/HaushaltLenaJonas", {
         method: "POST",
         body: `${activeUser} hat "${text}" auf die Einkaufsliste gesetzt.`,
-        headers: {
-          "Title": "Haushalt OS - Neuer Einkauf",
-          "Tags": "shopping_cart",
-          "Priority": "default"
-        }
+        headers: { "Title": "Haushalt OS - Neuer Einkauf", "Tags": "shopping_cart", "Priority": "default" }
       });
-    } catch (err) {
-      console.error("ntfy Push Error:", err);
-    }
+    } catch (err) { console.error("ntfy Push Error:", err); }
 
     fetchData(); 
   };
@@ -186,30 +185,32 @@ export default function DashboardPage() {
     fetchData();
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIsScanning(true);
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64 = (reader.result as string).split(',')[1];
-      try {
-        const res = await fetch("/api/vision", { method: "POST", body: JSON.stringify({ imageBase64: base64 }) });
-        const aiData = await res.json();
-        if (aiData.artikel && aiData.mhd) {
-          await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Vorrat", values: [aiData.artikel, aiData.mhd, ""] }) });
-          fetchData(); 
-        }
-      } catch (err) { console.error(err); }
-      setIsScanning(false);
-    };
-    reader.readAsDataURL(file);
-  };
-
   const calculateDaysLeft = (targetDateStr: string) => {
     const target = new Date(targetDateStr);
     const now = new Date();
     return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  };
+
+  // Kalender Helper Logik
+  const getDaysInMonth = (year: number, month: number) => new Date(year, month + 1, 0).getDate();
+  const getFirstDayOfMonth = (year: number, month: number) => {
+    let day = new Date(year, month, 1).getDay();
+    return day === 0 ? 6 : day - 1; // Montag als Start der Woche
+  };
+
+  const year = currentMonth.getFullYear();
+  const month = currentMonth.getMonth();
+  const daysInMonth = getDaysInMonth(year, month);
+  const firstDay = getFirstDayOfMonth(year, month);
+  const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
+
+  const handlePrevMonth = () => setCurrentMonth(new Date(year, month - 1, 1));
+  const handleNextMonth = () => setCurrentMonth(new Date(year, month + 1, 1));
+
+  // Prüfen ob ein Termin an einem bestimmten Kalendertag stattfindet
+  const getEventsForDay = (day: number) => {
+    const dateStrFormatted = `${String(day).padStart(2, '0')}.${String(month + 1).padStart(2, '0')}.`;
+    return termine.filter(t => t.date.includes(dateStrFormatted) || t.date.includes(`${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`));
   };
 
   const offeneEinkaeufe = einkauf.filter(e => e.status !== "Erledigt");
@@ -328,8 +329,6 @@ export default function DashboardPage() {
           {/* TAB 1: EDITORIAL HUB LAYOUT */}
           {activeTab === "home" && (
             <div className="space-y-8">
-              
-              {/* HERO GREETING & WEATHER BANNER */}
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-[#E8E2D9] dark:border-white/[0.08]">
                 <div>
                   <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#5B8C5A] mb-1">
@@ -352,12 +351,8 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* ASYMMETRISCHES 2-SPALTEN LAYOUT */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                
-                {/* LINKE SPALTE: COUNTDOWNS & KALENDER TIMELINE */}
                 <div className="lg:col-span-7 space-y-6">
-                  
                   {countdowns.length > 0 && (
                     <div className="space-y-3">
                       <div className="flex justify-between items-center px-1">
@@ -381,7 +376,6 @@ export default function DashboardPage() {
                                   <p className={`text-xs ${textSub} font-medium`}>{cd.date}</p>
                                 </div>
                               </div>
-
                               <div className="text-right flex items-baseline gap-1">
                                 <span className={`text-xl font-black font-mono ${accentGreen}`}>{days >= 0 ? days : 0}</span>
                                 <span className={`text-[11px] font-bold ${textSub}`}>Tage</span>
@@ -412,19 +406,13 @@ export default function DashboardPage() {
                       {termine.length === 0 && <p className={`text-xs ${textSub} py-4 text-center`}>Keine Termine synchronisiert.</p>}
                     </div>
                   </div>
-
                 </div>
 
-                {/* RECHTE SPALTE: QUICK FEED & LIVE TICKER */}
                 <div className="lg:col-span-5 space-y-6">
-                  
                   <div className="space-y-3">
                     <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub} px-1`}>Schnellübersicht</h3>
                     
-                    <div 
-                      onClick={() => setActiveTab("einkauf")}
-                      className={`${bgCard} rounded-3xl p-5 border cursor-pointer hover:border-[#5B8C5A]/50 transition-all group`}
-                    >
+                    <div onClick={() => setActiveTab("einkauf")} className={`${bgCard} rounded-3xl p-5 border cursor-pointer hover:border-[#5B8C5A]/50 transition-all group`}>
                       <div className="flex justify-between items-center mb-3">
                         <div className="flex items-center gap-2">
                           <ShoppingCart className={`h-4 w-4 ${accentGreen}`} />
@@ -432,7 +420,6 @@ export default function DashboardPage() {
                         </div>
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badgeGreen}`}>{offeneEinkaeufe.length} offen</span>
                       </div>
-                      
                       <div className="space-y-1.5 mb-3">
                         {offeneEinkaeufe.slice(0, 3).map((item, i) => (
                           <div key={i} className={`text-xs ${textSub} flex items-center gap-2`}>
@@ -440,18 +427,13 @@ export default function DashboardPage() {
                             <span className="truncate">{item.artikel}</span>
                           </div>
                         ))}
-                        {offeneEinkaeufe.length === 0 && <span className={`text-xs ${textSub}`}>Alles erledigt!</span>}
                       </div>
-
                       <div className={`text-[11px] font-bold ${accentGreen} flex items-center gap-1 group-hover:translate-x-1 transition-transform`}>
                         Zur Einkaufsliste <ArrowRight className="h-3 w-3" />
                       </div>
                     </div>
 
-                    <div 
-                      onClick={() => setActiveTab("putzplan")}
-                      className={`${bgCard} rounded-3xl p-5 border cursor-pointer hover:border-[#49111C]/40 transition-all group`}
-                    >
+                    <div onClick={() => setActiveTab("putzplan")} className={`${bgCard} rounded-3xl p-5 border cursor-pointer hover:border-[#49111C]/40 transition-all group`}>
                       <div className="flex justify-between items-center mb-3">
                         <div className="flex items-center gap-2">
                           <ClipboardList className="h-4 w-4 text-[#49111C] dark:text-[#E27B88]" />
@@ -459,7 +441,6 @@ export default function DashboardPage() {
                         </div>
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#49111C]/15 text-[#49111C] dark:text-[#E27B88] border border-[#49111C]/30">{aufgaben.length} aktiv</span>
                       </div>
-
                       <div className="space-y-1.5 mb-3">
                         {aufgaben.slice(0, 2).map((a, i) => (
                           <div key={i} className={`text-xs ${textSub} flex items-center justify-between`}>
@@ -468,7 +449,6 @@ export default function DashboardPage() {
                           </div>
                         ))}
                       </div>
-
                       <div className="text-[11px] font-bold text-[#49111C] dark:text-[#E27B88] flex items-center gap-1 group-hover:translate-x-1 transition-transform">
                         Putzplan ansehen <ArrowRight className="h-3 w-3" />
                       </div>
@@ -483,7 +463,6 @@ export default function DashboardPage() {
                       </div>
                       <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-md ${badgeBlue}`}>LIVE</span>
                     </div>
-
                     <div className="space-y-2.5">
                       {departures.slice(0, 3).map((d, i) => (
                         <div key={i} className="flex justify-between items-center text-xs">
@@ -494,18 +473,14 @@ export default function DashboardPage() {
                           <span className={`font-mono font-bold ${textSub}`}>{d.time}</span>
                         </div>
                       ))}
-                      {departures.length === 0 && <span className={`text-xs ${textSub}`}>Keine Live-Abfahrten</span>}
                     </div>
                   </div>
-
                 </div>
-
               </div>
-
             </div>
           )}
 
-          {/* TAB 2: EINKAUF MIT NATIVEN SWIPE GESTEN */}
+          {/* TAB 2: EINKAUF */}
           {activeTab === "einkauf" && (
             <div className="space-y-6">
               <div className="flex justify-between items-center">
@@ -518,7 +493,6 @@ export default function DashboardPage() {
                 </span>
               </div>
 
-              {/* Favoriten Chips */}
               <div className={`${bgCard} rounded-2xl p-5 space-y-2`}>
                 <div className={`text-[11px] font-bold ${textSub}`}>Schnellwahl Favoriten:</div>
                 <div className="flex flex-wrap gap-2">
@@ -530,7 +504,6 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Eingabefeld */}
               <div className={`${bgCard} rounded-2xl p-6`}>
                 <div className={`flex flex-col md:flex-row gap-3 mb-6 pb-6 border-b ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"}`}>
                   <input 
@@ -546,7 +519,6 @@ export default function DashboardPage() {
                   </button>
                 </div>
 
-                {/* Gruppierte Warengruppen mit SWIPE-CONTAINERN */}
                 <div className="space-y-6">
                   {Object.keys(einkaufNachKategorien).length === 0 ? (
                     <p className={`text-xs ${textSub} text-center py-6 font-medium`}>Alles erledigt! Keine offenen Artikel.</p>
@@ -560,17 +532,10 @@ export default function DashboardPage() {
                         <div className="space-y-2">
                           {items.map((item) => (
                             <div key={item.rowIndex} className="relative rounded-xl overflow-hidden">
-                              {/* SWIPE HINTERGRUND-AKTIONEN */}
                               <div className="absolute inset-0 flex justify-between items-center px-4 rounded-xl bg-gradient-to-r from-[#49111C] via-[#251A1E] to-[#5B8C5A] text-white">
-                                <div className="flex items-center gap-1 text-xs font-bold text-rose-200">
-                                  <Trash2 className="h-4 w-4" /> Löschen
-                                </div>
-                                <div className="flex items-center gap-1 text-xs font-bold text-emerald-200">
-                                  Erledigt <Check className="h-4 w-4" />
-                                </div>
+                                <div className="flex items-center gap-1 text-xs font-bold text-rose-200"><Trash2 className="h-4 w-4" /> Löschen</div>
+                                <div className="flex items-center gap-1 text-xs font-bold text-emerald-200">Erledigt <Check className="h-4 w-4" /></div>
                               </div>
-
-                              {/* ZIEHBARE KARTE */}
                               <motion.div 
                                 drag="x"
                                 dragConstraints={{ left: 0, right: 0 }}
@@ -586,9 +551,7 @@ export default function DashboardPage() {
                                   <button onClick={() => markEinkaufErledigt(item, "Erledigt")} className={`h-7 px-3 text-[11px] font-bold rounded-lg ${badgeGreen} hover:opacity-80 transition-colors flex items-center gap-1`}>
                                     <Check className="h-3.5 w-3.5" /> <span>Erledigt</span>
                                   </button>
-                                  <button onClick={() => deleteEinkauf(item)} className="p-1.5 text-slate-400 hover:text-[#49111C] transition-colors">
-                                    <Trash2 className="h-4 w-4" />
-                                  </button>
+                                  <button onClick={() => deleteEinkauf(item)} className="p-1.5 text-slate-400 hover:text-[#49111C] transition-colors"><Trash2 className="h-4 w-4" /></button>
                                 </div>
                               </motion.div>
                             </div>
@@ -598,25 +561,6 @@ export default function DashboardPage() {
                     ))
                   )}
                 </div>
-
-                {erledigteEinkaeufe.length > 0 && (
-                  <div className={`mt-6 pt-4 border-t ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"}`}>
-                    <button onClick={() => setShowErledigt(!showErledigt)} className={`flex items-center justify-between w-full text-xs font-bold ${textSub}`}>
-                      <span>Bereits gekauft ({erledigteEinkaeufe.length})</span>
-                      {showErledigt ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </button>
-                    {showErledigt && (
-                      <div className="space-y-1 mt-3 opacity-60">
-                        {erledigteEinkaeufe.map((item) => (
-                          <div key={item.rowIndex} className="flex items-center justify-between p-2 text-xs line-through text-slate-500">
-                            <span>{item.artikel}</span>
-                            <button onClick={() => markEinkaufErledigt(item, "Offen")} className={`text-[10px] font-bold ${accentBlue} hover:underline`}>Wiederherstellen</button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -708,43 +652,24 @@ export default function DashboardPage() {
                   <h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>Pinnwand & Notizen</h2>
                   <p className={`text-xs ${textSub}`}>WLAN, Notizen & wichtige Kontakte</p>
                 </div>
-                <button 
-                  onClick={() => setShowNoteModal(!showNoteModal)} 
-                  className={`px-4 py-2 ${buttonPrimary} text-xs font-bold rounded-xl flex items-center gap-2 transition-all`}
-                >
+                <button onClick={() => setShowNoteModal(!showNoteModal)} className={`px-4 py-2 ${buttonPrimary} text-xs font-bold rounded-xl flex items-center gap-2 transition-all`}>
                   <Plus className="h-4 w-4" /> Notiz anlegen
                 </button>
               </div>
 
-              {/* NOTIZ ERSTELLEN MODAL */}
               {showNoteModal && (
                 <div className={`${bgCard} rounded-2xl p-6 border space-y-4`}>
                   <h3 className={`text-sm font-bold ${textTitle}`}>Neue Notiz erstellen</h3>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <input 
-                      type="text" 
-                      placeholder="Titel (z.B. Gäste-WLAN)..." 
-                      value={newNoteTitle} 
-                      onChange={e => setNewNoteTitle(e.target.value)} 
-                      className={`sm:col-span-2 ${bgInput} border rounded-xl px-4 py-2 text-xs font-medium focus:outline-none`}
-                    />
-                    <select 
-                      value={newNoteCategory} 
-                      onChange={e => setNewNoteCategory(e.target.value)} 
-                      className={`${bgInput} border rounded-xl px-3 py-2 text-xs font-medium focus:outline-none`}
-                    >
+                    <input type="text" placeholder="Titel..." value={newNoteTitle} onChange={e => setNewNoteTitle(e.target.value)} className={`sm:col-span-2 ${bgInput} border rounded-xl px-4 py-2 text-xs font-medium focus:outline-none`} />
+                    <select value={newNoteCategory} onChange={e => setNewNoteCategory(e.target.value)} className={`${bgInput} border rounded-xl px-3 py-2 text-xs font-medium focus:outline-none`}>
                       <option value="Allgemein">Allgemein</option>
                       <option value="WLAN & Haus">WLAN & Haus</option>
                       <option value="Rezepte">Rezepte</option>
                       <option value="Ideen">Ideen</option>
                     </select>
                   </div>
-                  <textarea 
-                    placeholder="Inhalt der Notiz..." 
-                    value={newNoteContent} 
-                    onChange={e => setNewNoteContent(e.target.value)} 
-                    className={`w-full ${bgInput} border rounded-xl px-4 py-3 text-xs font-medium focus:outline-none h-24`}
-                  />
+                  <textarea placeholder="Inhalt..." value={newNoteContent} onChange={e => setNewNoteContent(e.target.value)} className={`w-full ${bgInput} border rounded-xl px-4 py-3 text-xs font-medium focus:outline-none h-24`} />
                   <div className="flex justify-end gap-2">
                     <button onClick={() => setShowNoteModal(false)} className={`px-4 py-2 text-xs font-bold ${textSub}`}>Abbrechen</button>
                     <button onClick={addNote} className={`px-6 py-2 ${buttonPrimary} text-xs font-bold rounded-xl`}>Speichern</button>
@@ -752,92 +677,105 @@ export default function DashboardPage() {
                 </div>
               )}
 
-              {/* Kategorien Filter */}
               <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                 {noteCategories.map(cat => (
-                  <button 
-                    key={cat} 
-                    onClick={() => setActiveNoteCategory(cat)}
-                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${activeNoteCategory === cat ? `${badgeBlue} shadow-sm` : `${bgCard} ${textSub}`}`}
-                  >
+                  <button key={cat} onClick={() => setActiveNoteCategory(cat)} className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${activeNoteCategory === cat ? `${badgeBlue} shadow-sm` : `${bgCard} ${textSub}`}`}>
                     {cat}
                   </button>
                 ))}
               </div>
 
-              {/* Notizen Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredNotes.map((note) => (
                   <div key={note.rowIndex} className={`${bgCard} rounded-2xl p-5 border relative overflow-hidden group`}>
                     <div className="flex justify-between items-start">
-                      <span className={`text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-md ${badgeGreen}`}>
-                        {note.category}
-                      </span>
+                      <span className={`text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-md ${badgeGreen}`}>{note.category}</span>
                       <Pin className="h-3.5 w-3.5 text-slate-400 opacity-50" />
                     </div>
                     <h3 className={`text-sm font-bold mt-2.5 mb-1 ${textTitle}`}>{note.title}</h3>
-                    <p className={`text-xs leading-relaxed ${textSub} whitespace-pre-line font-medium`}>
-                      {note.content}
-                    </p>
+                    <p className={`text-xs leading-relaxed ${textSub} whitespace-pre-line font-medium`}>{note.content}</p>
                   </div>
                 ))}
-                {filteredNotes.length === 0 && <p className={`text-xs ${textSub} col-span-full py-8 text-center`}>Keine Notizen vorhanden.</p>}
               </div>
             </div>
           )}
 
-          {/* TAB 6: KALENDER */}
+          {/* TAB 6: ECHTE VISUELLE KALENDERÜBERSICHT */}
           {activeTab === "kalender" && (
-            <div className="space-y-6">
+            <div className="space-y-8">
+              
+              {/* VISUELLER MONATSKALENDER */}
+              <div className={`${bgCard} rounded-3xl p-6 border space-y-6`}>
+                <div className="flex items-center justify-between">
+                  <h2 className={`text-lg font-bold tracking-tight ${textTitle}`}>
+                    {monthNames[month]} {year}
+                  </h2>
+                  <div className="flex items-center gap-1">
+                    <button onClick={handlePrevMonth} className={`p-2 rounded-xl border ${bgItem} hover:border-[#005377] transition-colors`}><ChevronLeft className="h-4 w-4" /></button>
+                    <button onClick={handleNextMonth} className={`p-2 rounded-xl border ${bgItem} hover:border-[#005377] transition-colors`}><ChevronRight className="h-4 w-4" /></button>
+                  </div>
+                </div>
+
+                {/* Wochentage Header */}
+                <div className="grid grid-cols-7 text-center text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  <span>Mo</span><span>Di</span><span>Mi</span><span>Do</span><span>Fr</span><span>Sa</span><span>So</span>
+                </div>
+
+                {/* Tage Grid */}
+                <div className="grid grid-cols-7 gap-2">
+                  {/* Leere Zellen für den Monatsersten */}
+                  {Array.from({ length: firstDay }).map((_, i) => (
+                    <div key={`empty-${i}`} className="h-20 rounded-2xl opacity-20 bg-black/5 dark:bg-white/5" />
+                  ))}
+
+                  {/* Monatstage */}
+                  {Array.from({ length: daysInMonth }).map((_, i) => {
+                    const dayNum = i + 1;
+                    const dayEvents = getEventsForDay(dayNum);
+                    const isToday = new Date().getDate() === dayNum && new Date().getMonth() === month && new Date().getFullYear() === year;
+
+                    return (
+                      <div 
+                        key={`day-${dayNum}`} 
+                        className={`h-24 rounded-2xl p-2 border flex flex-col justify-between transition-all ${isToday ? "border-[#005377] bg-[#005377]/10" : `${bgItem} hover:border-slate-400`}`}
+                      >
+                        <div className="flex justify-between items-center">
+                          <span className={`text-xs font-bold font-mono ${isToday ? accentBlue : textTitle}`}>{dayNum}</span>
+                          {dayEvents.length > 0 && (
+                            <span className="h-2 w-2 rounded-full bg-[#5B8C5A]" />
+                          )}
+                        </div>
+                        
+                        <div className="space-y-1 overflow-y-auto max-h-[50px] scrollbar-hide">
+                          {dayEvents.map((ev, idx) => (
+                            <div key={idx} className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#005377]/20 text-[#3A8EBA] dark:text-[#82CBEE] truncate">
+                              {ev.title}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* COUNTDOWNS ANLEGEN */}
               <div className="space-y-3">
-                <h2 className={`text-base font-bold tracking-tight ${textTitle} flex items-center gap-2`}>
-                  <Hourglass className={`h-4 w-4 ${accentBlue}`} /> Countdowns anlegen
-                </h2>
+                <h3 className={`text-base font-bold tracking-tight ${textTitle} flex items-center gap-2`}>
+                  <Hourglass className={`h-4 w-4 ${accentBlue}`} /> Countdowns verwalten
+                </h3>
                 <div className={`${bgCard} rounded-2xl p-5`}>
                   <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                    <input 
-                      type="text" 
-                      placeholder="Event Name (z.B. Urlaub)..." 
-                      value={newCdTitle} 
-                      onChange={e => setNewCdTitle(e.target.value)} 
-                      className={`sm:col-span-2 ${bgInput} border rounded-xl px-3.5 py-2 text-xs font-medium focus:outline-none`}
-                    />
-                    <input 
-                      type="date" 
-                      value={newCdDate} 
-                      onChange={e => setNewCdDate(e.target.value)} 
-                      className={`${bgInput} border rounded-xl px-3.5 py-2 text-xs font-medium focus:outline-none`}
-                    />
+                    <input type="text" placeholder="Event Name..." value={newCdTitle} onChange={e => setNewCdTitle(e.target.value)} className={`sm:col-span-2 ${bgInput} border rounded-xl px-3.5 py-2 text-xs font-medium focus:outline-none`} />
+                    <input type="date" value={newCdDate} onChange={e => setNewCdDate(e.target.value)} className={`${bgInput} border rounded-xl px-3.5 py-2 text-xs font-medium focus:outline-none`} />
                     <div className="flex gap-2">
-                      <input 
-                        type="text" 
-                        placeholder="Emoji" 
-                        value={newCdIcon} 
-                        onChange={e => setNewCdIcon(e.target.value)} 
-                        className={`w-14 text-center ${bgInput} border rounded-xl px-2 py-2 text-xs font-medium focus:outline-none`}
-                      />
-                      <button onClick={addCountdown} className={`flex-1 ${buttonPrimary} text-xs font-bold rounded-xl transition-all`}>
-                        Speichern
-                      </button>
+                      <input type="text" placeholder="Emoji" value={newCdIcon} onChange={e => setNewCdIcon(e.target.value)} className={`w-14 text-center ${bgInput} border rounded-xl px-2 py-2 text-xs font-medium focus:outline-none`} />
+                      <button onClick={addCountdown} className={`flex-1 ${buttonPrimary} text-xs font-bold rounded-xl transition-all`}>Speichern</button>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <h2 className={`text-base font-bold tracking-tight ${textTitle}`}>iCloud Kalender Termine</h2>
-                <div className={`${bgCard} rounded-2xl p-5`}>
-                  <div className="space-y-2">
-                    {termine.map((t, idx) => (
-                      <div key={idx} className={`flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl border ${bgItem} gap-2 sm:gap-0`}>
-                        <span className={`text-xs font-bold ${textTitle}`}>{t.title}</span>
-                        <span className={`text-[10px] font-mono font-bold ${badgeBlue} px-2.5 py-1 rounded-md w-fit`}>{t.date}</span>
-                      </div>
-                    ))}
-                    {termine.length === 0 && <p className={`text-xs ${textSub} text-center py-6`}>Keine Termine vorhanden.</p>}
-                  </div>
-                </div>
-              </div>
             </div>
           )}
 
@@ -854,26 +792,14 @@ export default function DashboardPage() {
               exit={{ opacity: 0, scale: 0.85, y: 15 }}
               className="absolute bottom-16 right-0 flex flex-col gap-2.5 items-end mb-2 w-max"
             >
-              {/* Quick Notiz */}
-              <button 
-                onClick={() => { setActiveTab("notizen"); setShowNoteModal(true); setIsFabOpen(false); }}
-                className={`flex items-center gap-2.5 px-3.5 py-2 rounded-xl shadow-lg border ${bgCard} ${textTitle} text-xs font-bold hover:scale-105 transition-all`}
-              >
+              <button onClick={() => { setActiveTab("notizen"); setShowNoteModal(true); setIsFabOpen(false); }} className={`flex items-center gap-2.5 px-3.5 py-2 rounded-xl shadow-lg border ${bgCard} ${textTitle} text-xs font-bold hover:scale-105 transition-all`}>
                 <span>Notiz schreiben</span>
-                <div className="h-7 w-7 rounded-lg bg-[#5B8C5A] text-white flex items-center justify-center">
-                  <StickyNote className="h-4 w-4" />
-                </div>
+                <div className="h-7 w-7 rounded-lg bg-[#5B8C5A] text-white flex items-center justify-center"><StickyNote className="h-4 w-4" /></div>
               </button>
 
-              {/* Quick Einkauf */}
-              <button 
-                onClick={() => { setActiveTab("einkauf"); setIsFabOpen(false); }}
-                className={`flex items-center gap-2.5 px-3.5 py-2 rounded-xl shadow-lg border ${bgCard} ${textTitle} text-xs font-bold hover:scale-105 transition-all`}
-              >
+              <button onClick={() => { setActiveTab("einkauf"); setIsFabOpen(false); }} className={`flex items-center gap-2.5 px-3.5 py-2 rounded-xl shadow-lg border ${bgCard} ${textTitle} text-xs font-bold hover:scale-105 transition-all`}>
                 <span>Einkauf hinzufügen</span>
-                <div className="h-7 w-7 rounded-lg bg-[#005377] text-white flex items-center justify-center">
-                  <ShoppingCart className="h-4 w-4" />
-                </div>
+                <div className="h-7 w-7 rounded-lg bg-[#005377] text-white flex items-center justify-center"><ShoppingCart className="h-4 w-4" /></div>
               </button>
             </motion.div>
           )}
@@ -881,11 +807,7 @@ export default function DashboardPage() {
 
         <button 
           onClick={() => setIsFabOpen(!isFabOpen)}
-          className={`h-14 w-14 rounded-2xl shadow-2xl flex items-center justify-center transition-all duration-300 ${
-            isFabOpen 
-              ? "bg-[#49111C] text-white rotate-45" 
-              : "bg-[#005377] text-white hover:scale-105 shadow-[#005377]/40"
-          }`}
+          className={`h-14 w-14 rounded-2xl shadow-2xl flex items-center justify-center transition-all duration-300 ${isFabOpen ? "bg-[#49111C] text-white rotate-45" : "bg-[#005377] text-white hover:scale-105 shadow-[#005377]/40"}`}
           aria-label="Schnellaktionen"
         >
           <Plus className="h-6 w-6" />
