@@ -94,14 +94,14 @@ export async function GET(request: Request) {
 
   const message = `Guten Morgen Jonas! ☀️ Heute ${temp}.\n📅 ${heuteTermineCount} Termine heute.\n${putzText}\n🛒 ${offeneEinkaeufeCount} Artikel auf der Einkaufsliste.`;
 
-  // 5. ntfy Push senden
+  // 5. ntfy Push senden (Header müssen reine ASCII-Zeichen sein!)
   try {
     await fetch("https://ntfy.sh/HaushaltLenaJonas", {
       method: "POST",
-      body: message,
+      body: message, // Emojis im Nachrichtentext (Body) sind vollkommen erlaubt!
       headers: {
-        "Title": "🏠 Haushalt OS – Morgenbericht",
-        "Tags": "sunrise,clipboard",
+        "Title": "Haushalt OS - Morgenbericht", // Nur reine Buchstaben/Ziffern
+        "Tags": "house,sunrise,clipboard",      // Hierüber werden die Emojis in ntfy sauber gerendert
         "Priority": "default"
       }
     });
