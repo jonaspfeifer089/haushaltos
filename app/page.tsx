@@ -14,6 +14,7 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("home");
   const [departures, setDepartures] = useState<Departure[]>([]);
   const [weather, setWeather] = useState<string>("Lädt...");
+  const [weatherLabel, setWeatherLabel] = useState<string>("Wetter sucht...");
   const [termine, setTermine] = useState<{ title: string; date: string }[]>([]);
   
   const [einkauf, setEinkauf] = useState<EinkaufItem[]>([]);
@@ -39,17 +40,34 @@ export default function DashboardPage() {
     } catch (e) { console.error(e); }
   };
 
+  // NEU: Dynamisches lokales Wetter per Geolocation
   useEffect(() => {
-    fetchData();
-    fetch("/api/calendar").then(res => res.json()).then(data => setTermine(data.events || []));
-    fetch("https://api.open-meteo.com/v1/forecast?latitude=48.1764&longitude=11.5311&current=temperature_2m,weather_code")
-      .then(res => res.json()).then(data => setWeather(`${data?.current?.temperature_2m ?? "--"}°C`));
-    fetch("https://www.mvg.de/api/bgw-pt/v3/departures?globalId=de:09162:70")
-      .then(res => res.json()).then(data => {
-        if (Array.isArray(data)) setDepartures(data.slice(0, 5).map((d: any) => ({
-          line: d.label || "U", destination: d.destination || "Unbekannt", time: new Date(d.realtimeDepartureTime || d.plannedDepartureTime).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
-        })));
-      });
+    const fetchWeather = (lat: number, lon: number, label: string) => {
+      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code`)
+        .then(res => res.json())
+        .then(data => {
+          setWeather(`${data?.current?.temperature_2m ?? "--"}°C`);
+          setWeatherLabel(label);
+        })
+        .catch(() => setWeather("N/A"));
+    };
+
+    // Browser nach Standort fragen
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          // ERFOLG: User hat auf "Zulassen" geklickt
+          fetchWeather(position.coords.latitude, position.coords.longitude, "Lokales Wetter");
+        },
+        (error) => {
+          // ABGELEHNT: User hat auf "Blockieren" geklickt -> Fallback zu München OEZ
+          fetchWeather(48.1764, 11.5311, "Wetter OEZ (Fallback)");
+        }
+      );
+    } else {
+      // Browser unterstützt keine Ortung
+      fetchWeather(48.1764, 11.5311, "Wetter OEZ (Fallback)");
+    }
   }, []);
 
   const addEinkauf = async () => {
@@ -192,15 +210,16 @@ export default function DashboardPage() {
               {/* ANALYTICS CARDS (Sitemark Look) */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 {/* Card 1 */}
+                {/* Card 1: Wetter */}
                 <div className="bg-[#0C1017] border border-[#1e293b] rounded-xl p-5 hover:border-slate-700 transition-colors">
                   <div className="flex justify-between items-start mb-4">
-                    <span className="text-xs font-medium text-slate-400">Wetter OEZ</span>
-                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Live</span>
+                    {/* HIER WIRD DER TEXT JETZT DYNAMISCH: */}
+                    <span className="text-xs font-medium text-slate-400">{weatherLabel}</span>
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Live GPS</span>
                   </div>
                   <div className="text-2xl md:text-3xl font-bold text-slate-100 tracking-tight">{weather}</div>
                   <div className="text-[10px] text-slate-500 mt-2">Aktuelle Temperatur</div>
                 </div>
-
                 {/* Card 2 */}
                 <div className="bg-[#0C1017] border border-[#1e293b] rounded-xl p-5 hover:border-slate-700 transition-colors">
                   <div className="flex justify-between items-start mb-4">
