@@ -1,33 +1,41 @@
 import { NextResponse } from "next/server";
+import { GoogleGenAI } from "@google/genai";
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export async function POST(request: Request) {
   try {
     const { imageBase64 } = await request.json();
-    const apiKey = process.env.GEMINI_API_KEY;
-    
-    if (!apiKey) return NextResponse.json({ error: "Kein API Key" }, { status: 500 });
+    if (!imageBase64) {
+      return NextResponse.json({ error: "Kein Bild übergeben" }, { status: 400 });
+    }
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            { text: "Analysiere dieses Foto. Finde das Produkt und das MHD (YYYY-MM-DD). Antworte AUSSCHLIESSLICH als JSON: {\"artikel\": \"...\", \"mhd\": \"...\"}" },
-            { inline_data: { mime_type: "image/jpeg", data: imageBase64 } }
-          ]
-        }]
-      })
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: [
+        {
+          inlineData: {
+            mimeType: "image/jpeg",
+            data: imageBase64,
+          },
+        },
+        {
+          text: "Analysiere dieses Bild eines Lebensmittelprodukts oder MHD-Aufklebers. Extrahiere den Namen des Artikels sowie das Mindesthaltbarkeitsdatum (MHD) im Format YYYY-MM-DD. Antworte AUSSCHLIESSLICH im JSON-Format mit genau diesen zwei Feldern: {\"artikel\": \"Name\", \"mhd\": \"YYYY-MM-DD\"}. Wenn du kein Datum findest, schätze ein realistisches Datum in der Zukunft ab.",
+        },
+      ],
     });
 
-    const data = await response.json();
-    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-    const cleanedText = rawText.replace(/```json/g, "").replace(/```/g, "").trim();
-    
-    return NextResponse.json(JSON.parse(cleanedText));
-  } catch (error) {
-    console.error("Gemini Error:", error);
-    return NextResponse.json({ error: "Fehler bei der Bildanalyse" }, { status: 500 });
+    const textResult = response.text ? response.text() : "{}";
+    // Bereinige den Text von eventuellen Markdown-Code-Blöcken
+    const cleanJson = textResult.replace(/```json/g, "").replace(/```/g, "").trim();
+    const parsed = JSON.parse(cleanJson);
+
+    return NextResponse.json({
+      artikel: parsed.artikel || "Unbekannter Artikel",
+      mhd: parsed.mhd || new Date().toISOString().split("T")[0],
+    });
+  } catch (error: any) {
+    console.error("Vision API Error:", error);
+    return NextResponse.json({ error: "Fehler bei der KI-Analyse", details: error.message }, { status: 500 });
   }
 }
