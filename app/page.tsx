@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import { 
-  Home, ShoppingCart, Package, Calendar as CalendarIcon, LogOut, CloudSun, CheckCircle2, Clock, AlertTriangle, Train, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2, Search, Bell, Settings, Sun, Moon, ChevronDown, ChevronUp, Sparkles, Hourglass, Trash2
+  Home, ShoppingCart, Package, Calendar as CalendarIcon, Clock, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2, Bell, Settings, Sun, Moon, ChevronDown, ChevronUp, Sparkles, Hourglass, UserCheck
 } from "lucide-react";
 
 interface Departure { line: string; destination: string; time: string; }
@@ -28,6 +28,7 @@ const SCHNELLWAHL_FAVORITEN = ["Hafermilch", "Bananen", "Eier", "Körniger Frisc
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("home");
   const [isDarkMode, setIsDarkMode] = useState(true);
+  const [activeUser, setActiveUser] = useState<"Jonas" | "Lena">("Jonas");
   
   const [departures, setDepartures] = useState<Departure[]>([]);
   const [weather, setWeather] = useState<string>("Lädt...");
@@ -41,7 +42,6 @@ export default function DashboardPage() {
   const [aufgaben, setAufgaben] = useState<PutzItem[]>([]);
   const [vorrat, setVorrat] = useState<VorratItem[]>([]);
   
-  // Countdowns
   const [countdowns, setCountdowns] = useState<CountdownItem[]>([]);
   const [newCdTitle, setNewCdTitle] = useState("");
   const [newCdDate, setNewCdDate] = useState("");
@@ -55,12 +55,20 @@ export default function DashboardPage() {
   useEffect(() => {
     const savedTheme = localStorage.getItem("haushalt_theme");
     if (savedTheme === "light") setIsDarkMode(false);
+    
+    const savedUser = localStorage.getItem("haushalt_user") as "Jonas" | "Lena" | null;
+    if (savedUser) setActiveUser(savedUser);
   }, []);
 
   const toggleTheme = () => {
     const nextMode = !isDarkMode;
     setIsDarkMode(nextMode);
     localStorage.setItem("haushalt_theme", nextMode ? "dark" : "light");
+  };
+
+  const switchUser = (user: "Jonas" | "Lena") => {
+    setActiveUser(user);
+    localStorage.setItem("haushalt_user", user);
   };
 
   const fetchData = async () => {
@@ -120,7 +128,7 @@ export default function DashboardPage() {
     await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Einkauf", values: [newItem.artikel, newItem.status] }) });
     await fetch("https://ntfy.sh/HaushaltLenaJonas", {
       method: "POST",
-      body: `🛒 "${newItem.artikel}" wurde zur Einkaufsliste hinzugefügt.`,
+      body: `🛒 "${newItem.artikel}" wurde von ${activeUser} hinzugefügt.`,
       headers: { "Title": "Haushalt OS", "Tags": "shopping_cart", "Priority": "default" }
     });
     fetchData(); 
@@ -144,7 +152,8 @@ export default function DashboardPage() {
   const markAufgabeErledigt = async (item: PutzItem) => {
     const today = new Date().toISOString().split("T")[0];
     setAufgaben(aufgaben.map(a => a.rowIndex === item.rowIndex ? { ...a, letztesDatum: today } : a));
-    await fetch("/api/data", { method: "PUT", body: JSON.stringify({ sheetName: "Haushalt", rowIndex: item.rowIndex, values: [item.aufgabe, today, item.intervall, "Jonas"] }) });
+    // Speichert den aktuell aktiven User (Jonas oder Lena) in Spalte D
+    await fetch("/api/data", { method: "PUT", body: JSON.stringify({ sheetName: "Haushalt", rowIndex: item.rowIndex, values: [item.aufgabe, today, item.intervall, activeUser] }) });
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -188,7 +197,7 @@ export default function DashboardPage() {
     { id: "einkauf", icon: ShoppingCart, label: "Einkauf" },
     { id: "putzplan", icon: ClipboardList, label: "Putzplan" },
     { id: "vorrat", icon: Package, label: "Vorrat" },
-    { id: "kalender", icon: CalendarIcon, label: "Termine & Countdowns" }
+    { id: "kalender", icon: CalendarIcon, label: "Termine" }
   ];
 
   const bgMain = isDarkMode ? "bg-[#05070A] text-slate-300" : "bg-slate-50 text-slate-800";
@@ -232,10 +241,17 @@ export default function DashboardPage() {
           </nav>
         </div>
         
+        {/* PROFIL UMSCHALTER */}
         <div className={`pt-4 border-t ${isDarkMode ? "border-[#1e293b]" : "border-slate-200"} flex items-center justify-between px-2`}>
           <div className="flex items-center gap-2">
-            <div className={`h-7 w-7 rounded-md ${isDarkMode ? "bg-[#1e293b] text-slate-300" : "bg-slate-200 text-slate-700"} flex items-center justify-center text-xs font-semibold`}>JL</div>
-            <span className={`text-xs font-medium ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}>Jonas & Lena</span>
+            <button 
+              onClick={() => switchUser(activeUser === "Jonas" ? "Lena" : "Jonas")}
+              className={`h-7 px-2.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-all ${isDarkMode ? "bg-[#1A2332] text-blue-400 border border-[#2A3649]" : "bg-blue-50 text-blue-600 border border-blue-200"}`}
+              title="Profil wechseln"
+            >
+              <UserCheck className="h-3.5 w-3.5" />
+              <span>{activeUser}</span>
+            </button>
           </div>
           <button className={`${textSub} hover:text-blue-500`}><Settings className="h-4 w-4" /></button>
         </div>
@@ -254,6 +270,14 @@ export default function DashboardPage() {
             </div>
             
             <div className="flex items-center gap-2 md:gap-3">
+              {/* Profil Switcher auf Mobile */}
+              <button 
+                onClick={() => switchUser(activeUser === "Jonas" ? "Lena" : "Jonas")}
+                className={`md:hidden px-2.5 py-1 rounded-md text-xs font-semibold flex items-center gap-1 border ${isDarkMode ? "bg-[#1A2332] text-blue-400 border-[#2A3649]" : "bg-blue-50 text-blue-600 border-blue-200"}`}
+              >
+                {activeUser}
+              </button>
+
               <div className={`hidden sm:flex items-center gap-2 ${isDarkMode ? "bg-[#0C1017] border-[#1e293b] text-slate-300" : "bg-slate-100 border-slate-200 text-slate-700"} border rounded-md px-3 py-1.5 text-xs`}>
                 <CalendarIcon className="h-3 w-3 text-slate-400" /> {todayStr}
               </div>
@@ -271,12 +295,12 @@ export default function DashboardPage() {
 
         <div className="p-4 md:p-8 pb-24 md:pb-12 max-w-[1400px] mx-auto w-full space-y-6 md:space-y-8">
           
-          {/* TAB 1: OVERVIEW (INKLUSIVE COUNTDOWNS) */}
+          {/* TAB 1: OVERVIEW */}
           {activeTab === "home" && (
             <>
-              <div><h2 className={`text-lg font-semibold ${textTitle}`}>Overview</h2></div>
+              <div><h2 className={`text-lg font-semibold ${textTitle}`}>Hallo {activeUser}! 👋</h2></div>
               
-              {/* COUNTDOWN WIDGETS AUF DER HAUPTSEITE */}
+              {/* COUNTDOWN WIDGETS */}
               {countdowns.length > 0 && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {countdowns.map((cd, idx) => {
@@ -346,7 +370,7 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* LIST PANELS */}
+              {/* MVG & KALENDER LISTS */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mt-6">
                 <div className={`${bgCard} border rounded-xl flex flex-col h-[300px]`}>
                   <div className={`p-5 border-b ${isDarkMode ? "border-[#1e293b]" : "border-slate-200"} flex justify-between items-center`}>
@@ -490,7 +514,7 @@ export default function DashboardPage() {
                         </div>
                       </div>
                       <button onClick={() => markAufgabeErledigt(a)} className={`w-full sm:w-auto h-8 px-4 text-xs font-medium rounded ${isDarkMode ? "bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white" : "bg-white text-slate-700 border-slate-300 hover:bg-slate-100 shadow-sm"} border transition-colors`}>
-                        Heute erledigt
+                        Als {activeUser} erledigt
                       </button>
                     </div>
                   ))}
@@ -549,10 +573,9 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* TAB 5: KALENDER & COUNTDOWN ORGANISATION */}
+          {/* TAB 5: KALENDER & COUNTDOWNS */}
           {activeTab === "kalender" && (
             <div className="space-y-8">
-              {/* COUNTDOWN GENERATOR */}
               <div className="space-y-4">
                 <h2 className={`text-lg font-semibold ${textTitle} flex items-center gap-2`}>
                   <Hourglass className="h-5 w-5 text-blue-500" /> Countdowns anlegen
@@ -589,7 +612,6 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  {/* VORHANDENE COUNTDOWNS */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-6">
                     {countdowns.map((cd, idx) => (
                       <div key={idx} className={`p-3 rounded-lg border ${bgItem} flex items-center justify-between`}>
@@ -607,7 +629,6 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* ICLOUD TERMINE */}
               <div className="space-y-4">
                 <h2 className={`text-lg font-semibold ${textTitle}`}>iCloud Kalender Termine</h2>
                 <div className={`${bgCard} border rounded-xl p-5 md:p-6`}>

@@ -15,7 +15,7 @@ const spreadsheetId = "1Dj3_N9ybEhIDX5HukIELYtE2E3LToq4DiuPV3EBjOiA";
 export async function GET(request: Request) {
   const errors: string[] = [];
 
-  // 1. Wetter
+  // 1. Wetter abrufen
   let temp = "--";
   try {
     const weatherRes = await fetch("https://api.open-meteo.com/v1/forecast?latitude=48.1764&longitude=11.5311&current=temperature_2m");
@@ -81,34 +81,50 @@ export async function GET(request: Request) {
     }
   } catch (e: any) { errors.push(`Kalender: ${e.message}`); }
 
-  // 4. Personalisierte Nachrichten erstellen
+  // 4. Personalisierte Nachrichtengenerierung
+  const { searchParams } = new URL(request.url);
+  const targetUser = searchParams.get("user");
+
   const putzText = faelligePutzaufgaben.length > 0 
-    ? `🧹 Fällig: ${faelligePutzaufgaben.slice(0, 2).join(", ")}` 
-    : "🧹 Haushalt ist top in Schuss!";
+    ? `🧹 Fällig: ${faelligePutzaufgaben.slice(0, 2).join(", ")}${faelligePutzaufgaben.length > 2 ? ` (+${faelligePutzaufgaben.length - 2})` : ""}` 
+    : "🧹 Alles sauber im Haushalt!";
   
   const countdownText = naechsterCountdown 
-    ? `\n⏳ Countdown: Noch ${naechsterCountdown.tage} Tag(e) bis "${naechsterCountdown.title}"!`
+    ? `\n⏳ Countdown: Noch ${naechsterCountdown.tage} Tage bis "${naechsterCountdown.title}"!`
     : "";
 
   const createBody = (name: string) => 
     `Guten Morgen ${name}! ☀️ Heute ${temp}.\n📅 ${heuteTermineCount} Termine heute.\n${putzText}\n🛒 ${offeneEinkaeufeCount} Artikel auf der Einkaufsliste.${countdownText}`;
 
-  // 5. ntfy Push versenden (an gemeinsamen Kanal oder separate Topics)
+  // 5. ntfy Push versenden
   try {
-    // Sende Nachricht für Jonas
-    await fetch("https://ntfy.sh/HaushaltLenaJonas", {
-      method: "POST",
-      body: createBody("Jonas & Lena"),
-      headers: {
-        "Title": "Haushalt OS - Morgenbericht",
-        "Tags": "sunrise,clipboard,sparkles",
-        "Priority": "default"
-      }
-    });
+    if (targetUser) {
+      // Manueller Test-Trigger für eine spezifische Person
+      await fetch("https://ntfy.sh/HaushaltLenaJonas", {
+        method: "POST",
+        body: createBody(targetUser),
+        headers: {
+          "Title": `Haushalt OS - Briefing fuer ${targetUser}`,
+          "Tags": "sunrise,sparkles",
+          "Priority": "default"
+        }
+      });
+    } else {
+      // Automatischer Vercel Cron: Sendet an den gemeinsamen Kanal
+      await fetch("https://ntfy.sh/HaushaltLenaJonas", {
+        method: "POST",
+        body: createBody("Jonas & Lena"),
+        headers: {
+          "Title": "Haushalt OS - Morgenbericht",
+          "Tags": "house,sunrise,clipboard",
+          "Priority": "default"
+        }
+      });
+    }
 
     return NextResponse.json({ 
       success: true, 
-      sentMessage: createBody("Jonas & Lena"),
+      sentMessage: targetUser ? createBody(targetUser) : createBody("Jonas & Lena"),
       warnings: errors.length > 0 ? errors : undefined 
     });
   } catch (e: any) {
