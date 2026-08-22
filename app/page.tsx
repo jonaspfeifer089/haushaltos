@@ -88,8 +88,22 @@ export default function DashboardPage() {
 
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
-        (position) => fetchWeather(position.coords.latitude, position.coords.longitude, "Lokales Wetter"),
-        () => fetchWeather(48.1764, 11.5311, "Wetter OEZ (Fallback)")
+        (position) => {
+          fetchWeather(
+            position.coords.latitude,
+            position.coords.longitude,
+            "Lokales Wetter"
+          );
+        },
+        (err) => {
+          console.warn("Standortfehler:", err.message);
+          fetchWeather(48.1764, 11.5311, "Wetter OEZ (Fallback)");
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 300000, // 5 Minuten Cache
+        }
       );
     } else {
       fetchWeather(48.1764, 11.5311, "Wetter OEZ (Fallback)");
