@@ -13,81 +13,89 @@ const getAuth = () => new google.auth.GoogleAuth({
 const spreadsheetId = "1Dj3_N9ybEhIDX5HukIELYtE2E3LToq4DiuPV3EBjOiA";
 
 export async function GET(request: Request) {
+  const errors: string[] = [];
+
+  // 1. Wetter abrufen
+  let temp = "--";
   try {
-    // 1. Sichere den Cron-Job ab (Optional: Bei Vercel-Crons automatisch gesetzt)
-    const authHeader = request.headers.get('authorization');
-    if (process.env.CRON_SECRET && authHeader && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      return new Response('Unauthorized', { status: 401 });
-    }
+    const weatherRes = await fetch("https://api.open-meteo.com/v1/forecast?latitude=48.1764&longitude=11.5311&current=temperature_2m");
+    const weatherData = await weatherRes.json();
+    temp = `${weatherData?.current?.temperature_2m ?? "--"}°C`;
+  } catch (e: any) {
+    errors.push(`Wetter: ${e.message}`);
+  }
 
-    // 1. Wetter abrufen (München OEZ / Standort)
-    let temp = "--";
-    try {
-      const weatherRes = await fetch("https://api.open-meteo.com/v1/forecast?latitude=48.1764&longitude=11.5311&current=temperature_2m,weather_code");
-      const weatherData = await weatherRes.json();
-      temp = `${weatherData?.current?.temperature_2m ?? "--"}°C`;
-    } catch (e) { console.error("Wetter Cron Error:", e); }
+  // 2. Google Sheets Daten abrufen
+  let offeneEinkaeufeCount = 0;
+  let faelligePutzaufgaben: string[] = [];
 
-    // 2. Google Sheets Daten abrufen
-    let offeneEinkaeufeCount = 0;
-    let faelligePutzaufgaben: string[] = [];
+  try {
+    const sheets = google.sheets({ version: "v4", auth: getAuth() });
+    const [einkaufRes, haushaltRes] = await Promise.all([
+      sheets.spreadsheets.values.get({ spreadsheetId, range: "Einkauf!A:B" }),
+      sheets.spreadsheets.values.get({ spreadsheetId, range: "Haushalt!A:D" })
+    ]);
 
-    try {
-      const sheets = google.sheets({ version: "v4", auth: getAuth() });
-      const [einkaufRes, haushaltRes] = await Promise.all([
-        sheets.spreadsheets.values.get({ spreadsheetId, range: "Einkauf!A:B" }),
-        sheets.spreadsheets.values.get({ spreadsheetId, range: "Haushalt!A:D" })
-      ]);
+    const einkaufRows = einkaufRes.data.values?.slice(1) || [];
+    offeneEinkaeufeCount = einkaufRows.filter(r => r[0] && r[1] !== "Erledigt").length;
 
-      const einkaufRows = einkaufRes.data.values?.slice(1) || [];
-      offeneEinkaeufeCount = einkaufRows.filter(r => r[0] && r[1] !== "Erledigt").length;
+    const haushaltRows = haushaltRes.data.values?.slice(1) || [];
+    const today = new Date();
 
-      const haushaltRows = haushaltRes.data.values?.slice(1) || [];
-      const today = new Date();
-      
-      haushaltRows.forEach(row => {
-        const aufgabe = row[0];
-        const letztesDatumStr = row[1];
-        const intervallTage = parseInt(row[2] || "7", 10);
-        
-        if (aufgabe && letztesDatumStr) {
-          const letztesDatum = new Date(letztesDatumStr);
+    haushaltRows.forEach(row => {
+      const aufgabe = row[0];
+      const letztesDatumStr = row[1];
+      const intervallTage = parseInt(row[2] || "7", 10);
+
+      if (aufgabe && letztesDatumStr) {
+        const letztesDatum = new Date(letztesDatumStr);
+        if (!isNaN(letztesDatum.getTime())) {
           const diffTage = Math.floor((today.getTime() - letztesDatum.getTime()) / (1000 * 60 * 60 * 24));
           if (diffTage >= intervallTage) {
             faelligePutzaufgaben.push(aufgabe);
           }
         }
-      });
-    } catch (e) { console.error("Sheets Cron Error:", e); }
+      }
+    });
+  } catch (e: any) {
+    errors.push(`Sheets: ${e.message}`);
+  }
 
-    // 3. Kalender-Termine für heute abrufen
-    let heuteTermineCount = 0;
-    try {
-      const ICS_URL = process.env.APPLE_CALENDAR_URL;
-      if (ICS_URL) {
-        const calRes = await fetch(ICS_URL);
-        const text = await calRes.text();
-        const jcal = ICAL.parse(text);
-        const comp = new ICAL.Component(jcal);
-        const vevents = comp.getAllSubcomponents("vevent");
-        const todayStr = new Date().toISOString().split("T")[0];
+  // 3. Kalender Termine für heute abrufen
+  let heuteTermineCount = 0;
+  try {
+    const ICS_URL = process.env.APPLE_CALENDAR_URL;
+    if (ICS_URL) {
+      const calRes = await fetch(ICS_URL);
+      const text = await calRes.text();
+      const jcal = ICAL.parse(text);
+      const comp = new ICAL.Component(jcal);
+      const vevents = comp.getAllSubcomponents("vevent");
+      const todayStr = new Date().toISOString().split("T")[0];
 
-        heuteTermineCount = vevents.filter(vevent => {
+      heuteTermineCount = vevents.filter(vevent => {
+        try {
           const ev = new ICAL.Event(vevent);
           const evDate = ev.startDate.toJSDate().toISOString().split("T")[0];
           return evDate === todayStr;
-        }).length;
-      }
-    } catch (e) { console.error("Calendar Cron Error:", e); }
+        } catch {
+          return false;
+        }
+      }).length;
+    }
+  } catch (e: any) {
+    errors.push(`Kalender: ${e.message}`);
+  }
 
-    // 4. Nachricht formulieren
-    const putzText = faelligePutzaufgaben.length > 0 
-      ? `🧹 Fällig heute: ${faelligePutzaufgaben.slice(0, 2).join(", ")}${faelligePutzaufgaben.length > 2 ? ` (+${faelligePutzaufgaben.length - 2} weitere)` : ""}`
-      : "🧹 Keine dringenden Putzaufgaben!";
+  // 4. Nachricht zusammenstellen
+  const putzText = faelligePutzaufgaben.length > 0 
+    ? `🧹 Fällig: ${faelligePutzaufgaben.slice(0, 2).join(", ")}${faelligePutzaufgaben.length > 2 ? ` (+${faelligePutzaufgaben.length - 2})` : ""}`
+    : "🧹 Keine fälligen Putzaufgaben";
 
-    const message = `Guten Morgen Jonas! ☀️ Heute ${temp}.\n📅 ${heuteTermineCount} Termine heute.\n${putzText}\n🛒 ${offeneEinkaeufeCount} Artikel auf der Einkaufsliste.`;
+  const message = `Guten Morgen Jonas! ☀️ Heute ${temp}.\n📅 ${heuteTermineCount} Termine heute.\n${putzText}\n🛒 ${offeneEinkaeufeCount} Artikel auf der Einkaufsliste.`;
 
-    // 5. Über ntfy versenden
+  // 5. ntfy Push senden
+  try {
     await fetch("https://ntfy.sh/HaushaltLenaJonas", {
       method: "POST",
       body: message,
@@ -98,9 +106,12 @@ export async function GET(request: Request) {
       }
     });
 
-    return NextResponse.json({ success: true, sentMessage: message });
-  } catch (error) {
-    console.error("Cron Error:", error);
-    return NextResponse.json({ error: "Fehler beim Cron Job" }, { status: 500 });
+    return NextResponse.json({ 
+      success: true, 
+      sentMessage: message,
+      warnings: errors.length > 0 ? errors : undefined 
+    });
+  } catch (e: any) {
+    return NextResponse.json({ error: "Fehler beim ntfy Senden", details: e.message }, { status: 500 });
   }
 }
