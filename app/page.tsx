@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  Home, ShoppingCart, Package, Calendar as CalendarIcon, Clock, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2, Bell, Settings, Sun, Moon, ChevronDown, ChevronUp, Sparkles, Hourglass, UserCheck, Trash2, StickyNote, X, CloudSun
+  Home, ShoppingCart, Package, Calendar as CalendarIcon, Clock, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2, Bell, Settings, Sun, Moon, ChevronDown, ChevronUp, Sparkles, Hourglass, UserCheck, Trash2, StickyNote, CloudSun
 } from "lucide-react";
 
 interface Departure { line: string; destination: string; time: string; }
@@ -15,11 +15,11 @@ interface NoteItem { rowIndex: number; title: string; content: string; category:
 
 const KATEGORIEN = ["Obst & Gemüse", "Kühlregal", "Vorrat & Teigwaren", "Getränke", "Drogerie & Haushalt", "Sonstiges"] as const;
 const NOTE_COLORS: Record<string, string> = {
-  blue: "bg-blue-500/10 border-blue-500/20 text-blue-600 dark:text-blue-400",
-  emerald: "bg-emerald-500/10 border-emerald-500/20 text-emerald-600 dark:text-emerald-400",
-  rose: "bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400",
-  amber: "bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400",
-  purple: "bg-purple-500/10 border-purple-500/20 text-purple-600 dark:text-purple-400"
+  blue: "bg-indigo-500/10 border-indigo-500/20 text-indigo-400",
+  emerald: "bg-emerald-500/10 border-emerald-500/20 text-emerald-400",
+  rose: "bg-rose-500/10 border-rose-500/20 text-rose-400",
+  amber: "bg-amber-500/10 border-amber-500/20 text-amber-400",
+  purple: "bg-purple-500/10 border-purple-500/20 text-purple-400"
 };
 
 function ermittleKategorie(artikel: string): string {
@@ -52,8 +52,10 @@ export default function DashboardPage() {
   const [aufgaben, setAufgaben] = useState<PutzItem[]>([]);
   const [vorrat, setVorrat] = useState<VorratItem[]>([]);
   const [countdowns, setCountdowns] = useState<CountdownItem[]>([]);
-  
-  // Notizen (Notion-Style)
+  const [newCdTitle, setNewCdTitle] = useState("");
+  const [newCdDate, setNewCdDate] = useState("");
+  const [newCdIcon, setNewCdIcon] = useState("✈️");
+
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [activeNoteCategory, setActiveNoteCategory] = useState<string>("Alle");
 
@@ -146,6 +148,36 @@ export default function DashboardPage() {
     await fetch("/api/data", { method: "PUT", body: JSON.stringify({ sheetName: "Haushalt", rowIndex: item.rowIndex, values: [item.aufgabe, today, item.intervall, activeUser] }) });
   };
 
+  const addCountdown = async () => {
+    if (!newCdTitle || !newCdDate) return;
+    const newItem: CountdownItem = { rowIndex: countdowns.length + 2, title: newCdTitle, date: newCdDate, icon: newCdIcon || "⏳" };
+    setCountdowns([...countdowns, newItem]);
+    setNewCdTitle("");
+    setNewCdDate("");
+    await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Countdowns", values: [newItem.title, newItem.date, newItem.icon] }) });
+    fetchData();
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsScanning(true);
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64 = (reader.result as string).split(',')[1];
+      try {
+        const res = await fetch("/api/vision", { method: "POST", body: JSON.stringify({ imageBase64: base64 }) });
+        const aiData = await res.json();
+        if (aiData.artikel && aiData.mhd) {
+          await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Vorrat", values: [aiData.artikel, aiData.mhd, ""] }) });
+          fetchData(); 
+        }
+      } catch (err) { console.error(err); }
+      setIsScanning(false);
+    };
+    reader.readAsDataURL(file);
+  };
+
   const calculateDaysLeft = (targetDateStr: string) => {
     const target = new Date(targetDateStr);
     const now = new Date();
@@ -154,6 +186,13 @@ export default function DashboardPage() {
 
   const offeneEinkaeufe = einkauf.filter(e => e.status !== "Erledigt");
   const erledigteEinkaeufe = einkauf.filter(e => e.status === "Erledigt");
+
+  const einkaufNachKategorien = KATEGORIEN.reduce((acc, kat) => {
+    const items = offeneEinkaeufe.filter(i => (i.kategorie || ermittleKategorie(i.artikel)) === kat);
+    if (items.length > 0) acc[kat] = items;
+    return acc;
+  }, {} as Record<string, EinkaufItem[]>);
+
   const noteCategories = ["Alle", ...Array.from(new Set(notes.map(n => n.category)))];
   const filteredNotes = activeNoteCategory === "Alle" ? notes : notes.filter(n => n.category === activeNoteCategory);
 
@@ -161,51 +200,28 @@ export default function DashboardPage() {
     { id: "home", icon: Home, label: "Home" },
     { id: "einkauf", icon: ShoppingCart, label: "Einkauf" },
     { id: "putzplan", icon: ClipboardList, label: "Putzplan" },
+    { id: "vorrat", icon: Package, label: "Vorrat" },
     { id: "notizen", icon: StickyNote, label: "Pinnwand" },
     { id: "kalender", icon: CalendarIcon, label: "Termine" }
   ];
 
-  // Glassmorphism & Themes
-  // Dynamische Theme-Tokens nach dem neuen Farb-System
+  // Obsidian & Polar Theme Tokens
   const bgMain = isDarkMode ? "bg-[#08090C] text-slate-100" : "bg-[#F8FAFC] text-slate-900";
-  const bgSidebar = isDarkMode ? "bg-[#08090C]/90 border-white/[0.07]" : "bg-white/90 border-slate-200";
-  const bgGlassCard = isDarkMode ? "obsidian-card" : "bg-white border border-slate-200 shadow-sm";
-  const bgInput = isDarkMode ? "bg-white/[0.03] border-white/[0.08] text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" : "bg-slate-50 border-slate-200 text-slate-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600";
+  const bgSidebar = isDarkMode ? "bg-[#08090C]/90 border-white/[0.08]" : "bg-white/90 border-slate-200";
+  const bgCard = isDarkMode ? "bg-[#101319] border border-white/[0.08] text-slate-100 shadow-lg shadow-black/20" : "bg-white border border-slate-200 shadow-sm text-slate-900";
+  const bgInput = isDarkMode ? "bg-[#08090C] border-white/[0.12] text-white focus:border-indigo-500" : "bg-slate-50 border-slate-200 text-slate-900 focus:border-indigo-600";
+  const bgItem = isDarkMode ? "bg-[#151921] border-white/[0.06]" : "bg-slate-50 border-slate-200";
   const textTitle = isDarkMode ? "text-slate-100" : "text-slate-900";
-  const textSub = isDarkMode ? "text-zinc-500" : "text-slate-500";
-
-  // Badges & Akzent-Highlights
-  const badgePrimary = isDarkMode ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" : "bg-indigo-50 text-indigo-600 border border-indigo-200";
-  const badgeSuccess = isDarkMode ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-emerald-50 text-emerald-600 border border-emerald-200";
-  const badgeWarning = isDarkMode ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" : "bg-amber-50 text-amber-600 border border-amber-200";
-  const badgeRose = isDarkMode ? "bg-rose-500/10 text-rose-400 border border-rose-500/20" : "bg-rose-50 text-rose-600 border border-rose-200";
-
-  // Dynamischer Ambient Glow
-  const getGlowColor = () => {
-    if (activeTab === "einkauf") return "from-emerald-500/20 to-teal-500/10";
-    if (activeTab === "putzplan") return "from-amber-500/20 to-orange-500/10";
-    if (activeTab === "notizen") return "from-purple-500/20 to-pink-500/10";
-    return "from-blue-500/20 to-indigo-500/10";
-  };
+  const textSub = isDarkMode ? "text-slate-400" : "text-slate-500";
 
   return (
-    <div className={`flex h-[100dvh] min-h-[100dvh] w-full overflow-hidden ${bgMain} font-sans transition-colors duration-500 relative`}>
+    <div className={`flex h-[100dvh] min-h-[100dvh] w-full overflow-hidden ${bgMain} font-sans transition-colors duration-300 relative`}>
       
-      {/* AMBIENT GLOW MESH GRADIANT */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <motion.div 
-          animate={{ background: `linear-gradient(to bottom right, var(--tw-gradient-stops))` }}
-          className={`absolute -top-[20%] -left-[10%] w-[70vw] h-[70vw] rounded-full blur-[100px] opacity-60 mix-blend-screen bg-gradient-to-br ${getGlowColor()} transition-colors duration-1000`}
-        />
-        <div className={`absolute bottom-[10%] right-[-10%] w-[50vw] h-[50vw] rounded-full blur-[120px] opacity-40 bg-gradient-to-tl from-blue-600/10 to-transparent`} />
-      </div>
-
       {/* SIDEBAR */}
       <aside className={`hidden md:flex w-64 ${bgSidebar} backdrop-blur-xl border-r flex-col justify-between p-4 h-full z-20`}>
-        {/* Sidebar Content identisch... */}
         <div>
           <div className="flex items-center gap-3 px-3 py-4 mb-4">
-            <div className="h-7 w-7 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <div className="h-7 w-7 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-lg shadow-indigo-500/20">
               <Sparkles className="w-4 h-4 text-white" />
             </div>
             <span className={`font-bold text-sm tracking-tight ${textTitle}`}>Haushalt OS</span>
@@ -216,31 +232,59 @@ export default function DashboardPage() {
             {TABS.map(tab => {
               const isActive = activeTab === tab.id;
               return (
-                <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${isActive ? (isDarkMode ? "bg-white/10 text-white shadow-sm" : "bg-white text-blue-600 shadow-sm") : "text-slate-500 hover:bg-black/5 dark:hover:bg-white/5"}`}>
-                  <tab.icon className={`h-4 w-4 ${isActive ? "text-blue-500" : ""}`} /> {tab.label}
+                <button 
+                  key={tab.id} 
+                  onClick={() => setActiveTab(tab.id)} 
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs font-medium transition-all ${
+                    isActive 
+                      ? (isDarkMode ? "bg-indigo-600/15 text-indigo-400 border border-indigo-500/30" : "bg-indigo-50 text-indigo-600 border border-indigo-200 shadow-sm") 
+                      : `${textSub} hover:bg-black/5 dark:hover:bg-white/5`
+                  }`}
+                >
+                  <tab.icon className={`h-4 w-4 ${isActive ? (isDarkMode ? "text-indigo-400" : "text-indigo-600") : ""}`} /> {tab.label}
                 </button>
               );
             })}
           </nav>
         </div>
         
-        <div className={`pt-4 border-t ${isDarkMode ? "border-white/10" : "border-slate-200"} flex justify-between px-2`}>
-           <button onClick={() => switchUser(activeUser === "Jonas" ? "Lena" : "Jonas")} className={`h-8 px-3 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all ${isDarkMode ? "bg-white/5 text-white hover:bg-white/10" : "bg-white text-slate-800 shadow-sm hover:bg-slate-50"}`}>
-             <UserCheck className="h-3.5 w-3.5 text-blue-500" /> {activeUser}
+        <div className={`pt-4 border-t ${isDarkMode ? "border-white/[0.08]" : "border-slate-200"} flex justify-between items-center px-2`}>
+           <button 
+             onClick={() => switchUser(activeUser === "Jonas" ? "Lena" : "Jonas")} 
+             className={`h-8 px-3 rounded-lg text-xs font-semibold flex items-center gap-2 transition-all ${isDarkMode ? "bg-white/5 text-white hover:bg-white/10" : "bg-white text-slate-800 shadow-sm hover:bg-slate-50"}`}
+           >
+             <UserCheck className="h-3.5 w-3.5 text-indigo-500" /> {activeUser}
            </button>
+           <button className={`${textSub} hover:text-indigo-500`}><Settings className="h-4 w-4" /></button>
         </div>
       </aside>
 
       {/* MAIN CONTENT */}
       <main className="flex-1 flex flex-col h-full overflow-y-auto relative z-10">
         
-        <header className={`pt-safe sticky top-0 z-30 ${isDarkMode ? "bg-[#030407]/60 border-white/5" : "bg-[#f4f6f8]/60 border-slate-200"} backdrop-blur-2xl border-b transition-colors duration-300`}>
-          {/* Header Content... */}
+        {/* HEADER */}
+        <header className={`pt-safe sticky top-0 z-30 ${isDarkMode ? "bg-[#08090C]/80 border-white/[0.08]" : "bg-white/80 border-slate-200"} backdrop-blur-2xl border-b transition-colors duration-300`}>
           <div className="h-14 px-4 md:px-8 flex items-center justify-between">
-            <h1 className={`text-sm font-bold tracking-tight capitalize ${textTitle}`}>{activeTab}</h1>
+            <div className={`flex items-center gap-2 text-xs ${textSub} font-medium tracking-wide`}>
+              <span>Dashboard</span>
+              <span>&gt;</span>
+              <span className={`capitalize font-semibold ${textTitle}`}>{activeTab}</span>
+            </div>
+            
             <div className="flex items-center gap-2">
-              <button onClick={toggleTheme} className={`h-8 w-8 flex items-center justify-center rounded-full ${bgGlassCard} transition-transform active:scale-95`}>
+              <div className={`hidden sm:flex items-center gap-2 ${bgCard} rounded-lg px-3 py-1.5 text-xs font-medium`}>
+                <CalendarIcon className="h-3.5 w-3.5 text-indigo-400" /> {todayStr}
+              </div>
+              
+              <button 
+                onClick={toggleTheme} 
+                className={`h-8 w-8 flex items-center justify-center rounded-lg ${bgCard} transition-transform active:scale-95`}
+              >
                 {isDarkMode ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-slate-700" />}
+              </button>
+
+              <button className={`h-8 w-8 flex items-center justify-center rounded-lg ${bgCard}`}>
+                <Bell className="h-4 w-4 text-slate-400" />
               </button>
             </div>
           </div>
@@ -248,204 +292,394 @@ export default function DashboardPage() {
 
         <div className="p-4 md:p-8 pb-32 md:pb-12 max-w-[1400px] mx-auto w-full space-y-6">
           
-          {/* TAB 1: HOME (MODERN BENTO GRID) */}
+          {/* TAB 1: HOME (BENTO GRID) */}
           {activeTab === "home" && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+            <div className="space-y-6">
               
-              {/* Wetter (2x2) */}
-              <div className={`col-span-2 row-span-2 ${bgGlassCard} rounded-3xl p-6 flex flex-col justify-between border`}>
-                <div className="flex justify-between items-start">
-                  <span className={`text-xs font-semibold ${textSub}`}>{weatherLabel}</span>
-                  <CloudSun className="h-6 w-6 text-blue-400" />
-                </div>
-                <div className="mt-8">
-                  <div className={`text-4xl md:text-5xl font-extrabold tracking-tighter ${textTitle}`}>{weather}</div>
-                  <div className="text-xs font-medium text-blue-500 mt-2">Perfektes Wetter für draußen</div>
-                </div>
-              </div>
-
-              {/* ToDos (1x2 oder 2x1) */}
-              <div className={`col-span-1 row-span-1 lg:col-span-2 ${bgGlassCard} border rounded-3xl p-5 flex flex-col justify-center items-center text-center`}>
-                <div className={`text-3xl font-black ${textTitle}`}>{aufgaben.length}</div>
-                <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mt-1">Offene Tasks</div>
-              </div>
-
-              {/* Einkauf (1x2 oder 2x1) */}
-              <div className={`col-span-1 row-span-1 lg:col-span-2 ${bgGlassCard} border rounded-3xl p-5 flex flex-col justify-center items-center text-center`}>
-                <div className={`text-3xl font-black ${textTitle}`}>{offeneEinkaeufe.length}</div>
-                <div className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider mt-1">Auf der Liste</div>
-              </div>
-
-              {/* MVG (2x2) */}
-              <div className={`col-span-2 lg:col-span-3 row-span-2 ${bgGlassCard} border rounded-3xl p-6 flex flex-col`}>
-                <h3 className={`text-sm font-bold ${textTitle} mb-4`}>Abfahrten OEZ</h3>
-                <div className="space-y-4 flex-1">
-                  {departures.slice(0,3).map((d, i) => (
-                    <div key={i} className="flex justify-between items-center">
-                      <div className="flex items-center gap-3">
-                        <span className="text-[10px] font-black px-2 py-1 rounded-md bg-blue-500/20 text-blue-500">{d.line}</span>
-                        <span className={`text-xs font-medium ${textTitle}`}>{d.destination}</span>
+              {/* COUNTDOWNS ZEILE */}
+              {countdowns.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {countdowns.map((cd, idx) => {
+                    const days = calculateDaysLeft(cd.date);
+                    return (
+                      <div key={idx} className={`${bgCard} rounded-2xl p-4 flex items-center justify-between`}>
+                        <div className="flex items-center gap-3">
+                          <span className="text-2xl p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20">{cd.icon}</span>
+                          <div>
+                            <h4 className={`text-sm font-semibold ${textTitle}`}>{cd.title}</h4>
+                            <p className="text-[11px] text-slate-500">{cd.date}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className={`text-lg font-bold font-mono ${days <= 3 ? "text-amber-400" : "text-indigo-400"}`}>
+                            {days >= 0 ? `${days}d` : "Vorbei"}
+                          </span>
+                        </div>
                       </div>
-                      <span className="text-xs font-mono font-semibold text-slate-500">{d.time}</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
-              </div>
+              )}
 
-              {/* Termine (2x2) */}
-              <div className={`col-span-2 lg:col-span-3 row-span-2 bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-3xl p-6 flex flex-col relative overflow-hidden shadow-xl shadow-blue-900/20`}>
-                <div className="absolute -right-4 -top-4 opacity-20"><CalendarIcon className="h-32 w-32" /></div>
-                <h3 className="text-sm font-bold mb-4 relative z-10">Anstehende Termine</h3>
-                <div className="space-y-4 relative z-10 flex-1">
-                  {termine.slice(0,3).map((t, i) => (
-                    <div key={i} className="flex justify-between items-center bg-black/20 p-3 rounded-xl backdrop-blur-md">
-                      <span className="text-xs font-medium truncate pr-4">{t.title}</span>
-                      <span className="text-[10px] font-mono font-bold bg-white/20 px-2 py-1 rounded-md whitespace-nowrap">{t.date}</span>
-                    </div>
-                  ))}
+              {/* BENTO GRID */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                
+                {/* 1. Wetter */}
+                <div className={`${bgCard} rounded-2xl p-6 flex flex-col justify-between min-h-[170px]`}>
+                  <div className="flex justify-between items-start">
+                    <span className={`text-xs font-semibold ${textSub}`}>{weatherLabel}</span>
+                    <span className="text-[10px] font-medium px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Live</span>
+                  </div>
+                  <div>
+                    <div className={`text-4xl font-extrabold tracking-tight ${textTitle}`}>{weather}</div>
+                    <p className="text-xs text-indigo-400 mt-1">Aktuelle Außentemperatur</p>
+                  </div>
                 </div>
-              </div>
 
-            </motion.div>
+                {/* 2. Tasks & Einkauf Summary */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className={`${bgCard} rounded-2xl p-5 flex flex-col justify-center items-center text-center cursor-pointer`} onClick={() => setActiveTab("putzplan")}>
+                    <div className="text-3xl font-black text-rose-500">{aufgaben.length}</div>
+                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mt-1">Offene Tasks</div>
+                  </div>
+                  <div className={`${bgCard} rounded-2xl p-5 flex flex-col justify-center items-center text-center cursor-pointer`} onClick={() => setActiveTab("einkauf")}>
+                    <div className="text-3xl font-black text-emerald-500">{offeneEinkaeufe.length}</div>
+                    <div className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mt-1">Auf der Liste</div>
+                  </div>
+                </div>
+
+                {/* 3. Abfahrten MVG */}
+                <div className={`${bgCard} rounded-2xl p-6 flex flex-col justify-between`}>
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className={`text-xs font-bold uppercase tracking-wider ${textTitle}`}>Abfahrten OEZ</h3>
+                    <span className="text-[10px] text-indigo-400 font-mono">Live MVG</span>
+                  </div>
+                  <div className="space-y-3">
+                    {departures.slice(0, 3).map((d, i) => (
+                      <div key={i} className="flex justify-between items-center text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-400 border border-indigo-500/20">{d.line}</span>
+                          <span className={`truncate max-w-[130px] ${textTitle}`}>{d.destination}</span>
+                        </div>
+                        <span className="font-mono text-slate-400">{d.time}</span>
+                      </div>
+                    ))}
+                    {departures.length === 0 && <span className="text-xs text-slate-500">Keine Live-Abfahrten</span>}
+                  </div>
+                </div>
+
+                {/* 4. Termine Box */}
+                <div className={`md:col-span-2 lg:col-span-3 ${bgCard} rounded-2xl p-6`}>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className={`text-xs font-bold uppercase tracking-wider ${textTitle}`}>Anstehende Termine</h3>
+                    <span className="text-[10px] text-slate-500">iCloud Kalender</span>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {termine.slice(0, 3).map((t, i) => (
+                      <div key={i} className={`p-3 rounded-xl border ${bgItem} flex flex-col justify-between gap-2`}>
+                        <span className={`text-xs font-semibold ${textTitle} truncate`}>{t.title}</span>
+                        <span className="text-[10px] font-mono text-indigo-400 w-fit px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/20">{t.date}</span>
+                      </div>
+                    ))}
+                    {termine.length === 0 && <p className="text-xs text-slate-500 py-2">Keine anstehenden Termine.</p>}
+                  </div>
+                </div>
+
+              </div>
+            </div>
           )}
 
-          {/* TAB 4: NOTION-STYLE PINNWAND */}
+          {/* TAB 2: EINKAUF (SUPERMARKT-MODUS) */}
+          {activeTab === "einkauf" && (
+            <div className="space-y-6">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>Einkaufsliste</h2>
+                  <p className={`text-xs ${textSub}`}>Sortiert nach Supermarkt-Gängen</p>
+                </div>
+                <span className="text-xs px-2.5 py-1 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 font-medium">
+                  {offeneEinkaeufe.length} offen
+                </span>
+              </div>
+
+              {/* Favoriten Chips */}
+              <div className={`${bgCard} rounded-2xl p-4 space-y-2`}>
+                <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-400">
+                  <Sparkles className="h-3 w-3 text-amber-400" /> Schnellwahl Favoriten:
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {SCHNELLWAHL_FAVORITEN.map((fav, idx) => (
+                    <button key={idx} onClick={() => addEinkauf(fav)} className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${bgItem} ${textTitle} hover:border-indigo-500`}>
+                      + {fav}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Eingabefeld */}
+              <div className={`${bgCard} rounded-2xl p-5 md:p-6`}>
+                <div className={`flex flex-col md:flex-row gap-3 mb-6 pb-6 border-b ${isDarkMode ? "border-white/[0.08]" : "border-slate-200"}`}>
+                  <div className="flex-1 relative">
+                    <input 
+                      type="text" 
+                      placeholder="Neuer Artikel (z.B. Hafermilch)..." 
+                      value={neuerArtikel} 
+                      onChange={(e) => setNeuerArtikel(e.target.value)} 
+                      onKeyDown={(e) => e.key === 'Enter' && addEinkauf()} 
+                      className={`w-full ${bgInput} border rounded-xl px-4 py-2.5 text-sm focus:outline-none transition-all`} 
+                    />
+                  </div>
+                  <button onClick={() => addEinkauf()} className="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-indigo-600/20">
+                    Hinzufügen
+                  </button>
+                </div>
+
+                {/* Gruppierte Warengruppen */}
+                <div className="space-y-6">
+                  {Object.keys(einkaufNachKategorien).length === 0 ? (
+                    <p className="text-sm text-slate-500 text-center py-8">Alles erledigt! Keine offenen Artikel.</p>
+                  ) : (
+                    Object.entries(einkaufNachKategorien).map(([kategorie, items]) => (
+                      <div key={kategorie} className="space-y-2">
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1 flex items-center justify-between">
+                          <span>{kategorie}</span>
+                          <span className="text-[10px] font-normal text-slate-500">{items.length}</span>
+                        </div>
+                        <div className="space-y-2">
+                          {items.map((item) => (
+                            <div key={item.rowIndex} className={`flex items-center justify-between p-3.5 rounded-xl border ${bgItem} transition-colors`}>
+                              <span className={`text-sm font-medium ${textTitle}`}>{item.artikel}</span>
+                              <div className="flex items-center gap-2">
+                                <button onClick={() => markEinkaufErledigt(item, "Erledigt")} className="h-7 px-3 text-[11px] font-medium rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors flex items-center gap-1">
+                                  <Check className="h-3 w-3" /> <span>Erledigt</span>
+                                </button>
+                                <button onClick={() => deleteEinkauf(item)} className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors">
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                {/* Ausklappbare erledigte Artikel */}
+                {erledigteEinkaeufe.length > 0 && (
+                  <div className={`mt-8 pt-6 border-t ${isDarkMode ? "border-white/[0.08]" : "border-slate-200"}`}>
+                    <button onClick={() => setShowErledigt(!showErledigt)} className="flex items-center justify-between w-full text-xs text-slate-400 hover:text-slate-200 py-1">
+                      <span>Bereits gekauft ({erledigteEinkaeufe.length})</span>
+                      {showErledigt ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
+                    {showErledigt && (
+                      <div className="space-y-1 mt-3 opacity-60">
+                        {erledigteEinkaeufe.map((item) => (
+                          <div key={item.rowIndex} className="flex items-center justify-between p-2 text-xs line-through text-slate-500">
+                            <span>{item.artikel}</span>
+                            <button onClick={() => markEinkaufErledigt(item, "Offen")} className="text-[10px] text-indigo-400 hover:underline">Wiederherstellen</button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 3: PUTZPLAN */}
+          {activeTab === "putzplan" && (
+            <div className="space-y-6">
+              <div>
+                <h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>Putzplan & Aufgaben</h2>
+                <p className={`text-xs ${textSub}`}>Zuletzt erledigte Tasks & Fälligkeiten</p>
+              </div>
+              <div className={`${bgCard} rounded-2xl p-5 md:p-6`}>
+                <div className="space-y-3">
+                  {aufgaben.map((a, idx) => (
+                    <div key={idx} className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border ${bgItem} gap-4 sm:gap-0`}>
+                      <div>
+                        <div className={`font-semibold text-sm ${textTitle} mb-1`}>{a.aufgabe}</div>
+                        <div className="flex gap-3 text-[10px] text-slate-400">
+                          <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Intervall: {a.intervall} Tage</span>
+                          <span>Letztes Mal: <span className="text-slate-300 font-mono">{a.letztesDatum}</span></span>
+                        </div>
+                      </div>
+                      <button onClick={() => markAufgabeErledigt(a)} className={`w-full sm:w-auto h-8 px-4 text-xs font-semibold rounded-lg ${isDarkMode ? "bg-white/10 text-white hover:bg-white/15" : "bg-slate-100 text-slate-800 hover:bg-slate-200"} border border-white/[0.08] transition-colors`}>
+                        Als {activeUser} erledigt
+                      </button>
+                    </div>
+                  ))}
+                  {aufgaben.length === 0 && <p className="text-sm text-slate-500 text-center py-8">Keine Aufgaben hinterlegt.</p>}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 4: VORRAT & KI SCANNER */}
+          {activeTab === "vorrat" && (
+            <div className="space-y-6">
+              <div>
+                <h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>Vorratskammer & KI Scanner</h2>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                <div className={`lg:col-span-1 ${bgCard} rounded-2xl p-6 flex flex-col h-[280px]`}>
+                  <h3 className={`text-xs font-bold uppercase tracking-wider ${textTitle} mb-4 flex items-center gap-2`}><Camera className="h-4 w-4 text-indigo-400" /> Scanner</h3>
+                  <div className={`flex-1 border-2 border-dashed ${isDarkMode ? "border-white/[0.08] bg-black/20" : "border-slate-200 bg-slate-50"} rounded-xl flex flex-col items-center justify-center p-6 text-center`}>
+                    {isScanning ? (
+                      <div className="flex flex-col items-center gap-3"><Loader2 className="h-6 w-6 text-indigo-400 animate-spin" /><span className="text-[10px] text-slate-400">Gemini analysiert...</span></div>
+                    ) : (
+                      <>
+                        <UploadCloud className="h-8 w-8 text-slate-400 mb-2" />
+                        <p className="text-[11px] text-slate-400 mb-3">Foto machen $\rightarrow$ KI erfasst MHD</p>
+                        <input type="file" accept="image/*" capture="environment" ref={fileInputRef} className="hidden" onChange={handleImageUpload} />
+                        <button onClick={() => fileInputRef.current?.click()} className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl transition-all shadow-md shadow-indigo-600/20 font-semibold">
+                          Kamera starten
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                <div className={`lg:col-span-2 ${bgCard} rounded-2xl p-6 flex flex-col min-h-[280px]`}>
+                  <h3 className={`text-xs font-bold uppercase tracking-wider ${textTitle} mb-4`}>Aktueller Bestand</h3>
+                  <div className="overflow-y-auto flex-1">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className={`border-b ${isDarkMode ? "border-white/[0.08]" : "border-slate-200"}`}>
+                          <th className="pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Artikel</th>
+                          <th className="pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">MHD</th>
+                        </tr>
+                      </thead>
+                      <tbody className={`divide-y ${isDarkMode ? "divide-white/[0.04]" : "divide-slate-100"}`}>
+                        {vorrat.map((v, idx) => (
+                          <tr key={idx}>
+                            <td className={`py-3 text-sm font-medium ${textTitle}`}>{v.artikel}</td>
+                            <td className="py-3 text-xs text-slate-400 text-right font-mono">{v.ablaufdatum}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: PINNWAND (NOTION-STYLE) */}
           {activeTab === "notizen" && (
             <div className="space-y-6">
               <div className="flex justify-between items-end">
                 <div>
-                  <h2 className={`text-2xl font-extrabold tracking-tight ${textTitle}`}>Pinnwand</h2>
-                  <p className={`text-sm ${textSub}`}>Digitale Notizen & Infos</p>
+                  <h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>Pinnwand</h2>
+                  <p className={`text-xs ${textSub}`}>Digitale Notizen & Infos</p>
                 </div>
-                <button className="h-10 px-4 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-md transition-all flex items-center gap-2">
-                  <Plus className="h-4 w-4" /> Neue Notiz
-                </button>
               </div>
 
-              {/* Kategorien-Pillen */}
-              <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+              {/* Kategorien */}
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                 {noteCategories.map(cat => (
                   <button 
                     key={cat} 
                     onClick={() => setActiveNoteCategory(cat)}
-                    className={`px-4 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${activeNoteCategory === cat ? "bg-blue-600 text-white shadow-md shadow-blue-500/20" : `${bgGlassCard} ${textSub} border hover:border-slate-400`}`}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${activeNoteCategory === cat ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/20" : `${bgCard} ${textSub} hover:border-slate-400`}`}
                   >
                     {cat}
                   </button>
                 ))}
               </div>
 
-              {/* Masonry-artiges Grid */}
+              {/* Notizen Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                <AnimatePresence>
-                  {filteredNotes.map((note) => (
-                    <motion.div 
-                      layout
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.9 }}
-                      key={note.rowIndex} 
-                      className={`${bgGlassCard} border rounded-3xl p-6 group relative overflow-hidden`}
-                    >
-                      <div className="absolute top-0 left-0 w-1 h-full bg-blue-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                      <div className="flex justify-between items-start mb-3">
-                        <span className={`text-[9px] uppercase tracking-wider font-bold px-2 py-1 rounded-md border ${NOTE_COLORS[note.color] || NOTE_COLORS.blue}`}>
-                          {note.category}
-                        </span>
-                      </div>
-                      <h3 className={`text-lg font-bold tracking-tight mb-2 ${textTitle}`}>{note.title}</h3>
-                      <p className={`text-sm leading-relaxed ${textSub} whitespace-pre-line`}>
-                        {note.content}
-                      </p>
-                    </motion.div>
-                  ))}
-                </AnimatePresence>
+                {filteredNotes.map((note) => (
+                  <div key={note.rowIndex} className={`${bgCard} rounded-2xl p-5 border relative overflow-hidden`}>
+                    <span className={`text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-md border ${NOTE_COLORS[note.color] || NOTE_COLORS.blue}`}>
+                      {note.category}
+                    </span>
+                    <h3 className={`text-base font-bold mt-2 mb-1 ${textTitle}`}>{note.title}</h3>
+                    <p className={`text-xs leading-relaxed ${textSub} whitespace-pre-line`}>
+                      {note.content}
+                    </p>
+                  </div>
+                ))}
+                {filteredNotes.length === 0 && <p className="text-sm text-slate-500 col-span-full py-8 text-center">Keine Notizen in dieser Kategorie.</p>}
               </div>
             </div>
           )}
 
-          {/* TAB 2: EINKAUFSLISTE (MIT SWIPE GESTURES) */}
-          {activeTab === "einkauf" && (
-            <div className="space-y-6">
-              <div>
-                <h2 className={`text-2xl font-extrabold tracking-tight ${textTitle}`}>Einkaufsliste</h2>
-              </div>
-              <div className={`${bgGlassCard} border rounded-3xl p-5 md:p-8`}>
-                
-                {/* Swipeable List Items */}
-                <div className="space-y-4">
-                  {einkauf.filter(e => e.status !== "Erledigt").map((item) => (
-                    <div key={item.rowIndex} className="relative rounded-2xl overflow-hidden bg-rose-500/20">
-                      {/* Swipe Background Action (Delete/Check) */}
-                      <div className="absolute inset-0 flex justify-between items-center px-6">
-                         <div className="text-rose-500 font-bold flex items-center gap-2"><Trash2 className="h-5 w-5"/> Löschen</div>
-                         <div className="text-emerald-500 font-bold flex items-center gap-2">Erledigt <Check className="h-5 w-5"/></div>
-                      </div>
-                      
-                      <motion.div 
-                        drag="x"
-                        dragConstraints={{ left: 0, right: 0 }}
-                        dragElastic={0.8}
-                        onDragEnd={(e, info) => {
-                          if (info.offset.x > 100) deleteEinkauf(item);      // Swipe Right -> Delete
-                          if (info.offset.x < -100) markEinkaufErledigt(item, "Erledigt"); // Swipe Left -> Check
-                        }}
-                        className={`relative z-10 ${isDarkMode ? "bg-[#11141a]" : "bg-white"} border ${isDarkMode ? "border-white/5" : "border-slate-200"} p-4 rounded-2xl shadow-sm flex items-center justify-between cursor-grab active:cursor-grabbing`}
-                      >
-                        <span className={`text-base font-semibold ${textTitle}`}>{item.artikel}</span>
-                        <div className="hidden md:flex items-center gap-2">
-                          <button onClick={() => markEinkaufErledigt(item, "Erledigt")} className="p-2 rounded-xl bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20"><Check className="h-4 w-4" /></button>
-                          <button onClick={() => deleteEinkauf(item)} className="p-2 rounded-xl bg-rose-500/10 text-rose-500 hover:bg-rose-500/20"><Trash2 className="h-4 w-4" /></button>
-                        </div>
-                      </motion.div>
+          {/* TAB 6: KALENDER & COUNTDOWNS */}
+          {activeTab === "kalender" && (
+            <div className="space-y-8">
+              
+              {/* Countdown Anlegen */}
+              <div className="space-y-3">
+                <h2 className={`text-base font-bold tracking-tight ${textTitle} flex items-center gap-2`}>
+                  <Hourglass className="h-4 w-4 text-indigo-400" /> Countdowns verwalten
+                </h2>
+                <div className={`${bgCard} rounded-2xl p-5`}>
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <input 
+                      type="text" 
+                      placeholder="Event Name (z.B. Urlaub)..." 
+                      value={newCdTitle} 
+                      onChange={e => setNewCdTitle(e.target.value)} 
+                      className={`sm:col-span-2 ${bgInput} border rounded-xl px-3 py-2 text-xs focus:outline-none`}
+                    />
+                    <input 
+                      type="date" 
+                      value={newCdDate} 
+                      onChange={e => setNewCdDate(e.target.value)} 
+                      className={`${bgInput} border rounded-xl px-3 py-2 text-xs focus:outline-none`}
+                    />
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        placeholder="Emoji" 
+                        value={newCdIcon} 
+                        onChange={e => setNewCdIcon(e.target.value)} 
+                        className={`w-14 text-center ${bgInput} border rounded-xl px-2 py-2 text-xs focus:outline-none`}
+                      />
+                      <button onClick={addCountdown} className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-xl transition-all shadow-md shadow-indigo-600/20">
+                        Speichern
+                      </button>
                     </div>
-                  ))}
+                  </div>
                 </div>
-
               </div>
+
+              {/* iCloud Termine */}
+              <div className="space-y-3">
+                <h2 className={`text-base font-bold tracking-tight ${textTitle}`}>iCloud Kalender Termine</h2>
+                <div className={`${bgCard} rounded-2xl p-5`}>
+                  <div className="space-y-2">
+                    {termine.map((t, idx) => (
+                      <div key={idx} className={`flex flex-col sm:flex-row sm:items-center justify-between p-3.5 rounded-xl border ${bgItem} gap-2 sm:gap-0`}>
+                        <span className={`text-sm font-medium ${textTitle}`}>{t.title}</span>
+                        <span className="text-xs font-mono text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20 w-fit">{t.date}</span>
+                      </div>
+                    ))}
+                    {termine.length === 0 && <p className="text-sm text-slate-500 text-center py-6">Keine Termine synchronisiert.</p>}
+                  </div>
+                </div>
+              </div>
+
             </div>
           )}
 
-          {/* Andere Tabs bleiben logisch gleich, hier gekürzt für Lesbarkeit des Codes */}
         </div>
       </main>
 
-      {/* DYNAMIC FLOATING ACTION BUTTON (FAB) */}
-      <div className="md:hidden fixed bottom-24 right-6 z-50">
-        <AnimatePresence>
-          {isFabOpen && (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.8, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.8, y: 20 }}
-              className="absolute bottom-16 right-0 flex flex-col gap-3"
-            >
-              <button onClick={() => { setActiveTab("notizen"); setIsFabOpen(false); }} className="flex items-center justify-end gap-3 group">
-                <span className="bg-white/90 text-black text-xs font-bold px-3 py-1.5 rounded-lg shadow-lg">Notiz</span>
-                <div className="h-12 w-12 rounded-full bg-purple-500 text-white shadow-lg shadow-purple-500/30 flex items-center justify-center"><StickyNote className="h-5 w-5" /></div>
-              </button>
-              <button onClick={() => { setActiveTab("einkauf"); setIsFabOpen(false); }} className="flex items-center justify-end gap-3 group">
-                <span className="bg-white/90 text-black text-xs font-bold px-3 py-1.5 rounded-lg shadow-lg">Einkauf</span>
-                <div className="h-12 w-12 rounded-full bg-blue-500 text-white shadow-lg shadow-blue-500/30 flex items-center justify-center"><ShoppingCart className="h-5 w-5" /></div>
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        
-        <button 
-          onClick={() => setIsFabOpen(!isFabOpen)}
-          className={`h-16 w-16 rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 ${isFabOpen ? "bg-slate-800 text-white rotate-45" : "bg-gradient-to-br from-blue-600 to-indigo-600 text-white hover:scale-105"}`}
-        >
-          <Plus className="h-7 w-7" />
-        </button>
-      </div>
-
-      {/* MOBILE BOTTOM NAVIGATION (Mit Safe Area Blur) */}
-      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-40 bg-black/10 backdrop-blur-3xl border-t ${isDarkMode ? "border-white/10" : "border-slate-200"} px-3 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] flex justify-around items-center`}>
+      {/* MOBILE BOTTOM NAVIGATION */}
+      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-40 ${isDarkMode ? "bg-[#08090C]/90 border-white/[0.08]" : "bg-white/90 border-slate-200"} backdrop-blur-xl border-t px-3 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] flex justify-around items-center`}>
         {TABS.map(tab => {
           const isActive = activeTab === tab.id;
           return (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex flex-col items-center justify-center w-14 h-11 gap-1 rounded-xl transition-all ${isActive ? "text-blue-500" : textSub}`}>
-              <tab.icon className={`h-5 w-5`} />
-              <span className="text-[9px] font-bold tracking-tight">{tab.label}</span>
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex flex-col items-center justify-center w-12 h-11 gap-1 rounded-xl transition-all ${isActive ? "text-indigo-400 font-bold" : textSub}`}>
+              <tab.icon className="h-4 w-4" />
+              <span className="text-[9px] tracking-tight">{tab.label}</span>
             </button>
           );
         })}
