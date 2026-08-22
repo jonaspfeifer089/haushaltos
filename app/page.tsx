@@ -12,7 +12,7 @@ interface PutzItem { rowIndex: number; aufgabe: string; letztesDatum: string; in
 interface VorratItem { rowIndex: number; artikel: string; ablaufdatum: string; anbruch: string; }
 interface CountdownItem { rowIndex: number; title: string; date: string; icon: string; }
 interface NoteItem { rowIndex: number; title: string; content: string; category: string; color: string; }
-interface CalendarEvent { title: string; date: string; }
+interface CalendarEvent { title: string; date: string; type?: "termin" | "putz"; }
 
 const KATEGORIEN = ["Obst & Gemüse", "Kühlregal", "Vorrat & Teigwaren", "Getränke", "Drogerie & Haushalt", "Sonstiges"] as const;
 
@@ -39,7 +39,6 @@ export default function DashboardPage() {
   const [weatherLabel, setWeatherLabel] = useState<string>("Standort");
   const [termine, setTermine] = useState<CalendarEvent[]>([]);
   
-  // Vollwertiger Kalender State
   const [calendarMode, setCalendarMode] = useState<"month" | "week">("month");
   const [currentDate, setCurrentDate] = useState(new Date());
 
@@ -157,6 +156,7 @@ export default function DashboardPage() {
     const today = new Date().toISOString().split("T")[0];
     setAufgaben(aufgaben.map(a => a.rowIndex === item.rowIndex ? { ...a, letztesDatum: today } : a));
     await fetch("/api/data", { method: "PUT", body: JSON.stringify({ sheetName: "Haushalt", rowIndex: item.rowIndex, values: [item.aufgabe, today, item.intervall, activeUser] }) });
+    fetchData();
   };
 
   const addCountdown = async () => {
@@ -185,52 +185,45 @@ export default function DashboardPage() {
     fetchData();
   };
 
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIsScanning(true);
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      const base64 = (reader.result as string).split(',')[1];
-      try {
-        const res = await fetch("/api/vision", { method: "POST", body: JSON.stringify({ imageBase64: base64 }) });
-        const aiData = await res.json();
-        if (aiData.artikel && aiData.mhd) {
-          await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Vorrat", values: [aiData.artikel, aiData.mhd, ""] }) });
-          fetchData(); 
-        }
-      } catch (err) { console.error(err); }
-      setIsScanning(false);
-    };
-    reader.readAsDataURL(file);
-  };
-
   const calculateDaysLeft = (targetDateStr: string) => {
     const target = new Date(targetDateStr);
     const now = new Date();
     return Math.ceil((target.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
   };
 
-  // Kalender Navigation & Datumsberechnung
+  // Putzaufgaben in Kalender-Events umwandeln (berechnet anhand Intervall)
+  const getPutzEventsForDate = (dateObj: Date) => {
+    const events: { title: string; type: "putz" }[] = [];
+    aufgaben.forEach(a => {
+      if (!a.letztesDatum || !a.intervall) return;
+      const lastDate = new Date(a.letztesDatum);
+      const intervalDays = parseInt(a.intervall, 10);
+      
+      // Nächstes Fälligkeitsdatum berechnen
+      const dueDate = new Date(lastDate);
+      dueDate.setDate(dueDate.getDate() + intervalDays);
+
+      if (dueDate.toDateString() === dateObj.toDateString()) {
+        events.push({ title: `🧹 ${a.aufgabe}`, type: "putz" });
+      }
+    });
+    return events;
+  };
+
+  // Kalender Navigation
   const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
 
   const handlePrev = () => {
     const newDate = new Date(currentDate);
-    if (calendarMode === "month") {
-      newDate.setMonth(newDate.getMonth() - 1);
-    } else {
-      newDate.setDate(newDate.getDate() - 7);
-    }
+    if (calendarMode === "month") newDate.setMonth(newDate.getMonth() - 1);
+    else newDate.setDate(newDate.getDate() - 7);
     setCurrentDate(newDate);
   };
 
   const handleNext = () => {
     const newDate = new Date(currentDate);
-    if (calendarMode === "month") {
-      newDate.setMonth(newDate.getMonth() + 1);
-    } else {
-      newDate.setDate(newDate.getDate() + 7);
-    }
+    if (calendarMode === "month") newDate.setMonth(newDate.getMonth() + 1);
+    else newDate.setDate(newDate.getDate() + 7);
     setCurrentDate(newDate);
   };
 
@@ -264,7 +257,10 @@ export default function DashboardPage() {
     const isoDateStr = `${y}-${m}-${d}`;
     const germanDateStr = `${d}.${m}.`;
 
-    return termine.filter(t => t.date.includes(isoDateStr) || t.date.includes(germanDateStr));
+    const icloudEvents = termine.filter(t => t.date.includes(isoDateStr) || t.date.includes(germanDateStr)).map(t => ({ title: t.title, type: "termin" as const }));
+    const putzEvents = getPutzEventsForDate(dateObj);
+
+    return [...icloudEvents, ...putzEvents];
   };
 
   const offeneEinkaeufe = einkauf.filter(e => e.status !== "Erledigt");
@@ -443,8 +439,8 @@ export default function DashboardPage() {
 
                   <div className="space-y-3 pt-2">
                     <div className="flex justify-between items-center px-1">
-                      <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Terminübersicht</h3>
-                      <span className={`text-[10px] ${textSub}`}>iCloud Kalender</span>
+                      <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Termine & Putzplan</h3>
+                      <span className={`text-[10px] ${textSub}`}>iCloud & Haushalt OS</span>
                     </div>
 
                     <div className={`${bgCard} rounded-3xl p-6 border space-y-3`}>
@@ -754,7 +750,7 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* TAB 6: VOLLWERTIGER KALENDER */}
+          {/* TAB 6: VOLLWERTIGER KALENDER INKL. PUTZPLAN */}
           {activeTab === "kalender" && (
             <div className="space-y-6">
               
@@ -822,7 +818,7 @@ export default function DashboardPage() {
                             
                             <div className="space-y-1 overflow-y-auto max-h-[60px] scrollbar-hide">
                               {dayEvents.map((ev, idx) => (
-                                <div key={idx} className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#005377]/20 text-[#3A8EBA] dark:text-[#82CBEE] truncate">
+                                <div key={idx} className={`text-[10px] font-bold px-1.5 py-0.5 rounded truncate ${ev.type === "putz" ? "bg-[#49111C]/20 text-[#E27B88] border border-[#49111C]/30" : "bg-[#005377]/20 text-[#3A8EBA] dark:text-[#82CBEE]"}`}>
                                   {ev.title}
                                 </div>
                               ))}
@@ -856,7 +852,7 @@ export default function DashboardPage() {
 
                           <div className="space-y-2 flex-1 overflow-y-auto max-h-[150px]">
                             {dayEvents.map((ev, idx) => (
-                              <div key={idx} className="p-2 rounded-xl bg-[#005377]/20 border border-[#005377]/30 text-xs font-bold text-[#3A8EBA] dark:text-[#82CBEE]">
+                              <div key={idx} className={`p-2 rounded-xl text-xs font-bold truncate ${ev.type === "putz" ? "bg-[#49111C]/20 text-[#E27B88] border border-[#49111C]/30" : "bg-[#005377]/20 border border-[#005377]/30 text-[#3A8EBA] dark:text-[#82CBEE]"}`}>
                                 {ev.title}
                               </div>
                             ))}
