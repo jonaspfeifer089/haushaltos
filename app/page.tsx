@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  Home, ShoppingCart, Package, Calendar as CalendarIcon, Clock, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2, Bell, Settings, Sun, Moon, ChevronDown, ChevronUp, Sparkles, Hourglass, UserCheck, Trash2, StickyNote, X
+  Home, ShoppingCart, Package, Calendar as CalendarIcon, Clock, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2, Bell, Settings, Sun, Moon, ChevronDown, ChevronUp, Sparkles, Hourglass, UserCheck, Trash2, StickyNote, X, CloudSun
 } from "lucide-react";
 
 interface Departure { line: string; destination: string; time: string; }
@@ -166,11 +166,19 @@ export default function DashboardPage() {
   ];
 
   // Glassmorphism & Themes
-  const bgMain = isDarkMode ? "bg-[#030407] text-slate-200" : "bg-[#f4f6f8] text-slate-800";
-  const bgSidebar = isDarkMode ? "bg-white/5 border-white/10" : "bg-white/80 border-slate-200";
-  const bgGlassCard = isDarkMode ? "bg-white/[0.03] backdrop-blur-2xl border-white/10 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.5)]" : "bg-white/70 backdrop-blur-2xl border-white/40 shadow-sm";
-  const textTitle = isDarkMode ? "text-white" : "text-slate-900";
-  const textSub = isDarkMode ? "text-slate-400" : "text-slate-500";
+  // Dynamische Theme-Tokens nach dem neuen Farb-System
+  const bgMain = isDarkMode ? "bg-[#08090C] text-slate-100" : "bg-[#F8FAFC] text-slate-900";
+  const bgSidebar = isDarkMode ? "bg-[#08090C]/90 border-white/[0.07]" : "bg-white/90 border-slate-200";
+  const bgGlassCard = isDarkMode ? "obsidian-card" : "bg-white border border-slate-200 shadow-sm";
+  const bgInput = isDarkMode ? "bg-white/[0.03] border-white/[0.08] text-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" : "bg-slate-50 border-slate-200 text-slate-900 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600";
+  const textTitle = isDarkMode ? "text-slate-100" : "text-slate-900";
+  const textSub = isDarkMode ? "text-zinc-500" : "text-slate-500";
+
+  // Badges & Akzent-Highlights
+  const badgePrimary = isDarkMode ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20" : "bg-indigo-50 text-indigo-600 border border-indigo-200";
+  const badgeSuccess = isDarkMode ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : "bg-emerald-50 text-emerald-600 border border-emerald-200";
+  const badgeWarning = isDarkMode ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" : "bg-amber-50 text-amber-600 border border-amber-200";
+  const badgeRose = isDarkMode ? "bg-rose-500/10 text-rose-400 border border-rose-500/20" : "bg-rose-50 text-rose-600 border border-rose-200";
 
   // Dynamischer Ambient Glow
   const getGlowColor = () => {
