@@ -2,11 +2,8 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import { 
-  Home, ShoppingCart, Package, Calendar as CalendarIcon, LogOut, CloudSun, CheckCircle2, Clock, AlertTriangle, TrendingUp, Train, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2
+  Home, ShoppingCart, Package, Calendar as CalendarIcon, LogOut, CloudSun, CheckCircle2, AlertTriangle, Train, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2, Search, Bell, Settings
 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 
 interface Departure { line: string; destination: string; time: string; }
 interface EinkaufItem { rowIndex: number; artikel: string; status: string; }
@@ -27,6 +24,9 @@ export default function DashboardPage() {
   
   const [isScanning, setIsScanning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Aktuelles Datum für die Top-Bar formatieren
+  const todayStr = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date());
 
   const fetchData = async () => {
     try {
@@ -55,30 +55,19 @@ export default function DashboardPage() {
   const addEinkauf = async () => {
     if (!neuerArtikel) return;
     const newItem = { rowIndex: einkauf.length + 2, artikel: neuerArtikel, status: "Offen" };
-    
-    // 1. Direkt lokal im Dashboard anzeigen
     setEinkauf([...einkauf, newItem]);
     setNeuerArtikel("");
     
-    // 2. In die Google Sheets Datenbank schreiben
-    await fetch("/api/data", { 
-      method: "POST", 
-      body: JSON.stringify({ sheetName: "Einkauf", values: [newItem.artikel, newItem.status] }) 
-    });
-
-    // 3. NEU: Push-Nachricht über ntfy senden
-    // WICHTIG: Ersetze "DEIN_NTFY_TOPIC_HIER" durch deinen echten Kanalnamen!
+    await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Einkauf", values: [newItem.artikel, newItem.status] }) });
+    
+    // Push-Nachricht über ntfy senden
     await fetch("https://ntfy.sh/HaushaltLenaJonas", {
       method: "POST",
       body: `🛒 "${newItem.artikel}" wurde zur Einkaufsliste hinzugefügt.`,
-      headers: {
-        "Title": "Haushalt OS",
-        "Tags": "shopping_cart",
-        "Priority": "default"
-      }
+      headers: { "Title": "Haushalt OS", "Tags": "shopping_cart", "Priority": "default" }
     });
-
-    fetchData(); // Liste nochmal sauber von der Datenbank laden
+    
+    fetchData(); 
   };
 
   const markEinkaufErledigt = async (item: EinkaufItem) => {
@@ -115,9 +104,8 @@ export default function DashboardPage() {
 
   const offeneEinkaeufe = einkauf.filter(e => e.status !== "Erledigt");
 
-  // Tabs Konfiguration für Sidebar & Bottom-Nav
   const TABS = [
-    { id: "home", icon: Home, label: "Overview" },
+    { id: "home", icon: Home, label: "Home" },
     { id: "einkauf", icon: ShoppingCart, label: "Einkauf" },
     { id: "putzplan", icon: ClipboardList, label: "Putzplan" },
     { id: "vorrat", icon: Package, label: "Vorrat" },
@@ -125,154 +113,314 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#07090e] text-slate-100 selection:bg-blue-600 selection:text-white">
+    <div className="flex h-screen overflow-hidden bg-[#05070A] text-slate-300 font-sans selection:bg-blue-600/30 selection:text-white">
       
-      {/* DESKTOP SIDEBAR (Versteckt auf Mobile) */}
-      <aside className="hidden md:flex w-64 border-r border-slate-800/80 bg-[#0b0f19]/60 backdrop-blur-xl flex-col justify-between p-4 h-full">
+      {/* SIDEBAR (Sitemark Style) */}
+      <aside className="hidden md:flex w-64 bg-[#05070A] border-r border-[#1e293b] flex-col justify-between p-4 h-full">
         <div>
-          <div className="flex items-center gap-3 px-3 py-4 mb-6 border-b border-slate-800/60">
-            <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white shadow-lg shadow-blue-500/20">🏠</div>
-            <div><h1 className="font-semibold text-sm tracking-tight text-white">Haushalt OS</h1><p className="text-xs text-slate-400">Pro Dashboard v2.0</p></div>
+          {/* Logo Area */}
+          <div className="flex items-center gap-3 px-3 py-4 mb-4">
+            <div className="h-6 w-6 rounded bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center shadow-lg shadow-blue-500/20">
+              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>
+            </div>
+            <span className="font-semibold text-sm tracking-wide text-slate-100">Haushalt OS</span>
           </div>
+
+          {/* Navigation */}
           <nav className="space-y-1">
-            {TABS.map(tab => (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-xs font-medium transition-all ${activeTab === tab.id ? "bg-blue-600/15 text-blue-400 border border-blue-500/30" : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/40"}`}>
-                <tab.icon className="h-4 w-4" /> {tab.label}
-              </button>
-            ))}
+            <div className="px-3 text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-4">Dashboard</div>
+            {TABS.map(tab => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs transition-all ${isActive ? "bg-[#1A2332] text-blue-400 border border-[#2A3649] shadow-[0_0_10px_rgba(59,130,246,0.05)]" : "text-slate-400 hover:text-slate-200 hover:bg-[#0C1017]"}`}>
+                  <tab.icon className="h-4 w-4" /> {tab.label}
+                </button>
+              );
+            })}
           </nav>
         </div>
-        <div className="pt-4 border-t border-slate-800/60 flex items-center justify-between px-2">
-          <div className="flex items-center gap-2"><div className="h-7 w-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-semibold text-slate-300">J</div><span className="text-xs text-slate-300 font-medium">Jonas</span></div>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-400 hover:text-red-400 hover:bg-red-500/10"><LogOut className="h-4 w-4" /></Button>
+        
+        {/* User Footer */}
+        <div className="pt-4 border-t border-[#1e293b] flex items-center justify-between px-2">
+          <div className="flex items-center gap-2">
+            <div className="h-7 w-7 rounded-md bg-[#1e293b] flex items-center justify-center text-xs font-semibold text-slate-300">JP</div>
+            <span className="text-xs text-slate-300 font-medium">Jonas Pfeifer</span>
+          </div>
+          <button className="text-slate-500 hover:text-slate-300"><Settings className="h-4 w-4" /></button>
         </div>
       </aside>
 
       {/* MAIN CONTENT AREA */}
-      <main className="flex-1 flex flex-col h-full overflow-y-auto relative">
-        <header className="h-14 border-b border-slate-800/60 px-4 md:px-8 flex items-center justify-between bg-[#07090e]/90 backdrop-blur-md sticky top-0 z-10">
-          <div className="flex items-center gap-2 text-xs text-slate-400"><span>Dashboard</span><span>&gt;</span><span className="text-slate-100 font-medium capitalize">{activeTab}</span></div>
-          <Badge variant="outline" className="border-blue-500/30 bg-blue-500/10 text-blue-400 text-[10px] md:text-[11px] px-2 py-0.5">Live Synced</Badge>
+      <main className="flex-1 flex flex-col h-full overflow-y-auto relative bg-[#05070A]">
+        
+        {/* TOP HEADER (Sitemark Style) */}
+        <header className="h-16 border-b border-[#1e293b] px-6 md:px-8 flex items-center justify-between sticky top-0 z-10 bg-[#05070A]/80 backdrop-blur-md">
+          <div className="flex items-center gap-2 text-xs text-slate-400 font-medium tracking-wide">
+            <span>Dashboard</span>
+            <span className="text-slate-600">&gt;</span>
+            <span className="text-slate-100 capitalize">{activeTab}</span>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            {/* Fake Search Bar */}
+            <div className="hidden md:flex items-center gap-2 bg-[#0C1017] border border-[#1e293b] rounded-md px-3 py-1.5 text-xs text-slate-500 w-48">
+              <Search className="h-3 w-3" /> Search...
+            </div>
+            
+            {/* Date & Icons */}
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 bg-[#0C1017] border border-[#1e293b] rounded-md px-3 py-1.5 text-xs text-slate-300">
+                <CalendarIcon className="h-3 w-3 text-slate-400" /> {todayStr}
+              </div>
+              <button className="h-7 w-7 flex items-center justify-center rounded-md bg-[#0C1017] border border-[#1e293b] text-slate-400 hover:text-slate-200">
+                <Bell className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
         </header>
 
-        {/* Padding-Bottom extrem wichtig für Mobile, damit die Navigation den Content nicht überlagert */}
-        <div className="p-4 md:p-8 pb-24 md:pb-8 max-w-7xl mx-auto w-full space-y-6 md:space-y-8">
+        {/* CONTENT PADDING */}
+        <div className="p-4 md:p-8 pb-24 md:pb-12 max-w-[1400px] mx-auto w-full space-y-6 md:space-y-8">
           
+          {/* TAB 1: OVERVIEW */}
           {activeTab === "home" && (
             <>
-              <div><h2 className="text-xl md:text-2xl font-bold text-white">Overview <span className="text-blue-500">.</span></h2></div>
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-                <Card className="bg-[#0e131f]/80 border-slate-800/80 p-4"><div className="flex justify-between items-center mb-2"><span className="text-xs text-slate-400">Wetter</span><CloudSun className="h-4 w-4 text-blue-400" /></div><div className="text-xl md:text-2xl font-bold text-white">{weather}</div></Card>
-                <Card className="bg-[#0e131f]/80 border-slate-800/80 p-4"><div className="flex justify-between items-center mb-2"><span className="text-xs text-slate-400">To-Dos</span><CheckCircle2 className="h-4 w-4 text-amber-400" /></div><div className="text-xl md:text-2xl font-bold text-white">{aufgaben.length}</div></Card>
-                <Card className="bg-[#0e131f]/80 border-slate-800/80 p-4"><div className="flex justify-between items-center mb-2"><span className="text-xs text-slate-400">Einkauf</span><ShoppingCart className="h-4 w-4 text-emerald-400" /></div><div className="text-xl md:text-2xl font-bold text-white">{offeneEinkaeufe.length}</div></Card>
-                <Card className="bg-[#0e131f]/80 border-slate-800/80 p-4"><div className="flex justify-between items-center mb-2"><span className="text-xs text-slate-400">Kalender</span><CalendarIcon className="h-4 w-4 text-blue-400" /></div><div className="text-xl md:text-2xl font-bold text-white">{termine.length}</div></Card>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-100">Overview</h2>
               </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-                <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardHeader className="py-4 md:py-6"><CardTitle className="text-sm font-semibold text-white flex items-center gap-2"><Train className="h-4 w-4 text-blue-400" /> ÖPNV (OEZ)</CardTitle></CardHeader><CardContent className="pb-4 md:pb-6"><div className="space-y-3">{departures.map((d, i) => <div key={i} className="flex justify-between text-xs py-1 border-b border-slate-800/50"><span className="font-bold text-blue-400">{d.line} {d.destination}</span><span className="font-mono text-slate-400">{d.time}</span></div>)}</div></CardContent></Card>
-                <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardHeader className="py-4 md:py-6"><CardTitle className="text-sm font-semibold text-white">Anstehende Termine</CardTitle></CardHeader><CardContent className="pb-4 md:pb-6"><div className="space-y-3">{termine.slice(0,4).map((t, i) => <div key={i} className="flex flex-col md:flex-row justify-between text-xs py-1 border-b border-slate-800/50 gap-1 md:gap-0"><span className="text-slate-200 line-clamp-1">{t.title}</span><span className="font-mono text-blue-400">{t.date}</span></div>)}</div></CardContent></Card>
+              
+              {/* ANALYTICS CARDS (Sitemark Look) */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* Card 1 */}
+                <div className="bg-[#0C1017] border border-[#1e293b] rounded-xl p-5 hover:border-slate-700 transition-colors">
+                  <div className="flex justify-between items-start mb-4">
+                    <span className="text-xs font-medium text-slate-400">Wetter OEZ</span>
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Live</span>
+                  </div>
+                  <div className="text-2xl md:text-3xl font-bold text-slate-100 tracking-tight">{weather}</div>
+                  <div className="text-[10px] text-slate-500 mt-2">Aktuelle Temperatur</div>
+                </div>
+
+                {/* Card 2 */}
+                <div className="bg-[#0C1017] border border-[#1e293b] rounded-xl p-5 hover:border-slate-700 transition-colors">
+                  <div className="flex justify-between items-start mb-4">
+                    <span className="text-xs font-medium text-slate-400">To-Dos</span>
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">Aktiv</span>
+                  </div>
+                  <div className="text-2xl md:text-3xl font-bold text-slate-100 tracking-tight">{aufgaben.length}</div>
+                  <div className="text-[10px] text-slate-500 mt-2">Offene Hausarbeiten</div>
+                </div>
+
+                {/* Card 3 */}
+                <div className="bg-[#0C1017] border border-[#1e293b] rounded-xl p-5 hover:border-slate-700 transition-colors">
+                  <div className="flex justify-between items-start mb-4">
+                    <span className="text-xs font-medium text-slate-400">Einkaufsliste</span>
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Sync</span>
+                  </div>
+                  <div className="text-2xl md:text-3xl font-bold text-slate-100 tracking-tight">{offeneEinkaeufe.length}</div>
+                  <div className="text-[10px] text-slate-500 mt-2">Artikel fehlen</div>
+                </div>
+
+                {/* Card 4 (Highlight Card) */}
+                <div className="bg-gradient-to-br from-[#121B2A] to-[#0C1017] border border-[#2A3649] rounded-xl p-5 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-4 opacity-10"><CalendarIcon className="h-16 w-16 text-blue-500" /></div>
+                  <div className="flex justify-between items-start mb-4 relative z-10">
+                    <span className="text-xs font-medium text-blue-300">Termine & Events</span>
+                  </div>
+                  <div className="text-2xl md:text-3xl font-bold text-white tracking-tight relative z-10">{termine.length}</div>
+                  <div className="text-[10px] text-blue-400/70 mt-2 relative z-10">iCloud synchronisiert</div>
+                  <button onClick={() => setActiveTab("kalender")} className="mt-4 text-[10px] bg-white text-black px-3 py-1.5 rounded font-medium hover:bg-slate-200 transition-colors relative z-10">
+                    Details ansehen &gt;
+                  </button>
+                </div>
+              </div>
+
+              {/* LIST PANELS (Sitemark Look) */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mt-6">
+                
+                {/* Panel 1: ÖPNV */}
+                <div className="bg-[#0C1017] border border-[#1e293b] rounded-xl flex flex-col h-[300px]">
+                  <div className="p-5 border-b border-[#1e293b] flex justify-between items-center">
+                    <h3 className="text-xs font-semibold text-slate-200">Abfahrten OEZ</h3>
+                    <span className="text-[10px] text-slate-500">Live MVG</span>
+                  </div>
+                  <div className="p-5 flex-1 overflow-y-auto">
+                    <div className="space-y-4">
+                      {departures.map((d, i) => (
+                        <div key={i} className="flex justify-between items-center group">
+                          <div className="flex items-center gap-3">
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20">{d.line}</span>
+                            <span className="text-xs text-slate-300">{d.destination}</span>
+                          </div>
+                          <span className="text-xs font-mono text-slate-500">{d.time}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Panel 2: Termine */}
+                <div className="bg-[#0C1017] border border-[#1e293b] rounded-xl flex flex-col h-[300px]">
+                  <div className="p-5 border-b border-[#1e293b] flex justify-between items-center">
+                    <h3 className="text-xs font-semibold text-slate-200">Nächste Termine</h3>
+                    <span className="text-[10px] text-slate-500">iCloud</span>
+                  </div>
+                  <div className="p-5 flex-1 overflow-y-auto">
+                    <div className="space-y-4">
+                      {termine.slice(0,5).map((t, i) => (
+                        <div key={i} className="flex justify-between items-center group">
+                          <span className="text-xs text-slate-300 truncate pr-4">{t.title}</span>
+                          <span className="text-[10px] font-mono text-blue-400 bg-blue-900/20 px-2 py-1 rounded border border-blue-800/30 whitespace-nowrap">{t.date}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
               </div>
             </>
           )}
 
+          {/* TAB 2: EINKAUFSLISTE */}
           {activeTab === "einkauf" && (
-            <div className="space-y-4 md:space-y-6">
-              <div><h2 className="text-xl md:text-2xl font-bold text-white">Einkaufsliste <span className="text-blue-500">.</span></h2></div>
-              <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardContent className="p-4 md:p-6">
-                <div className="flex flex-col md:flex-row gap-3 mb-6">
-                  {/* Textgröße 16px auf Mobile verhindert Auto-Zoom vom iPhone */}
-                  <input type="text" placeholder="Neuer Artikel..." value={neuerArtikel} onChange={(e) => setNeuerArtikel(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addEinkauf()} className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-4 py-3 md:py-2 text-[16px] md:text-sm text-slate-200 focus:outline-none focus:border-blue-500" />
-                  <Button onClick={addEinkauf} className="w-full md:w-auto h-12 md:h-10 bg-blue-600 hover:bg-blue-500 font-medium"><Plus className="h-5 w-5 md:h-4 md:w-4 mr-2 md:mr-1" /> Hinzufügen</Button>
+            <div className="space-y-6">
+              <div><h2 className="text-lg font-semibold text-slate-100">Einkaufsliste</h2></div>
+              <div className="bg-[#0C1017] border border-[#1e293b] rounded-xl p-5 md:p-6">
+                
+                <div className="flex flex-col md:flex-row gap-3 mb-8 pb-6 border-b border-[#1e293b]">
+                  <div className="flex-1 relative">
+                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <Plus className="h-4 w-4 text-slate-500" />
+                    </div>
+                    <input type="text" placeholder="Neuer Artikel (z.B. Milch)..." value={neuerArtikel} onChange={(e) => setNeuerArtikel(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addEinkauf()} className="w-full bg-[#05070A] border border-[#1e293b] rounded-md pl-10 pr-4 py-2.5 text-[16px] md:text-sm text-slate-200 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all" />
+                  </div>
+                  <button onClick={addEinkauf} className="w-full md:w-auto h-11 md:h-auto px-6 bg-slate-100 hover:bg-white text-slate-900 text-sm font-semibold rounded-md transition-colors">
+                    Hinzufügen
+                  </button>
                 </div>
-                <div className="space-y-2">
+
+                <div className="space-y-1">
                   {offeneEinkaeufe.map((item, idx) => (
-                    <div key={idx} className="flex items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-800/60">
-                      <span className="text-sm md:text-xs text-slate-200 font-medium truncate pr-2">🛒 {item.artikel}</span>
-                      <Button onClick={() => markEinkaufErledigt(item)} variant="outline" size="sm" className="h-8 md:h-7 text-xs md:text-[11px] border-slate-700 hover:bg-emerald-500/10 hover:text-emerald-400 flex-shrink-0"><Check className="h-4 w-4 md:h-3 md:w-3 md:mr-1" /> <span className="hidden md:inline">Erledigt</span></Button>
+                    <div key={idx} className="flex items-center justify-between p-3 rounded-md hover:bg-[#05070A] transition-colors group border border-transparent hover:border-[#1e293b]">
+                      <span className="text-sm text-slate-300">{item.artikel}</span>
+                      <button onClick={() => markEinkaufErledigt(item)} className="h-7 px-3 text-[10px] font-medium rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors flex items-center gap-1 opacity-80 group-hover:opacity-100">
+                        <Check className="h-3 w-3" /> <span className="hidden md:inline">Erledigt</span>
+                      </button>
                     </div>
                   ))}
+                  {offeneEinkaeufe.length === 0 && <p className="text-sm text-slate-500 text-center py-8">Alles eingekauft!</p>}
                 </div>
-              </CardContent></Card>
-            </div>
-          )}
 
-          {activeTab === "putzplan" && (
-            <div className="space-y-4 md:space-y-6">
-              <div><h2 className="text-xl md:text-2xl font-bold text-white">Putzplan <span className="text-blue-500">.</span></h2></div>
-              <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardContent className="p-4 md:p-6 space-y-2">
-                {aufgaben.map((a, idx) => (
-                  <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 sm:p-4 rounded-lg bg-slate-900/40 border border-slate-800/60 gap-3 sm:gap-0">
-                    <div>
-                      <span className="font-medium text-sm md:text-xs text-slate-200">🧹 {a.aufgabe}</span>
-                      <span className="text-slate-400 block text-xs md:text-[11px] mt-1">Intervall: {a.intervall} Tage | Letztes Mal: {a.letztesDatum}</span>
-                    </div>
-                    <Button onClick={() => markAufgabeErledigt(a)} variant="outline" size="sm" className="w-full sm:w-auto h-9 md:h-7 text-xs md:text-[11px] border-slate-700 hover:bg-emerald-500/10 hover:text-emerald-400"><Check className="h-4 w-4 md:h-3 md:w-3 mr-2 md:mr-1" /> Erledigt</Button>
-                  </div>
-                ))}
-              </CardContent></Card>
-            </div>
-          )}
-
-          {activeTab === "vorrat" && (
-            <div className="space-y-4 md:space-y-6">
-              <div><h2 className="text-xl md:text-2xl font-bold text-white">Vorratskammer <span className="text-blue-500">.</span></h2></div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-                {/* KI Scanner auf Mobile ganz oben, da wichtigste Funktion */}
-                <Card className="bg-[#0e131f]/80 border-slate-800/80 order-first lg:order-last"><CardHeader className="py-4 md:py-6"><CardTitle className="text-sm font-semibold text-white flex items-center gap-2"><Camera className="h-4 w-4 text-blue-400" /> KI MHD-Scanner</CardTitle></CardHeader>
-                  <CardContent className="pb-4 md:pb-6">
-                    <div className="border-2 border-dashed border-slate-800 rounded-xl p-6 md:p-8 text-center bg-slate-900/30 flex flex-col items-center justify-center min-h-[160px]">
-                      {isScanning ? (
-                        <div className="flex flex-col items-center gap-3"><Loader2 className="h-8 w-8 text-blue-500 animate-spin" /><p className="text-xs text-slate-300">Analysiere Produkt...</p></div>
-                      ) : (
-                        <>
-                          <UploadCloud className="h-8 w-8 text-slate-500 mb-2" />
-                          <p className="text-xs text-slate-300 font-medium mb-4">MHD bequem per Kamera scannen</p>
-                          <input type="file" accept="image/*" capture="environment" ref={fileInputRef} className="hidden" onChange={handleImageUpload} />
-                          <Button onClick={() => fileInputRef.current?.click()} className="w-full md:w-auto bg-blue-600 hover:bg-blue-500">Kamera öffnen</Button>
-                        </>
-                      )}
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardHeader className="py-4 md:py-6"><CardTitle className="text-sm font-semibold text-white">📦 Aktueller Vorrat</CardTitle></CardHeader>
-                  <CardContent className="pb-4 md:pb-6 space-y-2">
-                    {vorrat.map((v, idx) => (
-                      <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-800/60 gap-1 sm:gap-0">
-                        <span className="font-medium text-sm md:text-xs text-slate-200">🥫 {v.artikel}</span><span className="text-xs text-slate-400">MHD: {v.ablaufdatum}</span>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
               </div>
             </div>
           )}
 
-          {activeTab === "kalender" && (
-            <div className="space-y-4 md:space-y-6">
-              <div><h2 className="text-xl md:text-2xl font-bold text-white">Kalender <span className="text-blue-500">.</span></h2></div>
-              <Card className="bg-[#0e131f]/80 border-slate-800/80"><CardContent className="p-4 md:p-6 space-y-3">
-                {termine.length === 0 ? <p className="text-sm md:text-xs text-slate-400 text-center py-4">Keine Termine gefunden.</p> : termine.map((t, idx) => (
-                  <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-lg bg-slate-900/40 border border-slate-800/60 gap-1 sm:gap-0">
-                    <span className="font-medium text-sm md:text-xs text-slate-200">📅 {t.title}</span><span className="text-xs text-blue-400 font-mono">{t.date}</span>
-                  </div>
-                ))}
-              </CardContent></Card>
+          {/* TAB 3: PUTZPLAN */}
+          {activeTab === "putzplan" && (
+            <div className="space-y-6">
+              <div><h2 className="text-lg font-semibold text-slate-100">Putzplan</h2></div>
+              <div className="bg-[#0C1017] border border-[#1e293b] rounded-xl p-5 md:p-6">
+                <div className="space-y-1">
+                  {aufgaben.map((a, idx) => (
+                    <div key={idx} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-md border border-[#1e293b] bg-[#05070A] mb-3 gap-4 sm:gap-0">
+                      <div>
+                        <div className="font-medium text-sm text-slate-200 mb-1">{a.aufgabe}</div>
+                        <div className="flex gap-3 text-[10px] text-slate-500">
+                          <span className="flex items-center gap-1"><Clock className="h-3 w-3" /> Intervall: {a.intervall} Tage</span>
+                          <span>Letztes Mal: <span className="text-slate-400">{a.letztesDatum}</span></span>
+                        </div>
+                      </div>
+                      <button onClick={() => markAufgabeErledigt(a)} className="w-full sm:w-auto h-8 px-4 text-xs font-medium rounded bg-slate-800 text-slate-300 border border-slate-700 hover:bg-slate-700 hover:text-white transition-colors">
+                        Heute erledigt
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
+
+          {/* TAB 4: VORRAT */}
+          {activeTab === "vorrat" && (
+            <div className="space-y-6">
+              <div><h2 className="text-lg font-semibold text-slate-100">Vorratskammer & KI</h2></div>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
+                
+                {/* KI Scanner Panel */}
+                <div className="lg:col-span-1 bg-[#0C1017] border border-[#1e293b] rounded-xl p-6 flex flex-col h-[300px]">
+                  <h3 className="text-xs font-semibold text-slate-200 mb-4 flex items-center gap-2"><Camera className="h-4 w-4 text-blue-400" /> Scanner</h3>
+                  <div className="flex-1 border-2 border-dashed border-[#1e293b] rounded-lg bg-[#05070A] flex flex-col items-center justify-center p-6 text-center">
+                    {isScanning ? (
+                      <div className="flex flex-col items-center gap-3"><Loader2 className="h-6 w-6 text-blue-500 animate-spin" /><span className="text-[10px] text-slate-400">Gemini analysiert...</span></div>
+                    ) : (
+                      <>
+                        <UploadCloud className="h-8 w-8 text-slate-600 mb-3" />
+                        <p className="text-[10px] text-slate-400 mb-4 leading-relaxed">Fotografiere ein Produkt, die KI trägt das MHD automatisch ein.</p>
+                        <input type="file" accept="image/*" capture="environment" ref={fileInputRef} className="hidden" onChange={handleImageUpload} />
+                        <button onClick={() => fileInputRef.current?.click()} className="text-[10px] bg-blue-600/10 text-blue-400 border border-blue-500/20 px-4 py-2 rounded-md hover:bg-blue-600/20 transition-colors font-medium">
+                          Kamera starten
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Vorrat Liste */}
+                <div className="lg:col-span-2 bg-[#0C1017] border border-[#1e293b] rounded-xl flex flex-col min-h-[300px]">
+                  <div className="p-5 border-b border-[#1e293b]">
+                    <h3 className="text-xs font-semibold text-slate-200">Aktueller Bestand</h3>
+                  </div>
+                  <div className="p-5 flex-1 overflow-y-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-[#1e293b]">
+                          <th className="pb-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Artikel</th>
+                          <th className="pb-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider text-right">MHD</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#1e293b]/50">
+                        {vorrat.map((v, idx) => (
+                          <tr key={idx} className="hover:bg-[#05070A]/50 transition-colors">
+                            <td className="py-3 text-sm text-slate-300 font-medium">{v.artikel}</td>
+                            <td className="py-3 text-[11px] text-slate-400 text-right font-mono">{v.ablaufdatum}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          {/* TAB 5: KALENDER */}
+          {activeTab === "kalender" && (
+            <div className="space-y-6">
+              <div><h2 className="text-lg font-semibold text-slate-100">Termine</h2></div>
+              <div className="bg-[#0C1017] border border-[#1e293b] rounded-xl p-5 md:p-6">
+                <div className="space-y-1">
+                  {termine.length === 0 ? <p className="text-sm text-slate-500 text-center py-8">Keine Termine gefunden.</p> : termine.map((t, idx) => (
+                    <div key={idx} className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-md border border-[#1e293b] bg-[#05070A] mb-2 gap-2 md:gap-0">
+                      <span className="text-sm font-medium text-slate-200">{t.title}</span>
+                      <span className="text-xs font-mono text-blue-400 bg-blue-900/10 px-2.5 py-1 rounded border border-blue-800/20 w-fit">{t.date}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
         </div>
       </main>
 
-      {/* MOBILE BOTTOM NAVIGATION (Sichtbar auf Handys) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0b0f19]/95 backdrop-blur-xl border-t border-slate-800/80 flex justify-around items-center px-2 py-3 pb-safe">
+      {/* MOBILE BOTTOM NAVIGATION */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#05070A]/95 backdrop-blur-xl border-t border-[#1e293b] flex justify-around items-center px-2 py-2 pb-safe">
         {TABS.map(tab => {
           const isActive = activeTab === tab.id;
           return (
-            <button 
-              key={tab.id} 
-              onClick={() => setActiveTab(tab.id)} 
-              className={`flex flex-col items-center justify-center w-16 gap-1 transition-all ${isActive ? "text-blue-500 scale-110" : "text-slate-500 hover:text-slate-300"}`}
-            >
-              <tab.icon className={`h-6 w-6 ${isActive ? "drop-shadow-[0_0_8px_rgba(59,130,246,0.5)]" : ""}`} />
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex flex-col items-center justify-center w-16 h-12 gap-1 rounded-lg transition-all ${isActive ? "text-slate-100 bg-[#1A2332]" : "text-slate-500 hover:text-slate-300"}`}>
+              <tab.icon className={`h-5 w-5 ${isActive ? "text-blue-400 drop-shadow-[0_0_8px_rgba(59,130,246,0.3)]" : ""}`} />
               <span className="text-[9px] font-medium tracking-tight">{tab.label}</span>
             </button>
           );
