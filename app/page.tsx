@@ -2,13 +2,30 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import { 
-  Home, ShoppingCart, Package, Calendar as CalendarIcon, LogOut, CloudSun, CheckCircle2, Clock, AlertTriangle, Train, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2, Search, Bell, Settings, Sun, Moon
+  Home, ShoppingCart, Package, Calendar as CalendarIcon, LogOut, CloudSun, CheckCircle2, Clock, AlertTriangle, Train, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2, Search, Bell, Settings, Sun, Moon, ChevronDown, ChevronUp, Sparkles
 } from "lucide-react";
 
 interface Departure { line: string; destination: string; time: string; }
-interface EinkaufItem { rowIndex: number; artikel: string; status: string; }
+interface EinkaufItem { rowIndex: number; artikel: string; status: string; kategorie?: string; }
 interface PutzItem { rowIndex: number; aufgabe: string; letztesDatum: string; intervall: string; }
 interface VorratItem { rowIndex: number; artikel: string; ablaufdatum: string; anbruch: string; }
+
+// Automatische Kategorie-Erkennung
+const KATEGORIEN = ["Obst & Gemüse", "Kühlregal", "Vorrat & Teigwaren", "Getränke", "Drogerie & Haushalt", "Sonstiges"] as const;
+
+function ermittleKategorie(artikel: string): string {
+  const a = artikel.toLowerCase();
+  if (/apfel|äpfel|banane|beere|salat|tomate|gurke|zitrone|kartoffel|zwiebel|avocado|paprika|obst|gemüse|birne/.test(a)) return "Obst & Gemüse";
+  if (/milch|käse|joghurt|butter|quark|tofu|sahne|frischkäse|fleisch|wurst|ei|eier/.test(a)) return "Kühlregal";
+  if (/brot|toast|pasta|nudel|reis|mehl|zucker|öl|hafer|müsli|konserve|bohnen|kichererbsen/.test(a)) return "Vorrat & Teigwaren";
+  if (/wasser|saft|bier|wein|cola|limo|sprudel|tee|kaffee/.test(a)) return "Getränke";
+  if (/spüli|papier|seife|shampoo|zahnpasta|putzmittel|waschmittel|müllbeutel|deo/.test(a)) return "Drogerie & Haushalt";
+  return "Sonstiges";
+}
+
+const SCHNELLWAHL_FAVORITEN = [
+  "Hafermilch", "Bananen", "Eier", "Körniger Frischkäse", "Toast", "Äpfel", "Spüli", "Mineralwasser"
+];
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("home");
@@ -21,6 +38,8 @@ export default function DashboardPage() {
   
   const [einkauf, setEinkauf] = useState<EinkaufItem[]>([]);
   const [neuerArtikel, setNeuerArtikel] = useState("");
+  const [selectedKategorie, setSelectedKategorie] = useState<string>("Auto");
+  const [showErledigt, setShowErledigt] = useState(false);
 
   const [aufgaben, setAufgaben] = useState<PutzItem[]>([]);
   const [vorrat, setVorrat] = useState<VorratItem[]>([]);
@@ -30,12 +49,9 @@ export default function DashboardPage() {
 
   const todayStr = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date());
 
-  // Theme Initialisierung aus dem Speicher
   useEffect(() => {
     const savedTheme = localStorage.getItem("haushalt_theme");
-    if (savedTheme === "light") {
-      setIsDarkMode(false);
-    }
+    if (savedTheme === "light") setIsDarkMode(false);
   }, []);
 
   const toggleTheme = () => {
@@ -48,13 +64,19 @@ export default function DashboardPage() {
     try {
       const res = await fetch("/api/data");
       const data = await res.json();
-      if (data.einkauf) setEinkauf(data.einkauf.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, artikel: r[0], status: r[1] || "Offen" })).filter((x: any) => x.artikel));
+      if (data.einkauf) {
+        setEinkauf(data.einkauf.slice(1).map((r: any, i: number) => ({
+          rowIndex: i + 2,
+          artikel: r[0],
+          status: r[1] || "Offen",
+          kategorie: ermittleKategorie(r[0])
+        })).filter((x: any) => x.artikel));
+      }
       if (data.haushalt) setAufgaben(data.haushalt.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, aufgabe: r[0], letztesDatum: r[1], intervall: r[2] })).filter((x: any) => x.aufgabe));
       if (data.vorrat) setVorrat(data.vorrat.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, artikel: r[0], ablaufdatum: r[1], anbruch: r[2] || "" })).filter((x: any) => x.artikel));
     } catch (e) { console.error("Sheets Fetch Fehler:", e); }
   };
 
-  // Beim Laden der Seite: ALLES abrufen (Sheets, Kalender, MVG, Wetter)
   useEffect(() => {
     fetchData();
 
@@ -76,6 +98,7 @@ export default function DashboardPage() {
       })
       .catch(err => console.error("MVG Fehler:", err));
 
+    // Wetter-Abruf mit automatischer IP-Standorterkennung als Backup
     const fetchWeather = (lat: number, lon: number, label: string) => {
       fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code`)
         .then(res => res.json())
@@ -86,35 +109,39 @@ export default function DashboardPage() {
         .catch(() => setWeather("N/A"));
     };
 
+    const loadFallbackLocation = () => {
+      // Automatischer IP-Standort (funktioniert ohne Browser-Genehmigung)
+      fetch("https://ipapi.co/json/")
+        .then(res => res.json())
+        .then(loc => {
+          if (loc.latitude && loc.longitude) {
+            fetchWeather(loc.latitude, loc.longitude, loc.city || "Lokales Wetter");
+          } else {
+            fetchWeather(48.1764, 11.5311, "Wetter OEZ (München)");
+          }
+        })
+        .catch(() => fetchWeather(48.1764, 11.5311, "Wetter OEZ (München)"));
+    };
+
     if ("geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          fetchWeather(
-            position.coords.latitude,
-            position.coords.longitude,
-            "Lokales Wetter"
-          );
-        },
-        (err) => {
-          console.warn("Standortfehler:", err.message);
-          fetchWeather(48.1764, 11.5311, "Wetter OEZ (Fallback)");
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 300000, // 5 Minuten Cache
-        }
+        (pos) => fetchWeather(pos.coords.latitude, pos.coords.longitude, "GPS Standort"),
+        () => loadFallbackLocation(),
+        { enableHighAccuracy: true, timeout: 6000 }
       );
     } else {
-      fetchWeather(48.1764, 11.5311, "Wetter OEZ (Fallback)");
+      loadFallbackLocation();
     }
   }, []);
 
-  const addEinkauf = async () => {
-    if (!neuerArtikel) return;
-    const newItem = { rowIndex: einkauf.length + 2, artikel: neuerArtikel, status: "Offen" };
+  const addEinkauf = async (artikelName?: string) => {
+    const text = (artikelName || neuerArtikel).trim();
+    if (!text) return;
+
+    const kat = selectedKategorie === "Auto" ? ermittleKategorie(text) : selectedKategorie;
+    const newItem: EinkaufItem = { rowIndex: einkauf.length + 2, artikel: text, status: "Offen", kategorie: kat };
     setEinkauf([...einkauf, newItem]);
-    setNeuerArtikel("");
+    if (!artikelName) setNeuerArtikel("");
     
     await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Einkauf", values: [newItem.artikel, newItem.status] }) });
     
@@ -127,9 +154,9 @@ export default function DashboardPage() {
     fetchData(); 
   };
 
-  const markEinkaufErledigt = async (item: EinkaufItem) => {
-    setEinkauf(einkauf.map(e => e.rowIndex === item.rowIndex ? { ...e, status: "Erledigt" } : e));
-    await fetch("/api/data", { method: "PUT", body: JSON.stringify({ sheetName: "Einkauf", rowIndex: item.rowIndex, values: [item.artikel, "Erledigt"] }) });
+  const markEinkaufErledigt = async (item: EinkaufItem, status: "Erledigt" | "Offen") => {
+    setEinkauf(einkauf.map(e => e.rowIndex === item.rowIndex ? { ...e, status } : e));
+    await fetch("/api/data", { method: "PUT", body: JSON.stringify({ sheetName: "Einkauf", rowIndex: item.rowIndex, values: [item.artikel, status] }) });
   };
 
   const markAufgabeErledigt = async (item: PutzItem) => {
@@ -160,6 +187,14 @@ export default function DashboardPage() {
   };
 
   const offeneEinkaeufe = einkauf.filter(e => e.status !== "Erledigt");
+  const erledigteEinkaeufe = einkauf.filter(e => e.status === "Erledigt");
+
+  // Gruppierung nach Kategorien
+  const einkaufNachKategorien = KATEGORIEN.reduce((acc, kat) => {
+    const items = offeneEinkaeufe.filter(i => (i.kategorie || ermittleKategorie(i.artikel)) === kat);
+    if (items.length > 0) acc[kat] = items;
+    return acc;
+  }, {} as Record<string, EinkaufItem[]>);
 
   const TABS = [
     { id: "home", icon: Home, label: "Home" },
@@ -169,7 +204,6 @@ export default function DashboardPage() {
     { id: "kalender", icon: CalendarIcon, label: "Kalender" }
   ];
 
-  // Dynamische Styling-Klassen für Light / Dark
   const bgMain = isDarkMode ? "bg-[#05070A] text-slate-300" : "bg-slate-50 text-slate-800";
   const bgSidebar = isDarkMode ? "bg-[#05070A] border-[#1e293b]" : "bg-white border-slate-200";
   const bgCard = isDarkMode ? "bg-[#0C1017] border-[#1e293b]" : "bg-white border-slate-200 shadow-sm";
@@ -223,7 +257,6 @@ export default function DashboardPage() {
       {/* MAIN CONTENT */}
       <main className="flex-1 flex flex-col h-full overflow-y-auto relative">
         
-        {/* HEADER */}
         <header className={`h-16 border-b ${isDarkMode ? "border-[#1e293b] bg-[#05070A]/80" : "border-slate-200 bg-white/80"} px-6 md:px-8 flex items-center justify-between sticky top-0 z-10 backdrop-blur-md transition-colors duration-300`}>
           <div className={`flex items-center gap-2 text-xs ${textSub} font-medium tracking-wide`}>
             <span>Dashboard</span>
@@ -236,7 +269,6 @@ export default function DashboardPage() {
               <CalendarIcon className="h-3 w-3 text-slate-400" /> {todayStr}
             </div>
             
-            {/* Theme Toggle Button */}
             <button onClick={toggleTheme} className={`h-8 w-8 flex items-center justify-center rounded-md ${isDarkMode ? "bg-[#0C1017] border-[#1e293b] text-slate-400 hover:text-slate-200" : "bg-slate-100 border-slate-200 text-slate-600 hover:text-slate-900"} border transition-colors shadow-sm`}>
               {isDarkMode ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-slate-700" />}
             </button>
@@ -247,9 +279,9 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        {/* CONTENT */}
         <div className="p-4 md:p-8 pb-24 md:pb-12 max-w-[1400px] mx-auto w-full space-y-6 md:space-y-8">
           
+          {/* TAB 1: OVERVIEW */}
           {activeTab === "home" && (
             <>
               <div><h2 className={`text-lg font-semibold ${textTitle}`}>Overview</h2></div>
@@ -258,7 +290,7 @@ export default function DashboardPage() {
                 <div className={`${bgCard} border rounded-xl p-5 transition-colors`}>
                   <div className="flex justify-between items-start mb-4">
                     <span className={`text-xs font-medium ${textSub}`}>{weatherLabel}</span>
-                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">Live GPS</span>
+                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20">Live</span>
                   </div>
                   <div className={`text-2xl md:text-3xl font-bold ${textTitle} tracking-tight`}>{weather}</div>
                   <div className="text-[10px] text-slate-500 mt-2">Aktuelle Temperatur</div>
@@ -336,35 +368,118 @@ export default function DashboardPage() {
             </>
           )}
 
-          {/* TAB 2: EINKAUFSLISTE */}
+          {/* TAB 2: EINKAUFSLISTE (SUPERMARKT-MODUS) */}
           {activeTab === "einkauf" && (
             <div className="space-y-6">
-              <div><h2 className={`text-lg font-semibold ${textTitle}`}>Einkaufsliste</h2></div>
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className={`text-lg font-semibold ${textTitle}`}>Einkaufsliste</h2>
+                  <p className={`text-xs ${textSub}`}>Sortiert nach Supermarkt-Gängen</p>
+                </div>
+                <span className="text-xs px-2.5 py-1 rounded-full bg-blue-500/10 text-blue-500 font-medium">
+                  {offeneEinkaeufe.length} offen
+                </span>
+              </div>
+
+              {/* SCHNELLWAHL CHIPS */}
+              <div className={`${bgCard} border rounded-xl p-4 space-y-2`}>
+                <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-400">
+                  <Sparkles className="h-3 w-3 text-amber-400" /> Schnellwahl Favoriten:
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {SCHNELLWAHL_FAVORITEN.map((fav, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => addEinkauf(fav)}
+                      className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${isDarkMode ? "bg-[#05070A] border-[#1e293b] hover:border-blue-500/50 text-slate-300" : "bg-slate-100 border-slate-200 hover:bg-slate-200 text-slate-800"}`}
+                    >
+                      + {fav}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* EINGABEFELD */}
               <div className={`${bgCard} border rounded-xl p-5 md:p-6`}>
-                
-                <div className={`flex flex-col md:flex-row gap-3 mb-8 pb-6 border-b ${isDarkMode ? "border-[#1e293b]" : "border-slate-200"}`}>
+                <div className={`flex flex-col md:flex-row gap-3 mb-6 pb-6 border-b ${isDarkMode ? "border-[#1e293b]" : "border-slate-200"}`}>
                   <div className="flex-1 relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <Plus className="h-4 w-4 text-slate-500" />
                     </div>
-                    <input type="text" placeholder="Neuer Artikel (z.B. Milch)..." value={neuerArtikel} onChange={(e) => setNeuerArtikel(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addEinkauf()} className={`w-full ${bgInput} border rounded-md pl-10 pr-4 py-2.5 text-[16px] md:text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all`} />
+                    <input 
+                      type="text" 
+                      placeholder="Neuer Artikel (z.B. Hafermilch)..." 
+                      value={neuerArtikel} 
+                      onChange={(e) => setNeuerArtikel(e.target.value)} 
+                      onKeyDown={(e) => e.key === 'Enter' && addEinkauf()} 
+                      className={`w-full ${bgInput} border rounded-md pl-10 pr-4 py-2.5 text-[16px] md:text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all`} 
+                    />
                   </div>
-                  <button onClick={addEinkauf} className={`w-full md:w-auto h-11 md:h-auto px-6 ${isDarkMode ? "bg-slate-100 text-slate-900 hover:bg-white" : "bg-blue-600 text-white hover:bg-blue-700"} text-sm font-semibold rounded-md transition-colors`}>
+                  <button 
+                    onClick={() => addEinkauf()} 
+                    className={`w-full md:w-auto h-11 md:h-auto px-6 ${isDarkMode ? "bg-slate-100 text-slate-900 hover:bg-white" : "bg-blue-600 text-white hover:bg-blue-700"} text-sm font-semibold rounded-md transition-colors`}
+                  >
                     Hinzufügen
                   </button>
                 </div>
 
-                <div className="space-y-1">
-                  {offeneEinkaeufe.map((item, idx) => (
-                    <div key={idx} className={`flex items-center justify-between p-3 rounded-md border border-transparent ${isDarkMode ? "hover:bg-[#05070A] hover:border-[#1e293b]" : "hover:bg-slate-100 hover:border-slate-200"} transition-colors`}>
-                      <span className={`text-sm ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}>{item.artikel}</span>
-                      <button onClick={() => markEinkaufErledigt(item)} className="h-7 px-3 text-[10px] font-medium rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors flex items-center gap-1">
-                        <Check className="h-3 w-3" /> <span className="hidden md:inline">Erledigt</span>
-                      </button>
-                    </div>
-                  ))}
-                  {offeneEinkaeufe.length === 0 && <p className="text-sm text-slate-500 text-center py-8">Alles eingekauft!</p>}
+                {/* GRUPPIERTE ARTIKEL NACH KATEGORIE */}
+                <div className="space-y-6">
+                  {Object.keys(einkaufNachKategorien).length === 0 ? (
+                    <p className="text-sm text-slate-500 text-center py-8">Alles erledigt! Keine offenen Artikel.</p>
+                  ) : (
+                    Object.entries(einkaufNachKategorien).map(([kategorie, items]) => (
+                      <div key={kategorie} className="space-y-2">
+                        <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider px-1 flex items-center justify-between">
+                          <span>{kategorie}</span>
+                          <span className="text-[10px] font-normal text-slate-500">{items.length}</span>
+                        </div>
+                        <div className="space-y-1">
+                          {items.map((item) => (
+                            <div key={item.rowIndex} className={`flex items-center justify-between p-3 rounded-md border border-transparent ${isDarkMode ? "hover:bg-[#05070A] hover:border-[#1e293b]" : "hover:bg-slate-100 hover:border-slate-200"} transition-colors`}>
+                              <span className={`text-sm ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}>{item.artikel}</span>
+                              <button 
+                                onClick={() => markEinkaufErledigt(item, "Erledigt")} 
+                                className="h-7 px-3 text-[10px] font-medium rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors flex items-center gap-1"
+                              >
+                                <Check className="h-3 w-3" /> <span>Erledigt</span>
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
+
+                {/* AUSKLAPPBARE ERLEDIGTE ARTIKEL */}
+                {erledigteEinkaeufe.length > 0 && (
+                  <div className={`mt-8 pt-6 border-t ${isDarkMode ? "border-[#1e293b]" : "border-slate-200"}`}>
+                    <button 
+                      onClick={() => setShowErledigt(!showErledigt)} 
+                      className="flex items-center justify-between w-full text-xs text-slate-400 hover:text-slate-200 py-1"
+                    >
+                      <span>Bereits gekauft ({erledigteEinkaeufe.length})</span>
+                      {showErledigt ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
+                    
+                    {showErledigt && (
+                      <div className="space-y-1 mt-3 opacity-60">
+                        {erledigteEinkaeufe.map((item) => (
+                          <div key={item.rowIndex} className="flex items-center justify-between p-2 text-xs line-through text-slate-500">
+                            <span>{item.artikel}</span>
+                            <button 
+                              onClick={() => markEinkaufErledigt(item, "Offen")} 
+                              className="text-[10px] text-blue-400 hover:underline"
+                            >
+                              Wiederherstellen
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
               </div>
             </div>
@@ -400,7 +515,6 @@ export default function DashboardPage() {
             <div className="space-y-6">
               <div><h2 className={`text-lg font-semibold ${textTitle}`}>Vorratskammer & KI</h2></div>
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-                
                 <div className={`lg:col-span-1 ${bgCard} border rounded-xl p-6 flex flex-col h-[300px]`}>
                   <h3 className={`text-xs font-semibold ${textTitle} mb-4 flex items-center gap-2`}><Camera className="h-4 w-4 text-blue-500" /> Scanner</h3>
                   <div className={`flex-1 border-2 border-dashed ${isDarkMode ? "border-[#1e293b] bg-[#05070A]" : "border-slate-200 bg-slate-50"} rounded-lg flex flex-col items-center justify-center p-6 text-center`}>
@@ -442,7 +556,6 @@ export default function DashboardPage() {
                     </table>
                   </div>
                 </div>
-
               </div>
             </div>
           )}
