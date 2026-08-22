@@ -1,9 +1,9 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
-  Home, ShoppingCart, Package, Calendar as CalendarIcon, Clock, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2, Bell, Settings, Sun, Moon, ChevronDown, ChevronUp, Sparkles, Hourglass, UserCheck, Trash2, StickyNote
+  Home, ShoppingCart, Package, Calendar as CalendarIcon, Clock, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2, Bell, Settings, Sun, Moon, ChevronDown, ChevronUp, Sparkles, Hourglass, UserCheck, Trash2, StickyNote, ArrowUpRight, CloudSun, Pin, Sparkle, ArrowRight, X
 } from "lucide-react";
 
 interface Departure { line: string; destination: string; time: string; }
@@ -31,6 +31,7 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("home");
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [activeUser, setActiveUser] = useState<"Jonas" | "Lena">("Jonas");
+  const [isFabOpen, setIsFabOpen] = useState(false);
   
   const [departures, setDepartures] = useState<Departure[]>([]);
   const [weather, setWeather] = useState<string>("Lädt...");
@@ -50,11 +51,15 @@ export default function DashboardPage() {
 
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [activeNoteCategory, setActiveNoteCategory] = useState<string>("Alle");
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [newNoteTitle, setNewNoteTitle] = useState("");
+  const [newNoteContent, setNewNoteContent] = useState("");
+  const [newNoteCategory, setNewNoteCategory] = useState("Allgemein");
 
   const [isScanning, setIsScanning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const todayStr = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: 'short', year: 'numeric' }).format(new Date());
+  const todayStr = new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).format(new Date());
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("haushalt_theme");
@@ -118,8 +123,24 @@ export default function DashboardPage() {
     const newItem: EinkaufItem = { rowIndex: einkauf.length + 2, artikel: text, status: "Offen", kategorie: ermittleKategorie(text) };
     setEinkauf([...einkauf, newItem]);
     if (!artikelName) setNeuerArtikel("");
+    setIsFabOpen(false);
     
     await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Einkauf", values: [newItem.artikel, newItem.status] }) });
+    
+    try {
+      await fetch("https://ntfy.sh/HaushaltLenaJonas", {
+        method: "POST",
+        body: `${activeUser} hat "${text}" auf die Einkaufsliste gesetzt.`,
+        headers: {
+          "Title": "Haushalt OS - Neuer Einkauf",
+          "Tags": "shopping_cart",
+          "Priority": "default"
+        }
+      });
+    } catch (err) {
+      console.error("ntfy Push Error:", err);
+    }
+
     fetchData(); 
   };
 
@@ -146,6 +167,22 @@ export default function DashboardPage() {
     setNewCdTitle("");
     setNewCdDate("");
     await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Countdowns", values: [newItem.title, newItem.date, newItem.icon] }) });
+    fetchData();
+  };
+
+  const addNote = async () => {
+    if (!newNoteTitle || !newNoteContent) return;
+    const newItem: NoteItem = { rowIndex: notes.length + 2, title: newNoteTitle, content: newNoteContent, category: newNoteCategory, color: "green" };
+    setNotes([...notes, newItem]);
+    setNewNoteTitle("");
+    setNewNoteContent("");
+    setShowNoteModal(false);
+    setIsFabOpen(false);
+
+    await fetch("/api/data", { 
+      method: "POST", 
+      body: JSON.stringify({ sheetName: "Notizen", values: [newItem.title, newItem.content, newItem.category, newItem.color] }) 
+    });
     fetchData();
   };
 
@@ -188,7 +225,7 @@ export default function DashboardPage() {
   const filteredNotes = activeNoteCategory === "Alle" ? notes : notes.filter(n => n.category === activeNoteCategory);
 
   const TABS = [
-    { id: "home", icon: Home, label: "Dashboard" },
+    { id: "home", icon: Home, label: "Übersicht" },
     { id: "einkauf", icon: ShoppingCart, label: "Einkauf" },
     { id: "putzplan", icon: ClipboardList, label: "Putzplan" },
     { id: "vorrat", icon: Package, label: "Vorrat" },
@@ -196,13 +233,7 @@ export default function DashboardPage() {
     { id: "kalender", icon: CalendarIcon, label: "Termine" }
   ];
 
-  // FARBPALETTE:
-  // Sea Green:     #5B8C5A (Text Dark: #386137)
-  // Yale Blue:     #005377 (Text Dark: #003750)
-  // Golden Sand:   #CFD186 (Dark Tint: #E0E2A0)
-  // Night Bordeaux:#49111C
-  // Espresso:      #502419
-
+  // FARBPALETTE
   const bgMain = isDarkMode ? "bg-[#100A0B] text-[#EDE7E3]" : "bg-[#FAF8F5] text-[#2D2A26]";
   const bgSidebar = isDarkMode ? "bg-[#180F12] border-white/[0.08]" : "bg-[#FFFFFF] border-[#E8E2D9]";
   const bgCard = isDarkMode ? "bg-[#1E1418] border border-white/[0.08] text-[#FAF8F5] shadow-[0_4px_20px_rgba(0,0,0,0.4)]" : "bg-[#FFFFFF] border border-[#E8E2D9] shadow-[0_2px_8px_rgba(80,36,25,0.04)] text-[#2D2A26]";
@@ -211,10 +242,8 @@ export default function DashboardPage() {
   const textTitle = isDarkMode ? "text-[#FAF8F5]" : "text-[#2D2A26]";
   const textSub = isDarkMode ? "text-[#A89F91]" : "text-[#7A7265]";
   
-  // Kontraststarke Akzentfarben
   const accentGreen = isDarkMode ? "text-[#7DB47C]" : "text-[#3D693C]";
   const accentBlue = isDarkMode ? "text-[#3A8EBA]" : "text-[#005377]";
-  const accentGold = isDarkMode ? "text-[#DFE19E]" : "text-[#858739]";
   const badgeGreen = isDarkMode ? "bg-[#5B8C5A]/20 text-[#9ED09D] border border-[#5B8C5A]/40" : "bg-[#5B8C5A]/15 text-[#2C522B] border border-[#5B8C5A]/30";
   const badgeBlue = isDarkMode ? "bg-[#005377]/30 text-[#6BB9E0] border border-[#005377]/50" : "bg-[#005377]/10 text-[#005377] border border-[#005377]/25";
   const buttonPrimary = isDarkMode ? "bg-[#005377] hover:bg-[#006894] text-white" : "bg-[#005377] hover:bg-[#00415E] text-white shadow-sm";
@@ -222,11 +251,6 @@ export default function DashboardPage() {
   return (
     <div className={`flex h-[100dvh] min-h-[100dvh] w-full overflow-hidden ${bgMain} font-sans transition-colors duration-300 relative`}>
       
-      {/* AMBIENT GLOW */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none z-0">
-        <div className={`absolute -top-[15%] left-[20%] w-[50vw] h-[50vw] rounded-full blur-[140px] opacity-[0.06] ${isDarkMode ? "bg-[#005377]" : "bg-[#5B8C5A]"}`} />
-      </div>
-
       {/* SIDEBAR */}
       <aside className={`hidden md:flex w-64 ${bgSidebar} border-r flex-col justify-between p-4 h-full z-20`}>
         <div>
@@ -236,12 +260,12 @@ export default function DashboardPage() {
             </div>
             <div>
               <span className={`font-bold text-sm tracking-tight ${textTitle} block leading-none`}>Haushalt OS</span>
-              <span className={`text-[10px] ${textSub} font-medium`}>Smart Dashboard</span>
+              <span className={`text-[10px] ${textSub} font-medium`}>Workspace Jonas & Lena</span>
             </div>
           </div>
 
           <nav className="space-y-1">
-            <div className={`px-3 text-[10px] font-bold ${textSub} uppercase tracking-wider mb-2 mt-4`}>Workspace</div>
+            <div className={`px-3 text-[10px] font-bold ${textSub} uppercase tracking-wider mb-2 mt-4`}>Navigation</div>
             {TABS.map(tab => {
               const isActive = activeTab === tab.id;
               return (
@@ -285,10 +309,6 @@ export default function DashboardPage() {
             </div>
             
             <div className="flex items-center gap-2">
-              <div className={`hidden sm:flex items-center gap-2 ${bgCard} rounded-lg px-3 py-1.5 text-xs font-semibold`}>
-                <CalendarIcon className="h-3.5 w-3.5 text-[#005377]" /> {todayStr}
-              </div>
-              
               <button 
                 onClick={toggleTheme} 
                 className={`h-8 w-8 flex items-center justify-center rounded-lg ${bgCard} transition-transform active:scale-95`}
@@ -303,119 +323,195 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        <div className="p-4 md:p-8 pb-32 md:pb-12 max-w-[1400px] mx-auto w-full space-y-6">
+        <div className="p-4 md:p-8 pb-32 md:pb-12 max-w-[1400px] mx-auto w-full space-y-8">
           
-          {/* TAB 1: HOME */}
+          {/* TAB 1: EDITORIAL HUB LAYOUT */}
           {activeTab === "home" && (
-            <div className="space-y-6">
+            <div className="space-y-8">
               
-              {/* COUNTDOWNS */}
-              {countdowns.length > 0 && (
+              {/* HERO GREETING & WEATHER BANNER */}
+              <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-[#E8E2D9] dark:border-white/[0.08]">
                 <div>
-                  <div className={`text-[11px] font-bold uppercase tracking-wider ${textSub} mb-3 px-1`}>Wichtige Countdowns</div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {countdowns.map((cd, idx) => {
-                      const days = calculateDaysLeft(cd.date);
-                      return (
-                        <motion.div 
-                          whileHover={{ y: -2 }}
-                          key={idx} 
-                          className={`${bgCard} rounded-2xl p-4 flex items-center justify-between transition-all hover:border-[#5B8C5A]/60`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <span className="text-2xl p-2.5 rounded-xl bg-[#5B8C5A]/15 border border-[#5B8C5A]/30">{cd.icon}</span>
-                            <div>
-                              <h4 className={`text-xs font-bold ${textTitle}`}>{cd.title}</h4>
-                              <p className={`text-[11px] ${textSub} font-medium mt-0.5`}>{cd.date}</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <span className={`text-lg font-extrabold font-mono ${accentGreen}`}>
-                              {days >= 0 ? `${days} Tage` : "Vorbei"}
-                            </span>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#5B8C5A] mb-1">
+                    <Sparkle className="h-3.5 w-3.5 fill-current" /> {todayStr}
                   </div>
+                  <h1 className={`text-3xl md:text-4xl font-extrabold tracking-tight ${textTitle}`}>
+                    Guten Tag, {activeUser}!
+                  </h1>
                 </div>
-              )}
 
-              {/* BENTO GRID */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                
-                {/* 1. Wetter */}
-                <div className={`${bgCard} rounded-2xl p-6 flex flex-col justify-between min-h-[170px]`}>
-                  <div className="flex justify-between items-start">
-                    <span className={`text-[11px] font-bold uppercase tracking-wider ${textSub}`}>{weatherLabel}</span>
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${badgeGreen}`}>Live</span>
-                  </div>
+                <div className={`flex items-center gap-3 px-4 py-2 rounded-2xl ${bgCard}`}>
+                  <CloudSun className={`h-6 w-6 ${accentBlue}`} />
                   <div>
-                    <div className={`text-4xl font-extrabold tracking-tight font-mono ${textTitle}`}>{weather}</div>
-                    <p className={`text-xs ${accentBlue} font-semibold mt-1`}>Außentemperatur</p>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-base font-extrabold font-mono leading-none ${textTitle}`}>{weather}</span>
+                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${badgeGreen}`}>München</span>
+                    </div>
+                    <span className={`text-[11px] ${textSub} font-medium`}>Perfektes Wetter draußen</span>
                   </div>
                 </div>
+              </div>
 
-                {/* 2. Tasks & Einkauf Summary */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className={`${bgCard} rounded-2xl p-5 flex flex-col justify-center items-center text-center cursor-pointer hover:border-[#49111C]/40 transition-all`} onClick={() => setActiveTab("putzplan")}>
-                    <div className="text-3xl font-black font-mono text-[#49111C] dark:text-[#E27B88]">{aufgaben.length}</div>
-                    <div className={`text-[10px] font-bold ${textSub} uppercase tracking-wider mt-1`}>Putz-Tasks</div>
-                  </div>
-                  <div className={`${bgCard} rounded-2xl p-5 flex flex-col justify-center items-center text-center cursor-pointer hover:border-[#5B8C5A]/40 transition-all`} onClick={() => setActiveTab("einkauf")}>
-                    <div className={`text-3xl font-black font-mono ${accentGreen}`}>{offeneEinkaeufe.length}</div>
-                    <div className={`text-[10px] font-bold ${textSub} uppercase tracking-wider mt-1`}>Auf der Liste</div>
-                  </div>
-                </div>
+              {/* ASYMMETRISCHES 2-SPALTEN LAYOUT */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                
+                {/* LINKE SPALTE: COUNTDOWNS & KALENDER TIMELINE */}
+                <div className="lg:col-span-7 space-y-6">
+                  
+                  {countdowns.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center px-1">
+                        <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Anstehende Meilensteine</h3>
+                        <span className={`text-xs ${accentBlue} font-semibold cursor-pointer`} onClick={() => setActiveTab("kalender")}>Verwalten &gt;</span>
+                      </div>
 
-                {/* 3. Abfahrten MVG */}
-                <div className={`${bgCard} rounded-2xl p-6 flex flex-col justify-between`}>
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className={`text-[11px] font-bold uppercase tracking-wider ${textSub}`}>Abfahrten OEZ</h3>
-                    <span className={`text-[10px] ${accentBlue} font-mono font-bold`}>Live MVG</span>
-                  </div>
-                  <div className="space-y-2.5">
-                    {departures.slice(0, 3).map((d, i) => (
-                      <div key={i} className="flex justify-between items-center text-xs">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded ${badgeBlue}`}>{d.line}</span>
-                          <span className={`truncate max-w-[130px] font-semibold ${textTitle}`}>{d.destination}</span>
+                      <div className="space-y-2.5">
+                        {countdowns.map((cd, idx) => {
+                          const days = calculateDaysLeft(cd.date);
+                          return (
+                            <motion.div 
+                              whileHover={{ x: 4 }}
+                              key={idx} 
+                              className={`${bgCard} rounded-2xl p-4 flex items-center justify-between border relative overflow-hidden transition-all`}
+                            >
+                              <div className="flex items-center gap-3.5">
+                                <span className="text-2xl p-2 rounded-xl bg-[#5B8C5A]/15 border border-[#5B8C5A]/30">{cd.icon}</span>
+                                <div>
+                                  <h4 className={`text-sm font-bold ${textTitle}`}>{cd.title}</h4>
+                                  <p className={`text-xs ${textSub} font-medium`}>{cd.date}</p>
+                                </div>
+                              </div>
+
+                              <div className="text-right flex items-baseline gap-1">
+                                <span className={`text-xl font-black font-mono ${accentGreen}`}>{days >= 0 ? days : 0}</span>
+                                <span className={`text-[11px] font-bold ${textSub}`}>Tage</span>
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="space-y-3 pt-2">
+                    <div className="flex justify-between items-center px-1">
+                      <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Terminübersicht</h3>
+                      <span className={`text-[10px] ${textSub}`}>iCloud Kalender</span>
+                    </div>
+
+                    <div className={`${bgCard} rounded-3xl p-6 border space-y-3`}>
+                      {termine.slice(0, 4).map((t, i) => (
+                        <div key={i} className={`flex items-center justify-between p-3 rounded-2xl border ${bgItem} gap-4`}>
+                          <div className="flex items-center gap-3">
+                            <div className="h-2 w-2 rounded-full bg-[#005377]" />
+                            <span className={`text-xs font-bold ${textTitle} truncate max-w-[220px] sm:max-w-none`}>{t.title}</span>
+                          </div>
+                          <span className={`text-[10px] font-mono font-bold ${badgeBlue} px-2.5 py-1 rounded-lg shrink-0`}>{t.date}</span>
                         </div>
-                        <span className={`font-mono font-bold ${textSub}`}>{d.time}</span>
-                      </div>
-                    ))}
-                    {departures.length === 0 && <span className={`text-xs ${textSub}`}>Keine Live-Abfahrten</span>}
+                      ))}
+                      {termine.length === 0 && <p className={`text-xs ${textSub} py-4 text-center`}>Keine Termine synchronisiert.</p>}
+                    </div>
                   </div>
+
                 </div>
 
-                {/* 4. Termine Box */}
-                <div className={`md:col-span-2 lg:col-span-3 ${bgCard} rounded-2xl p-6`}>
-                  <div className="flex justify-between items-center mb-3">
-                    <h3 className={`text-[11px] font-bold uppercase tracking-wider ${textSub}`}>Anstehende Termine</h3>
-                    <span className={`text-[10px] ${textSub}`}>iCloud Kalender</span>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    {termine.slice(0, 3).map((t, i) => (
-                      <div key={i} className={`p-4 rounded-xl border ${bgItem} flex flex-col justify-between gap-2`}>
-                        <span className={`text-xs font-bold ${textTitle} truncate`}>{t.title}</span>
-                        <span className={`text-[10px] font-mono font-bold w-fit px-2.5 py-1 rounded-md ${badgeBlue}`}>{t.date}</span>
+                {/* RECHTE SPALTE: QUICK FEED & LIVE TICKER */}
+                <div className="lg:col-span-5 space-y-6">
+                  
+                  <div className="space-y-3">
+                    <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub} px-1`}>Schnellübersicht</h3>
+                    
+                    <div 
+                      onClick={() => setActiveTab("einkauf")}
+                      className={`${bgCard} rounded-3xl p-5 border cursor-pointer hover:border-[#5B8C5A]/50 transition-all group`}
+                    >
+                      <div className="flex justify-between items-center mb-3">
+                        <div className="flex items-center gap-2">
+                          <ShoppingCart className={`h-4 w-4 ${accentGreen}`} />
+                          <span className={`text-xs font-bold ${textTitle}`}>Einkaufsliste</span>
+                        </div>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badgeGreen}`}>{offeneEinkaeufe.length} offen</span>
                       </div>
-                    ))}
-                    {termine.length === 0 && <p className={`text-xs ${textSub} py-2`}>Keine anstehenden Termine.</p>}
+                      
+                      <div className="space-y-1.5 mb-3">
+                        {offeneEinkaeufe.slice(0, 3).map((item, i) => (
+                          <div key={i} className={`text-xs ${textSub} flex items-center gap-2`}>
+                            <span className="h-1 w-1 rounded-full bg-slate-400" />
+                            <span className="truncate">{item.artikel}</span>
+                          </div>
+                        ))}
+                        {offeneEinkaeufe.length === 0 && <span className={`text-xs ${textSub}`}>Alles erledigt!</span>}
+                      </div>
+
+                      <div className={`text-[11px] font-bold ${accentGreen} flex items-center gap-1 group-hover:translate-x-1 transition-transform`}>
+                        Zur Einkaufsliste <ArrowRight className="h-3 w-3" />
+                      </div>
+                    </div>
+
+                    <div 
+                      onClick={() => setActiveTab("putzplan")}
+                      className={`${bgCard} rounded-3xl p-5 border cursor-pointer hover:border-[#49111C]/40 transition-all group`}
+                    >
+                      <div className="flex justify-between items-center mb-3">
+                        <div className="flex items-center gap-2">
+                          <ClipboardList className="h-4 w-4 text-[#49111C] dark:text-[#E27B88]" />
+                          <span className={`text-xs font-bold ${textTitle}`}>Putzaufgaben</span>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#49111C]/15 text-[#49111C] dark:text-[#E27B88] border border-[#49111C]/30">{aufgaben.length} aktiv</span>
+                      </div>
+
+                      <div className="space-y-1.5 mb-3">
+                        {aufgaben.slice(0, 2).map((a, i) => (
+                          <div key={i} className={`text-xs ${textSub} flex items-center justify-between`}>
+                            <span className="truncate">{a.aufgabe}</span>
+                            <span className="font-mono text-[10px]">{a.letztesDatum}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="text-[11px] font-bold text-[#49111C] dark:text-[#E27B88] flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                        Putzplan ansehen <ArrowRight className="h-3 w-3" />
+                      </div>
+                    </div>
                   </div>
+
+                  <div className={`${bgCard} rounded-3xl p-6 border space-y-4`}>
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h3 className={`text-xs font-bold ${textTitle}`}>Abfahrten OEZ</h3>
+                        <p className={`text-[10px] ${textSub}`}>Münchner Verkehrsgesellschaft</p>
+                      </div>
+                      <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-md ${badgeBlue}`}>LIVE</span>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      {departures.slice(0, 3).map((d, i) => (
+                        <div key={i} className="flex justify-between items-center text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded ${badgeBlue}`}>{d.line}</span>
+                            <span className={`truncate max-w-[120px] font-semibold ${textTitle}`}>{d.destination}</span>
+                          </div>
+                          <span className={`font-mono font-bold ${textSub}`}>{d.time}</span>
+                        </div>
+                      ))}
+                      {departures.length === 0 && <span className={`text-xs ${textSub}`}>Keine Live-Abfahrten</span>}
+                    </div>
+                  </div>
+
                 </div>
 
               </div>
+
             </div>
           )}
 
-          {/* TAB 2: EINKAUF */}
+          {/* TAB 2: EINKAUF MIT NATIVEN SWIPE GESTEN */}
           {activeTab === "einkauf" && (
             <div className="space-y-6">
               <div className="flex justify-between items-center">
                 <div>
                   <h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>Einkaufsliste</h2>
-                  <p className={`text-xs ${textSub}`}>Sortiert nach Supermarkt-Gängen</p>
+                  <p className={`text-xs ${textSub}`}>Wischen: Links = Erledigen, Rechts = Löschen</p>
                 </div>
                 <span className={`text-xs px-3 py-1 rounded-full font-mono font-bold ${badgeBlue}`}>
                   {offeneEinkaeufe.length} offen
@@ -450,7 +546,7 @@ export default function DashboardPage() {
                   </button>
                 </div>
 
-                {/* Gruppierte Warengruppen */}
+                {/* Gruppierte Warengruppen mit SWIPE-CONTAINERN */}
                 <div className="space-y-6">
                   {Object.keys(einkaufNachKategorien).length === 0 ? (
                     <p className={`text-xs ${textSub} text-center py-6 font-medium`}>Alles erledigt! Keine offenen Artikel.</p>
@@ -463,16 +559,38 @@ export default function DashboardPage() {
                         </div>
                         <div className="space-y-2">
                           {items.map((item) => (
-                            <div key={item.rowIndex} className={`flex items-center justify-between p-3.5 rounded-xl border ${bgItem}`}>
-                              <span className={`text-sm font-semibold ${textTitle}`}>{item.artikel}</span>
-                              <div className="flex items-center gap-2">
-                                <button onClick={() => markEinkaufErledigt(item, "Erledigt")} className={`h-7 px-3 text-[11px] font-bold rounded-lg ${badgeGreen} hover:opacity-80 transition-colors flex items-center gap-1`}>
-                                  <Check className="h-3.5 w-3.5" /> <span>Erledigt</span>
-                                </button>
-                                <button onClick={() => deleteEinkauf(item)} className="p-1.5 text-slate-400 hover:text-[#49111C] transition-colors">
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
+                            <div key={item.rowIndex} className="relative rounded-xl overflow-hidden">
+                              {/* SWIPE HINTERGRUND-AKTIONEN */}
+                              <div className="absolute inset-0 flex justify-between items-center px-4 rounded-xl bg-gradient-to-r from-[#49111C] via-[#251A1E] to-[#5B8C5A] text-white">
+                                <div className="flex items-center gap-1 text-xs font-bold text-rose-200">
+                                  <Trash2 className="h-4 w-4" /> Löschen
+                                </div>
+                                <div className="flex items-center gap-1 text-xs font-bold text-emerald-200">
+                                  Erledigt <Check className="h-4 w-4" />
+                                </div>
                               </div>
+
+                              {/* ZIEHBARE KARTE */}
+                              <motion.div 
+                                drag="x"
+                                dragConstraints={{ left: 0, right: 0 }}
+                                dragElastic={0.6}
+                                onDragEnd={(_, info) => {
+                                  if (info.offset.x > 75) deleteEinkauf(item);
+                                  else if (info.offset.x < -75) markEinkaufErledigt(item, "Erledigt");
+                                }}
+                                className={`relative z-10 flex items-center justify-between p-3.5 rounded-xl border ${bgItem} ${bgCard} shadow-sm cursor-grab active:cursor-grabbing transition-colors`}
+                              >
+                                <span className={`text-sm font-semibold ${textTitle}`}>{item.artikel}</span>
+                                <div className="flex items-center gap-2">
+                                  <button onClick={() => markEinkaufErledigt(item, "Erledigt")} className={`h-7 px-3 text-[11px] font-bold rounded-lg ${badgeGreen} hover:opacity-80 transition-colors flex items-center gap-1`}>
+                                    <Check className="h-3.5 w-3.5" /> <span>Erledigt</span>
+                                  </button>
+                                  <button onClick={() => deleteEinkauf(item)} className="p-1.5 text-slate-400 hover:text-[#49111C] transition-colors">
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                </div>
+                              </motion.div>
                             </div>
                           ))}
                         </div>
@@ -585,12 +703,56 @@ export default function DashboardPage() {
           {/* TAB 5: PINNWAND */}
           {activeTab === "notizen" && (
             <div className="space-y-6">
-              <div>
-                <h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>Pinnwand</h2>
-                <p className={`text-xs ${textSub}`}>Digitale Notizen & Infos</p>
+              <div className="flex justify-between items-center">
+                <div>
+                  <h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>Pinnwand & Notizen</h2>
+                  <p className={`text-xs ${textSub}`}>WLAN, Notizen & wichtige Kontakte</p>
+                </div>
+                <button 
+                  onClick={() => setShowNoteModal(!showNoteModal)} 
+                  className={`px-4 py-2 ${buttonPrimary} text-xs font-bold rounded-xl flex items-center gap-2 transition-all`}
+                >
+                  <Plus className="h-4 w-4" /> Notiz anlegen
+                </button>
               </div>
 
-              {/* Kategorien */}
+              {/* NOTIZ ERSTELLEN MODAL */}
+              {showNoteModal && (
+                <div className={`${bgCard} rounded-2xl p-6 border space-y-4`}>
+                  <h3 className={`text-sm font-bold ${textTitle}`}>Neue Notiz erstellen</h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <input 
+                      type="text" 
+                      placeholder="Titel (z.B. Gäste-WLAN)..." 
+                      value={newNoteTitle} 
+                      onChange={e => setNewNoteTitle(e.target.value)} 
+                      className={`sm:col-span-2 ${bgInput} border rounded-xl px-4 py-2 text-xs font-medium focus:outline-none`}
+                    />
+                    <select 
+                      value={newNoteCategory} 
+                      onChange={e => setNewNoteCategory(e.target.value)} 
+                      className={`${bgInput} border rounded-xl px-3 py-2 text-xs font-medium focus:outline-none`}
+                    >
+                      <option value="Allgemein">Allgemein</option>
+                      <option value="WLAN & Haus">WLAN & Haus</option>
+                      <option value="Rezepte">Rezepte</option>
+                      <option value="Ideen">Ideen</option>
+                    </select>
+                  </div>
+                  <textarea 
+                    placeholder="Inhalt der Notiz..." 
+                    value={newNoteContent} 
+                    onChange={e => setNewNoteContent(e.target.value)} 
+                    className={`w-full ${bgInput} border rounded-xl px-4 py-3 text-xs font-medium focus:outline-none h-24`}
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => setShowNoteModal(false)} className={`px-4 py-2 text-xs font-bold ${textSub}`}>Abbrechen</button>
+                    <button onClick={addNote} className={`px-6 py-2 ${buttonPrimary} text-xs font-bold rounded-xl`}>Speichern</button>
+                  </div>
+                </div>
+              )}
+
+              {/* Kategorien Filter */}
               <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                 {noteCategories.map(cat => (
                   <button 
@@ -606,10 +768,13 @@ export default function DashboardPage() {
               {/* Notizen Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredNotes.map((note) => (
-                  <div key={note.rowIndex} className={`${bgCard} rounded-2xl p-5 border relative overflow-hidden`}>
-                    <span className={`text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-md ${badgeGreen}`}>
-                      {note.category}
-                    </span>
+                  <div key={note.rowIndex} className={`${bgCard} rounded-2xl p-5 border relative overflow-hidden group`}>
+                    <div className="flex justify-between items-start">
+                      <span className={`text-[9px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-md ${badgeGreen}`}>
+                        {note.category}
+                      </span>
+                      <Pin className="h-3.5 w-3.5 text-slate-400 opacity-50" />
+                    </div>
                     <h3 className={`text-sm font-bold mt-2.5 mb-1 ${textTitle}`}>{note.title}</h3>
                     <p className={`text-xs leading-relaxed ${textSub} whitespace-pre-line font-medium`}>
                       {note.content}
@@ -678,6 +843,54 @@ export default function DashboardPage() {
 
         </div>
       </main>
+
+      {/* DYNAMIC FLOATING ACTION BUTTON (FAB) */}
+      <div className="fixed bottom-20 md:bottom-8 right-5 md:right-8 z-50">
+        <AnimatePresence>
+          {isFabOpen && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.85, y: 15 }} 
+              animate={{ opacity: 1, scale: 1, y: 0 }} 
+              exit={{ opacity: 0, scale: 0.85, y: 15 }}
+              className="absolute bottom-16 right-0 flex flex-col gap-2.5 items-end mb-2 w-max"
+            >
+              {/* Quick Notiz */}
+              <button 
+                onClick={() => { setActiveTab("notizen"); setShowNoteModal(true); setIsFabOpen(false); }}
+                className={`flex items-center gap-2.5 px-3.5 py-2 rounded-xl shadow-lg border ${bgCard} ${textTitle} text-xs font-bold hover:scale-105 transition-all`}
+              >
+                <span>Notiz schreiben</span>
+                <div className="h-7 w-7 rounded-lg bg-[#5B8C5A] text-white flex items-center justify-center">
+                  <StickyNote className="h-4 w-4" />
+                </div>
+              </button>
+
+              {/* Quick Einkauf */}
+              <button 
+                onClick={() => { setActiveTab("einkauf"); setIsFabOpen(false); }}
+                className={`flex items-center gap-2.5 px-3.5 py-2 rounded-xl shadow-lg border ${bgCard} ${textTitle} text-xs font-bold hover:scale-105 transition-all`}
+              >
+                <span>Einkauf hinzufügen</span>
+                <div className="h-7 w-7 rounded-lg bg-[#005377] text-white flex items-center justify-center">
+                  <ShoppingCart className="h-4 w-4" />
+                </div>
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <button 
+          onClick={() => setIsFabOpen(!isFabOpen)}
+          className={`h-14 w-14 rounded-2xl shadow-2xl flex items-center justify-center transition-all duration-300 ${
+            isFabOpen 
+              ? "bg-[#49111C] text-white rotate-45" 
+              : "bg-[#005377] text-white hover:scale-105 shadow-[#005377]/40"
+          }`}
+          aria-label="Schnellaktionen"
+        >
+          <Plus className="h-6 w-6" />
+        </button>
+      </div>
 
       {/* MOBILE BOTTOM NAVIGATION */}
       <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-40 ${isDarkMode ? "bg-[#100A0B]/90 border-white/[0.08]" : "bg-[#FAF8F5]/90 border-[#E8E2D9]"} backdrop-blur-xl border-t px-3 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] flex justify-around items-center`}>
