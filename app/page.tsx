@@ -257,25 +257,28 @@ export default function DashboardPage() {
       {/* MAIN CONTENT */}
       <main className="flex-1 flex flex-col h-full overflow-y-auto relative">
         
-        <header className={`h-16 border-b ${isDarkMode ? "border-[#1e293b] bg-[#05070A]/80" : "border-slate-200 bg-white/80"} px-6 md:px-8 flex items-center justify-between sticky top-0 z-10 backdrop-blur-md transition-colors duration-300`}>
-          <div className={`flex items-center gap-2 text-xs ${textSub} font-medium tracking-wide`}>
-            <span>Dashboard</span>
-            <span>&gt;</span>
-            <span className={`capitalize ${textTitle}`}>{activeTab}</span>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <div className={`hidden sm:flex items-center gap-2 ${isDarkMode ? "bg-[#0C1017] border-[#1e293b] text-slate-300" : "bg-slate-100 border-slate-200 text-slate-700"} border rounded-md px-3 py-1.5 text-xs`}>
-              <CalendarIcon className="h-3 w-3 text-slate-400" /> {todayStr}
+        {/* HEADER mit Dynamic Island / Notch Safe Area */}
+        <header className={`pt-safe sticky top-0 z-30 ${isDarkMode ? "border-[#1e293b] bg-[#05070A]/85" : "border-slate-200 bg-white/85"} backdrop-blur-xl border-b transition-colors duration-300`}>
+          <div className="h-14 px-4 md:px-8 flex items-center justify-between">
+            <div className={`flex items-center gap-2 text-xs ${textSub} font-medium tracking-wide`}>
+              <span>Dashboard</span>
+              <span>&gt;</span>
+              <span className={`capitalize ${textTitle}`}>{activeTab}</span>
             </div>
             
-            <button onClick={toggleTheme} className={`h-8 w-8 flex items-center justify-center rounded-md ${isDarkMode ? "bg-[#0C1017] border-[#1e293b] text-slate-400 hover:text-slate-200" : "bg-slate-100 border-slate-200 text-slate-600 hover:text-slate-900"} border transition-colors shadow-sm`}>
-              {isDarkMode ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-slate-700" />}
-            </button>
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className={`hidden sm:flex items-center gap-2 ${isDarkMode ? "bg-[#0C1017] border-[#1e293b] text-slate-300" : "bg-slate-100 border-slate-200 text-slate-700"} border rounded-md px-3 py-1.5 text-xs`}>
+                <CalendarIcon className="h-3 w-3 text-slate-400" /> {todayStr}
+              </div>
+              
+              <button onClick={toggleTheme} className={`h-8 w-8 flex items-center justify-center rounded-md ${isDarkMode ? "bg-[#0C1017] border-[#1e293b] text-slate-400 hover:text-slate-200" : "bg-slate-100 border-slate-200 text-slate-600 hover:text-slate-900"} border transition-colors shadow-sm`}>
+                {isDarkMode ? <Sun className="h-4 w-4 text-amber-400" /> : <Moon className="h-4 w-4 text-slate-700" />}
+              </button>
 
-            <button className={`h-8 w-8 flex items-center justify-center rounded-md ${isDarkMode ? "bg-[#0C1017] border-[#1e293b] text-slate-400 hover:text-slate-200" : "bg-slate-100 border-slate-200 text-slate-600 hover:text-slate-900"} border transition-colors shadow-sm`}>
-              <Bell className="h-4 w-4" />
-            </button>
+              <button className={`h-8 w-8 flex items-center justify-center rounded-md ${isDarkMode ? "bg-[#0C1017] border-[#1e293b] text-slate-400 hover:text-slate-200" : "bg-slate-100 border-slate-200 text-slate-600 hover:text-slate-900"} border transition-colors shadow-sm`}>
+                <Bell className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </header>
 
@@ -580,16 +583,16 @@ export default function DashboardPage() {
         </div>
       </main>
 
-      {/* MOBILE BOTTOM NAVIGATION */}
-      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-50 ${isDarkMode ? "bg-[#05070A]/95 border-[#1e293b]" : "bg-white/95 border-slate-200"} backdrop-blur-xl border-t flex justify-around items-center px-2 py-2 pb-safe transition-colors duration-300`}>
+      {/* MOBILE BOTTOM NAVIGATION mit Home-Indicator Safe Area */}
+      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-50 ${isDarkMode ? "bg-[#05070A]/90 border-[#1e293b]" : "bg-white/90 border-slate-200"} backdrop-blur-xl border-t px-3 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] flex justify-around items-center transition-colors duration-300`}>
         {TABS.map(tab => {
           const isActive = activeTab === tab.id;
           const activeBtn = isDarkMode ? "text-slate-100 bg-[#1A2332]" : "text-blue-600 bg-blue-50";
           const inactiveBtn = isDarkMode ? "text-slate-500 hover:text-slate-300" : "text-slate-400 hover:text-slate-700";
 
           return (
-            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex flex-col items-center justify-center w-16 h-12 gap-1 rounded-lg transition-all ${isActive ? activeBtn : inactiveBtn}`}>
-              <tab.icon className={`h-5 w-5 ${isActive ? "text-blue-500" : ""}`} />
+            <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex flex-col items-center justify-center w-14 h-11 gap-1 rounded-lg transition-all ${isActive ? activeBtn : inactiveBtn}`}>
+              <tab.icon className={`h-4 w-4 ${isActive ? "text-blue-500" : ""}`} />
               <span className="text-[9px] font-medium tracking-tight">{tab.label}</span>
             </button>
           );
