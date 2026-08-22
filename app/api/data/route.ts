@@ -1,83 +1,45 @@
 import { NextResponse } from "next/server";
-import { google } from "googleapis";
+import { GoogleGenAI } from "@google/genai";
 
-const getAuth = () =>
-  new google.auth.GoogleAuth({
-    credentials: {
-      client_email: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-    },
-    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-  });
-
-const spreadsheetId = "1Dj3_N9ybEhIDX5HukIELYtE2E3LToq4DiuPV3EBjOiA";
-
-// 1. GET: Alle Daten auf einen Schlag abrufen
-export async function GET() {
-  try {
-    const sheets = google.sheets({ version: "v4", auth: getAuth() });
-
-    const [haushaltRes, einkaufRes, vorratRes, countdownsRes, notizenRes] =
-      await Promise.all([
-        sheets.spreadsheets.values.get({ spreadsheetId, range: "Haushalt!A:D" }).catch(() => ({ data: { values: [] } })),
-        sheets.spreadsheets.values.get({ spreadsheetId, range: "Einkauf!A:B" }).catch(() => ({ data: { values: [] } })),
-        sheets.spreadsheets.values.get({ spreadsheetId, range: "Vorrat!A:C" }).catch(() => ({ data: { values: [] } })),
-        sheets.spreadsheets.values.get({ spreadsheetId, range: "Countdowns!A:C" }).catch(() => ({ data: { values: [] } })),
-        sheets.spreadsheets.values.get({ spreadsheetId, range: "Notizen!A:D" }).catch(() => ({ data: { values: [] } })),
-      ]);
-
-    return NextResponse.json({
-      haushalt: haushaltRes.data.values || [],
-      einkauf: einkaufRes.data.values || [],
-      vorrat: vorratRes.data.values || [],
-      countdowns: countdownsRes.data.values || [],
-      notizen: notizenRes.data.values || [],
-    });
-  } catch (error: any) {
-    console.error("Sheets GET Error:", error);
-    return NextResponse.json({ error: "Fehler beim Lesen der Sheets", details: error.message }, { status: 500 });
-  }
-}
-
-// 2. POST: Neuen Eintrag unten anfügen (Einkauf, Countdown, Vorrat, Notiz)
 export async function POST(request: Request) {
   try {
-    const { sheetName, values } = await request.json();
-    const sheets = google.sheets({ version: "v4", auth: getAuth() });
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      console.error("GEMINI_API_KEY ist auf dem Server nicht gesetzt!");
+      return NextResponse.json({ error: "API-Key fehlt auf dem Server" }, { status: 500 });
+    }
 
-    await sheets.spreadsheets.values.append({
-      spreadsheetId,
-      range: `${sheetName}!A:D`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: { values: [values] },
+    const { imageBase64 } = await request.json();
+    if (!imageBase64) {
+      return NextResponse.json({ error: "Kein Bild übergeben" }, { status: 400 });
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
+
+    // Exakte Struktur für das offizielle @google/genai SDK
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: [
+        {
+          inlineData: {
+            mimeType: "image/jpeg",
+            data: imageBase64,
+          },
+        },
+        "Analysiere dieses Bild eines Lebensmittelprodukts oder MHD-Aufklebers. Extrahiere den Namen des Artikels sowie das Mindesthaltbarkeitsdatum (MHD) im Format YYYY-MM-DD. Antworte AUSSCHLIESSLICH im JSON-Format mit genau diesen zwei Feldern: {\"artikel\": \"Name\", \"mhd\": \"YYYY-MM-DD\"}. Wenn du kein Datum findest, schätze ein realistisches Datum in der Zukunft ab.",
+      ],
     });
 
-    return NextResponse.json({ success: true });
-  } catch (error: any) {
-    console.error("Sheets POST Error:", error);
-    return NextResponse.json({ error: "Fehler beim Schreiben", details: error.message }, { status: 500 });
-  }
-}
+    const textResult = response.text || "{}";
+    const cleanJson = textResult.replace(/```json/g, "").replace(/```/g, "").trim();
+    const parsed = JSON.parse(cleanJson);
 
-// 3. PUT: Bestehende Zeile aktualisieren (Status ändern, Datum updaten, Leeren)
-export async function PUT(request: Request) {
-  try {
-    const { sheetName, rowIndex, values } = await request.json();
-    const sheets = google.sheets({ version: "v4", auth: getAuth() });
-
-    // Schreibt exakt in die Zeile (z.B. Einkauf!A3:B3 oder Haushalt!A2:D2)
-    const endColumn = values.length === 2 ? "B" : values.length === 3 ? "C" : "D";
-
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: `${sheetName}!A${rowIndex}:${endColumn}${rowIndex}`,
-      valueInputOption: "USER_ENTERED",
-      requestBody: { values: [values] },
+    return NextResponse.json({
+      artikel: parsed.artikel || "Unbekannter Artikel",
+      mhd: parsed.mhd || new Date().toISOString().split("T")[0],
     });
-
-    return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("Sheets PUT Error:", error);
-    return NextResponse.json({ error: "Fehler beim Updaten", details: error.message }, { status: 500 });
+    console.error("Vision API Error Details:", error);
+    return NextResponse.json({ error: "Fehler bei der KI-Analyse", details: error.message }, { status: 500 });
   }
 }
