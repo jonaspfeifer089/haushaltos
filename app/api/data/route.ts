@@ -14,14 +14,18 @@ const spreadsheetId = "1Dj3_N9ybEhIDX5HukIELYtE2E3LToq4DiuPV3EBjOiA";
 export async function GET() {
   try {
     const sheets = google.sheets({ version: "v4", auth: getAuth() });
-    const haushaltRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: "Haushalt!A:D" });
-    const einkaufRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: "Einkauf!A:B" });
-    const vorratRes = await sheets.spreadsheets.values.get({ spreadsheetId, range: "Vorrat!A:C" });
+    const [haushaltRes, einkaufRes, vorratRes, countdownsRes] = await Promise.all([
+      sheets.spreadsheets.values.get({ spreadsheetId, range: "Haushalt!A:D" }),
+      sheets.spreadsheets.values.get({ spreadsheetId, range: "Einkauf!A:B" }),
+      sheets.spreadsheets.values.get({ spreadsheetId, range: "Vorrat!A:C" }),
+      sheets.spreadsheets.values.get({ spreadsheetId, range: "Countdowns!A:C" }).catch(() => ({ data: { values: [] } }))
+    ]);
 
     return NextResponse.json({
       haushalt: haushaltRes.data.values || [],
       einkauf: einkaufRes.data.values || [],
       vorrat: vorratRes.data.values || [],
+      countdowns: countdownsRes.data.values || [],
     });
   } catch (error) {
     return NextResponse.json({ error: "Fehler beim Lesen der Sheets" }, { status: 500 });

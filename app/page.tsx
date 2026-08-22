@@ -2,15 +2,15 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import { 
-  Home, ShoppingCart, Package, Calendar as CalendarIcon, LogOut, CloudSun, CheckCircle2, Clock, AlertTriangle, Train, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2, Search, Bell, Settings, Sun, Moon, ChevronDown, ChevronUp, Sparkles
+  Home, ShoppingCart, Package, Calendar as CalendarIcon, LogOut, CloudSun, CheckCircle2, Clock, AlertTriangle, Train, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2, Search, Bell, Settings, Sun, Moon, ChevronDown, ChevronUp, Sparkles, Hourglass, Trash2
 } from "lucide-react";
 
 interface Departure { line: string; destination: string; time: string; }
 interface EinkaufItem { rowIndex: number; artikel: string; status: string; kategorie?: string; }
 interface PutzItem { rowIndex: number; aufgabe: string; letztesDatum: string; intervall: string; }
 interface VorratItem { rowIndex: number; artikel: string; ablaufdatum: string; anbruch: string; }
+interface CountdownItem { rowIndex: number; title: string; date: string; icon: string; }
 
-// Automatische Kategorie-Erkennung
 const KATEGORIEN = ["Obst & Gemüse", "Kühlregal", "Vorrat & Teigwaren", "Getränke", "Drogerie & Haushalt", "Sonstiges"] as const;
 
 function ermittleKategorie(artikel: string): string {
@@ -23,9 +23,7 @@ function ermittleKategorie(artikel: string): string {
   return "Sonstiges";
 }
 
-const SCHNELLWAHL_FAVORITEN = [
-  "Hafermilch", "Bananen", "Eier", "Körniger Frischkäse", "Toast", "Äpfel", "Spüli", "Mineralwasser"
-];
+const SCHNELLWAHL_FAVORITEN = ["Hafermilch", "Bananen", "Eier", "Körniger Frischkäse", "Toast", "Äpfel", "Spüli", "Mineralwasser"];
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("home");
@@ -38,12 +36,17 @@ export default function DashboardPage() {
   
   const [einkauf, setEinkauf] = useState<EinkaufItem[]>([]);
   const [neuerArtikel, setNeuerArtikel] = useState("");
-  const [selectedKategorie, setSelectedKategorie] = useState<string>("Auto");
   const [showErledigt, setShowErledigt] = useState(false);
 
   const [aufgaben, setAufgaben] = useState<PutzItem[]>([]);
   const [vorrat, setVorrat] = useState<VorratItem[]>([]);
   
+  // Countdowns
+  const [countdowns, setCountdowns] = useState<CountdownItem[]>([]);
+  const [newCdTitle, setNewCdTitle] = useState("");
+  const [newCdDate, setNewCdDate] = useState("");
+  const [newCdIcon, setNewCdIcon] = useState("✈️");
+
   const [isScanning, setIsScanning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -64,94 +67,73 @@ export default function DashboardPage() {
     try {
       const res = await fetch("/api/data");
       const data = await res.json();
-      if (data.einkauf) {
-        setEinkauf(data.einkauf.slice(1).map((r: any, i: number) => ({
-          rowIndex: i + 2,
-          artikel: r[0],
-          status: r[1] || "Offen",
-          kategorie: ermittleKategorie(r[0])
-        })).filter((x: any) => x.artikel));
-      }
+      if (data.einkauf) setEinkauf(data.einkauf.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, artikel: r[0], status: r[1] || "Offen", kategorie: ermittleKategorie(r[0]) })).filter((x: any) => x.artikel));
       if (data.haushalt) setAufgaben(data.haushalt.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, aufgabe: r[0], letztesDatum: r[1], intervall: r[2] })).filter((x: any) => x.aufgabe));
       if (data.vorrat) setVorrat(data.vorrat.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, artikel: r[0], ablaufdatum: r[1], anbruch: r[2] || "" })).filter((x: any) => x.artikel));
+      if (data.countdowns) setCountdowns(data.countdowns.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, title: r[0], date: r[1], icon: r[2] || "⏳" })).filter((x: any) => x.title));
     } catch (e) { console.error("Sheets Fetch Fehler:", e); }
   };
 
   useEffect(() => {
     fetchData();
 
-    fetch("/api/calendar")
-      .then(res => res.json())
-      .then(data => setTermine(data.events || []))
-      .catch(err => console.error("Kalender Fehler:", err));
+    fetch("/api/calendar").then(res => res.json()).then(data => setTermine(data.events || [])).catch(() => {});
+    fetch("https://www.mvg.de/api/bgw-pt/v3/departures?globalId=de:09162:70").then(res => res.json()).then(data => {
+      if (Array.isArray(data)) setDepartures(data.slice(0, 5).map((d: any) => ({
+        line: d.label || "U", destination: d.destination || "Unbekannt", time: new Date(d.realtimeDepartureTime || d.plannedDepartureTime).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
+      })));
+    }).catch(() => {});
 
-    fetch("https://www.mvg.de/api/bgw-pt/v3/departures?globalId=de:09162:70")
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          setDepartures(data.slice(0, 5).map((d: any) => ({
-            line: d.label || "U",
-            destination: d.destination || "Unbekannt",
-            time: new Date(d.realtimeDepartureTime || d.plannedDepartureTime).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
-          })));
-        }
-      })
-      .catch(err => console.error("MVG Fehler:", err));
-
-    // Wetter-Abruf mit automatischer IP-Standorterkennung als Backup
     const fetchWeather = (lat: number, lon: number, label: string) => {
       fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code`)
         .then(res => res.json())
-        .then(data => {
-          setWeather(`${data?.current?.temperature_2m ?? "--"}°C`);
-          setWeatherLabel(label);
-        })
+        .then(data => { setWeather(`${data?.current?.temperature_2m ?? "--"}°C`); setWeatherLabel(label); })
         .catch(() => setWeather("N/A"));
     };
 
-    const loadFallbackLocation = () => {
-      // Automatischer IP-Standort (funktioniert ohne Browser-Genehmigung)
-      fetch("https://ipapi.co/json/")
+    const loadIPLocation = () => {
+      fetch("https://ipwho.is/")
         .then(res => res.json())
-        .then(loc => {
-          if (loc.latitude && loc.longitude) {
-            fetchWeather(loc.latitude, loc.longitude, loc.city || "Lokales Wetter");
-          } else {
-            fetchWeather(48.1764, 11.5311, "Wetter OEZ (München)");
-          }
+        .then(data => {
+          if (data.success && data.latitude && data.longitude) fetchWeather(data.latitude, data.longitude, data.city || "Lokales Wetter");
+          else fetchWeather(48.1764, 11.5311, "Wetter OEZ (München)");
         })
         .catch(() => fetchWeather(48.1764, 11.5311, "Wetter OEZ (München)"));
     };
 
-    if ("geolocation" in navigator) {
+    if (typeof window !== "undefined" && "geolocation" in navigator) {
       navigator.geolocation.getCurrentPosition(
-        (pos) => fetchWeather(pos.coords.latitude, pos.coords.longitude, "GPS Standort"),
-        () => loadFallbackLocation(),
-        { enableHighAccuracy: true, timeout: 6000 }
+        pos => fetchWeather(pos.coords.latitude, pos.coords.longitude, "GPS Standort"),
+        () => loadIPLocation(),
+        { enableHighAccuracy: false, timeout: 4000, maximumAge: 600000 }
       );
-    } else {
-      loadFallbackLocation();
-    }
+    } else { loadIPLocation(); }
   }, []);
 
   const addEinkauf = async (artikelName?: string) => {
     const text = (artikelName || neuerArtikel).trim();
     if (!text) return;
-
-    const kat = selectedKategorie === "Auto" ? ermittleKategorie(text) : selectedKategorie;
-    const newItem: EinkaufItem = { rowIndex: einkauf.length + 2, artikel: text, status: "Offen", kategorie: kat };
+    const newItem: EinkaufItem = { rowIndex: einkauf.length + 2, artikel: text, status: "Offen", kategorie: ermittleKategorie(text) };
     setEinkauf([...einkauf, newItem]);
     if (!artikelName) setNeuerArtikel("");
     
     await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Einkauf", values: [newItem.artikel, newItem.status] }) });
-    
     await fetch("https://ntfy.sh/HaushaltLenaJonas", {
       method: "POST",
       body: `🛒 "${newItem.artikel}" wurde zur Einkaufsliste hinzugefügt.`,
       headers: { "Title": "Haushalt OS", "Tags": "shopping_cart", "Priority": "default" }
     });
-    
     fetchData(); 
+  };
+
+  const addCountdown = async () => {
+    if (!newCdTitle || !newCdDate) return;
+    const newItem: CountdownItem = { rowIndex: countdowns.length + 2, title: newCdTitle, date: newCdDate, icon: newCdIcon || "⏳" };
+    setCountdowns([...countdowns, newItem]);
+    setNewCdTitle("");
+    setNewCdDate("");
+    await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Countdowns", values: [newItem.title, newItem.date, newItem.icon] }) });
+    fetchData();
   };
 
   const markEinkaufErledigt = async (item: EinkaufItem, status: "Erledigt" | "Offen") => {
@@ -169,7 +151,6 @@ export default function DashboardPage() {
     const file = e.target.files?.[0];
     if (!file) return;
     setIsScanning(true);
-    
     const reader = new FileReader();
     reader.onloadend = async () => {
       const base64 = (reader.result as string).split(',')[1];
@@ -186,10 +167,16 @@ export default function DashboardPage() {
     reader.readAsDataURL(file);
   };
 
+  const calculateDaysLeft = (targetDateStr: string) => {
+    const target = new Date(targetDateStr);
+    const now = new Date();
+    const diffTime = target.getTime() - now.getTime();
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  };
+
   const offeneEinkaeufe = einkauf.filter(e => e.status !== "Erledigt");
   const erledigteEinkaeufe = einkauf.filter(e => e.status === "Erledigt");
 
-  // Gruppierung nach Kategorien
   const einkaufNachKategorien = KATEGORIEN.reduce((acc, kat) => {
     const items = offeneEinkaeufe.filter(i => (i.kategorie || ermittleKategorie(i.artikel)) === kat);
     if (items.length > 0) acc[kat] = items;
@@ -201,7 +188,7 @@ export default function DashboardPage() {
     { id: "einkauf", icon: ShoppingCart, label: "Einkauf" },
     { id: "putzplan", icon: ClipboardList, label: "Putzplan" },
     { id: "vorrat", icon: Package, label: "Vorrat" },
-    { id: "kalender", icon: CalendarIcon, label: "Kalender" }
+    { id: "kalender", icon: CalendarIcon, label: "Termine & Countdowns" }
   ];
 
   const bgMain = isDarkMode ? "bg-[#05070A] text-slate-300" : "bg-slate-50 text-slate-800";
@@ -247,8 +234,8 @@ export default function DashboardPage() {
         
         <div className={`pt-4 border-t ${isDarkMode ? "border-[#1e293b]" : "border-slate-200"} flex items-center justify-between px-2`}>
           <div className="flex items-center gap-2">
-            <div className={`h-7 w-7 rounded-md ${isDarkMode ? "bg-[#1e293b] text-slate-300" : "bg-slate-200 text-slate-700"} flex items-center justify-center text-xs font-semibold`}>JP</div>
-            <span className={`text-xs font-medium ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}>Jonas Pfeifer</span>
+            <div className={`h-7 w-7 rounded-md ${isDarkMode ? "bg-[#1e293b] text-slate-300" : "bg-slate-200 text-slate-700"} flex items-center justify-center text-xs font-semibold`}>JL</div>
+            <span className={`text-xs font-medium ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}>Jonas & Lena</span>
           </div>
           <button className={`${textSub} hover:text-blue-500`}><Settings className="h-4 w-4" /></button>
         </div>
@@ -257,7 +244,7 @@ export default function DashboardPage() {
       {/* MAIN CONTENT */}
       <main className="flex-1 flex flex-col h-full overflow-y-auto relative">
         
-        {/* HEADER mit Dynamic Island / Notch Safe Area */}
+        {/* HEADER mit Safe Area */}
         <header className={`pt-safe sticky top-0 z-30 ${isDarkMode ? "border-[#1e293b] bg-[#05070A]/85" : "border-slate-200 bg-white/85"} backdrop-blur-xl border-b transition-colors duration-300`}>
           <div className="h-14 px-4 md:px-8 flex items-center justify-between">
             <div className={`flex items-center gap-2 text-xs ${textSub} font-medium tracking-wide`}>
@@ -284,11 +271,40 @@ export default function DashboardPage() {
 
         <div className="p-4 md:p-8 pb-24 md:pb-12 max-w-[1400px] mx-auto w-full space-y-6 md:space-y-8">
           
-          {/* TAB 1: OVERVIEW */}
+          {/* TAB 1: OVERVIEW (INKLUSIVE COUNTDOWNS) */}
           {activeTab === "home" && (
             <>
               <div><h2 className={`text-lg font-semibold ${textTitle}`}>Overview</h2></div>
               
+              {/* COUNTDOWN WIDGETS AUF DER HAUPTSEITE */}
+              {countdowns.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {countdowns.map((cd, idx) => {
+                    const days = calculateDaysLeft(cd.date);
+                    return (
+                      <div key={idx} className={`${bgCard} border rounded-xl p-4 flex items-center justify-between relative overflow-hidden group hover:border-blue-500/40 transition-all`}>
+                        <div className="flex items-center gap-3">
+                          <span className="text-2xl p-2 rounded-lg bg-blue-500/10 border border-blue-500/20">{cd.icon}</span>
+                          <div>
+                            <h4 className={`text-sm font-semibold ${textTitle}`}>{cd.title}</h4>
+                            <p className="text-[11px] text-slate-500">{new Date(cd.date).toLocaleDateString("de-DE", { day: '2-digit', month: 'short', year: 'numeric' })}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className={`text-xl font-bold font-mono ${days <= 3 ? "text-amber-500" : "text-blue-500"}`}>
+                            {days >= 0 ? `${days}d` : "Vorbei"}
+                          </span>
+                          <span className="block text-[9px] uppercase tracking-wider text-slate-500 font-semibold">
+                            {days === 0 ? "Heute!" : days > 0 ? "verbleibend" : ""}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* STATISTIK KARTEN */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                 <div className={`${bgCard} border rounded-xl p-5 transition-colors`}>
                   <div className="flex justify-between items-start mb-4">
@@ -325,11 +341,12 @@ export default function DashboardPage() {
                   <div className={`text-2xl md:text-3xl font-bold ${isDarkMode ? "text-white" : "text-slate-900"} tracking-tight relative z-10`}>{termine.length}</div>
                   <div className="text-[10px] text-blue-500 mt-2 relative z-10">iCloud synchronisiert</div>
                   <button onClick={() => setActiveTab("kalender")} className={`mt-4 text-[10px] ${isDarkMode ? "bg-white text-black hover:bg-slate-200" : "bg-blue-600 text-white hover:bg-blue-700"} px-3 py-1.5 rounded font-medium transition-colors relative z-10`}>
-                    Details ansehen &gt;
+                    Details & Countdowns &gt;
                   </button>
                 </div>
               </div>
 
+              {/* LIST PANELS */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6 mt-6">
                 <div className={`${bgCard} border rounded-xl flex flex-col h-[300px]`}>
                   <div className={`p-5 border-b ${isDarkMode ? "border-[#1e293b]" : "border-slate-200"} flex justify-between items-center`}>
@@ -371,7 +388,7 @@ export default function DashboardPage() {
             </>
           )}
 
-          {/* TAB 2: EINKAUFSLISTE (SUPERMARKT-MODUS) */}
+          {/* TAB 2: EINKAUFSLISTE */}
           {activeTab === "einkauf" && (
             <div className="space-y-6">
               <div className="flex justify-between items-center">
@@ -384,49 +401,32 @@ export default function DashboardPage() {
                 </span>
               </div>
 
-              {/* SCHNELLWAHL CHIPS */}
               <div className={`${bgCard} border rounded-xl p-4 space-y-2`}>
                 <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-400">
                   <Sparkles className="h-3 w-3 text-amber-400" /> Schnellwahl Favoriten:
                 </div>
                 <div className="flex flex-wrap gap-2">
                   {SCHNELLWAHL_FAVORITEN.map((fav, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => addEinkauf(fav)}
-                      className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${isDarkMode ? "bg-[#05070A] border-[#1e293b] hover:border-blue-500/50 text-slate-300" : "bg-slate-100 border-slate-200 hover:bg-slate-200 text-slate-800"}`}
-                    >
+                    <button key={idx} onClick={() => addEinkauf(fav)} className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${isDarkMode ? "bg-[#05070A] border-[#1e293b] hover:border-blue-500/50 text-slate-300" : "bg-slate-100 border-slate-200 hover:bg-slate-200 text-slate-800"}`}>
                       + {fav}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* EINGABEFELD */}
               <div className={`${bgCard} border rounded-xl p-5 md:p-6`}>
                 <div className={`flex flex-col md:flex-row gap-3 mb-6 pb-6 border-b ${isDarkMode ? "border-[#1e293b]" : "border-slate-200"}`}>
                   <div className="flex-1 relative">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                       <Plus className="h-4 w-4 text-slate-500" />
                     </div>
-                    <input 
-                      type="text" 
-                      placeholder="Neuer Artikel (z.B. Hafermilch)..." 
-                      value={neuerArtikel} 
-                      onChange={(e) => setNeuerArtikel(e.target.value)} 
-                      onKeyDown={(e) => e.key === 'Enter' && addEinkauf()} 
-                      className={`w-full ${bgInput} border rounded-md pl-10 pr-4 py-2.5 text-[16px] md:text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all`} 
-                    />
+                    <input type="text" placeholder="Neuer Artikel (z.B. Hafermilch)..." value={neuerArtikel} onChange={(e) => setNeuerArtikel(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addEinkauf()} className={`w-full ${bgInput} border rounded-md pl-10 pr-4 py-2.5 text-[16px] md:text-sm focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all`} />
                   </div>
-                  <button 
-                    onClick={() => addEinkauf()} 
-                    className={`w-full md:w-auto h-11 md:h-auto px-6 ${isDarkMode ? "bg-slate-100 text-slate-900 hover:bg-white" : "bg-blue-600 text-white hover:bg-blue-700"} text-sm font-semibold rounded-md transition-colors`}
-                  >
+                  <button onClick={() => addEinkauf()} className={`w-full md:w-auto h-11 md:h-auto px-6 ${isDarkMode ? "bg-slate-100 text-slate-900 hover:bg-white" : "bg-blue-600 text-white hover:bg-blue-700"} text-sm font-semibold rounded-md transition-colors`}>
                     Hinzufügen
                   </button>
                 </div>
 
-                {/* GRUPPIERTE ARTIKEL NACH KATEGORIE */}
                 <div className="space-y-6">
                   {Object.keys(einkaufNachKategorien).length === 0 ? (
                     <p className="text-sm text-slate-500 text-center py-8">Alles erledigt! Keine offenen Artikel.</p>
@@ -441,10 +441,7 @@ export default function DashboardPage() {
                           {items.map((item) => (
                             <div key={item.rowIndex} className={`flex items-center justify-between p-3 rounded-md border border-transparent ${isDarkMode ? "hover:bg-[#05070A] hover:border-[#1e293b]" : "hover:bg-slate-100 hover:border-slate-200"} transition-colors`}>
                               <span className={`text-sm ${isDarkMode ? "text-slate-300" : "text-slate-700"}`}>{item.artikel}</span>
-                              <button 
-                                onClick={() => markEinkaufErledigt(item, "Erledigt")} 
-                                className="h-7 px-3 text-[10px] font-medium rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors flex items-center gap-1"
-                              >
+                              <button onClick={() => markEinkaufErledigt(item, "Erledigt")} className="h-7 px-3 text-[10px] font-medium rounded bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 hover:bg-emerald-500/20 transition-colors flex items-center gap-1">
                                 <Check className="h-3 w-3" /> <span>Erledigt</span>
                               </button>
                             </div>
@@ -455,35 +452,24 @@ export default function DashboardPage() {
                   )}
                 </div>
 
-                {/* AUSKLAPPBARE ERLEDIGTE ARTIKEL */}
                 {erledigteEinkaeufe.length > 0 && (
                   <div className={`mt-8 pt-6 border-t ${isDarkMode ? "border-[#1e293b]" : "border-slate-200"}`}>
-                    <button 
-                      onClick={() => setShowErledigt(!showErledigt)} 
-                      className="flex items-center justify-between w-full text-xs text-slate-400 hover:text-slate-200 py-1"
-                    >
+                    <button onClick={() => setShowErledigt(!showErledigt)} className="flex items-center justify-between w-full text-xs text-slate-400 hover:text-slate-200 py-1">
                       <span>Bereits gekauft ({erledigteEinkaeufe.length})</span>
                       {showErledigt ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                     </button>
-                    
                     {showErledigt && (
                       <div className="space-y-1 mt-3 opacity-60">
                         {erledigteEinkaeufe.map((item) => (
                           <div key={item.rowIndex} className="flex items-center justify-between p-2 text-xs line-through text-slate-500">
                             <span>{item.artikel}</span>
-                            <button 
-                              onClick={() => markEinkaufErledigt(item, "Offen")} 
-                              className="text-[10px] text-blue-400 hover:underline"
-                            >
-                              Wiederherstellen
-                            </button>
+                            <button onClick={() => markEinkaufErledigt(item, "Offen")} className="text-[10px] text-blue-400 hover:underline">Wiederherstellen</button>
                           </div>
                         ))}
                       </div>
                     )}
                   </div>
                 )}
-
               </div>
             </div>
           )}
@@ -563,18 +549,76 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* TAB 5: KALENDER */}
+          {/* TAB 5: KALENDER & COUNTDOWN ORGANISATION */}
           {activeTab === "kalender" && (
-            <div className="space-y-6">
-              <div><h2 className={`text-lg font-semibold ${textTitle}`}>Termine</h2></div>
-              <div className={`${bgCard} border rounded-xl p-5 md:p-6`}>
-                <div className="space-y-2">
-                  {termine.length === 0 ? <p className="text-sm text-slate-500 text-center py-8">Keine Termine gefunden.</p> : termine.map((t, idx) => (
-                    <div key={idx} className={`flex flex-col md:flex-row md:items-center justify-between p-4 rounded-md border ${bgItem} mb-2 gap-2 md:gap-0`}>
-                      <span className={`text-sm font-medium ${textTitle}`}>{t.title}</span>
-                      <span className="text-xs font-mono text-blue-500 bg-blue-500/10 px-2.5 py-1 rounded border border-blue-500/20 w-fit">{t.date}</span>
+            <div className="space-y-8">
+              {/* COUNTDOWN GENERATOR */}
+              <div className="space-y-4">
+                <h2 className={`text-lg font-semibold ${textTitle} flex items-center gap-2`}>
+                  <Hourglass className="h-5 w-5 text-blue-500" /> Countdowns anlegen
+                </h2>
+                <div className={`${bgCard} border rounded-xl p-5 md:p-6`}>
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <input 
+                      type="text" 
+                      placeholder="Event Name (z.B. Urlaub Spanien)..." 
+                      value={newCdTitle} 
+                      onChange={e => setNewCdTitle(e.target.value)} 
+                      className={`sm:col-span-2 ${bgInput} border rounded-md px-3 py-2 text-sm focus:outline-none focus:border-blue-500`}
+                    />
+                    <input 
+                      type="date" 
+                      value={newCdDate} 
+                      onChange={e => setNewCdDate(e.target.value)} 
+                      className={`${bgInput} border rounded-md px-3 py-2 text-sm focus:outline-none focus:border-blue-500`}
+                    />
+                    <div className="flex gap-2">
+                      <input 
+                        type="text" 
+                        placeholder="Emoji (✈️)" 
+                        value={newCdIcon} 
+                        onChange={e => setNewCdIcon(e.target.value)} 
+                        className={`w-16 text-center ${bgInput} border rounded-md px-2 py-2 text-sm focus:outline-none focus:border-blue-500`}
+                      />
+                      <button 
+                        onClick={addCountdown} 
+                        className={`flex-1 ${isDarkMode ? "bg-slate-100 text-slate-900 hover:bg-white" : "bg-blue-600 text-white hover:bg-blue-700"} text-xs font-semibold rounded-md transition-colors`}
+                      >
+                        Erstellen
+                      </button>
                     </div>
-                  ))}
+                  </div>
+
+                  {/* VORHANDENE COUNTDOWNS */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mt-6">
+                    {countdowns.map((cd, idx) => (
+                      <div key={idx} className={`p-3 rounded-lg border ${bgItem} flex items-center justify-between`}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">{cd.icon}</span>
+                          <div>
+                            <span className={`text-xs font-medium ${textTitle}`}>{cd.title}</span>
+                            <span className="block text-[10px] text-slate-500">{cd.date}</span>
+                          </div>
+                        </div>
+                        <span className="text-xs font-mono font-bold text-blue-500">{calculateDaysLeft(cd.date)} Tage</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* ICLOUD TERMINE */}
+              <div className="space-y-4">
+                <h2 className={`text-lg font-semibold ${textTitle}`}>iCloud Kalender Termine</h2>
+                <div className={`${bgCard} border rounded-xl p-5 md:p-6`}>
+                  <div className="space-y-2">
+                    {termine.length === 0 ? <p className="text-sm text-slate-500 text-center py-8">Keine Termine gefunden.</p> : termine.map((t, idx) => (
+                      <div key={idx} className={`flex flex-col md:flex-row md:items-center justify-between p-4 rounded-md border ${bgItem} mb-2 gap-2 md:gap-0`}>
+                        <span className={`text-sm font-medium ${textTitle}`}>{t.title}</span>
+                        <span className="text-xs font-mono text-blue-500 bg-blue-500/10 px-2.5 py-1 rounded border border-blue-500/20 w-fit">{t.date}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
@@ -583,7 +627,7 @@ export default function DashboardPage() {
         </div>
       </main>
 
-      {/* MOBILE BOTTOM NAVIGATION mit Home-Indicator Safe Area */}
+      {/* MOBILE BOTTOM NAVIGATION */}
       <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-50 ${isDarkMode ? "bg-[#05070A]/90 border-[#1e293b]" : "bg-white/90 border-slate-200"} backdrop-blur-xl border-t px-3 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] flex justify-around items-center transition-colors duration-300`}>
         {TABS.map(tab => {
           const isActive = activeTab === tab.id;
