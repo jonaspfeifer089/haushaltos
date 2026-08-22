@@ -5,7 +5,7 @@ export async function POST(request: Request) {
   try {
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      console.error("GEMINI_API_KEY ist auf dem Server nicht gesetzt!");
+      console.error("Vision API Error: GEMINI_API_KEY fehlt in den Umgebungsvariablen.");
       return NextResponse.json({ error: "API-Key fehlt auf dem Server" }, { status: 500 });
     }
 
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     const ai = new GoogleGenAI({ apiKey });
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.5-flash",
       contents: [
         {
           inlineData: {
@@ -25,13 +25,14 @@ export async function POST(request: Request) {
             data: imageBase64,
           },
         },
-        {
-          text: "Analysiere dieses Bild eines Lebensmittelprodukts oder MHD-Aufklebers. Extrahiere den Namen des Artikels sowie das Mindesthaltbarkeitsdatum (MHD) im Format YYYY-MM-DD. Antworte AUSSCHLIESSLICH im JSON-Format mit genau diesen zwei Feldern: {\"artikel\": \"Name\", \"mhd\": \"YYYY-MM-DD\"}. Wenn du kein Datum findest, schätze ein realistisches Datum in der Zukunft ab.",
-        },
+        "Analysiere dieses Bild eines Lebensmittelprodukts oder MHD-Aufklebers. Extrahiere den Namen des Artikels sowie das Mindesthaltbarkeitsdatum (MHD) im Format YYYY-MM-DD. Antworte AUSSCHLIESSLICH im JSON-Format ohne Markdown-Blöcke, exakt so: {\"artikel\": \"Name\", \"mhd\": \"YYYY-MM-DD\"}. Wenn du kein Datum findest, schätze ein realistisches Datum in der Zukunft ab.",
       ],
     });
 
-    const textResult = response.text || "{}";
+    const textResult = response.text ? response.text.trim() : "{}";
+    console.log("Gemini Roh-Antwort:", textResult);
+
+    // Sauberes Entfernen von eventuellen Markdown-Wrappern
     const cleanJson = textResult.replace(/```json/g, "").replace(/```/g, "").trim();
     const parsed = JSON.parse(cleanJson);
 
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
       mhd: parsed.mhd || new Date().toISOString().split("T")[0],
     });
   } catch (error: any) {
-    console.error("Vision API Error Details:", error);
-    return NextResponse.json({ error: "Fehler bei der KI-Analyse", details: error.message }, { status: 500 });
+    console.error("Vision Route Fehler:", error);
+    return NextResponse.json({ error: error.message || "Fehler bei der KI-Analyse" }, { status: 500 });
   }
 }
