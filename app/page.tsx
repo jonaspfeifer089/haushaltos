@@ -412,7 +412,14 @@ const PULL_ROUTINE = [
   const userGymData = gymData.filter(g => g.username === activeUser);
   const selectedExercise = gymUebung.trim().toLowerCase();
   
-  const chartData = userGymData.filter(g => selectedExercise === "" || g.uebung.toLowerCase() === selectedExercise).map(g => ({ datum: g.datum.substring(5, 10), oneRepMax: calculate1RM(g.gewicht, g.reps), volumen: g.gewicht * g.reps }));
+  const chartData = userGymData
+  .filter(g => selectedExercise === "" || g.uebung.toLowerCase() === selectedExercise)
+  .sort((a, b) => new Date(a.datum).getTime() - new Date(b.datum).getTime())
+  .map(g => ({
+    datum: g.datum.substring(5, 10),
+    oneRepMax: calculate1RM(g.gewicht, g.reps),
+    volumen: g.gewicht * g.reps
+  }));
 
   let currentWorkoutVolume = 0; let currentWorkoutSets = 0;
   activeExercises.forEach(ex => { ex.sets.forEach((s:any) => { if (s.done && s.kg && s.reps) { currentWorkoutVolume += (parseFloat(s.kg) * parseInt(s.reps, 10)); currentWorkoutSets++; } }); });
