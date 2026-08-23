@@ -624,31 +624,6 @@ if (activeTab === "gym" && isWorkoutActive) {
               </button>
             </div>
           </div>
-
-          {/* MCI Intelligence Banner */}
-<div className={`${bgCard} rounded-3xl p-5 border border-[#0A84FF]/20 bg-gradient-to-r ${isDarkMode ? "from-[#0A84FF]/10 via-transparent to-transparent" : "from-[#0A84FF]/5 via-transparent to-transparent"} space-y-4`}>
-  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-    <div className="flex items-center gap-3">
-      <div className="h-10 w-10 rounded-2xl bg-[#0A84FF]/20 text-[#0A84FF] flex items-center justify-center font-black">
-        MCI
-      </div>
-      <div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold uppercase tracking-wider text-[#0A84FF]">Overload Intelligence</span>
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badgeGreen}`}>{overloadInfo.status}</span>
-        </div>
-        <p className={`text-xs ${textTitle} font-medium mt-0.5`}>{overloadInfo.desc}</p>
-      </div>
-    </div>
-    
-    <div className="flex items-center gap-4 text-xs font-mono font-bold shrink-0">
-      <div className="text-center"><span className="text-[10px] text-slate-400 block font-sans">Brust</span>{chestSets} Sätze</div>
-      <div className="text-center"><span className="text-[10px] text-slate-400 block font-sans">Rücken</span>{backSets} Sätze</div>
-      <div className="text-center"><span className="text-[10px] text-slate-400 block font-sans">Schulter</span>{shoulderSets} Sätze</div>
-      <div className="text-center"><span className="text-[10px] text-slate-400 block font-sans">Arme</span>{armSets} Sätze</div>
-    </div>
-  </div>
-</div>
           
           {/* Stats Bar */}
           <div className="bg-[#000000] px-6 py-4 flex justify-between items-center border-b border-[#1C1C1E]">
@@ -1191,6 +1166,31 @@ if (activeTab === "gym" && isWorkoutActive) {
                   <div className="mt-2 flex items-baseline gap-1.5">
                     <span className={`text-2xl font-black font-mono ${textTitle}`}>{(totalVolumeLifetime / 1000).toFixed(1)}</span>
                     <span className={`text-xs font-bold ${textSub}`}>Tonnen</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* HIER GEHÖRT DAS MCI BANNER HIN: */}
+              <div className={`${bgCard} rounded-3xl p-5 border border-[#0A84FF]/20 bg-gradient-to-r ${isDarkMode ? "from-[#0A84FF]/10 via-transparent to-transparent" : "from-[#0A84FF]/5 via-transparent to-transparent"} space-y-4`}>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-2xl bg-[#0A84FF]/20 text-[#0A84FF] flex items-center justify-center font-black">
+                      MCI
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold uppercase tracking-wider text-[#0A84FF]">Overload Intelligence</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badgeGreen}`}>{overloadInfo.status}</span>
+                      </div>
+                      <p className={`text-xs ${textTitle} font-medium mt-0.5`}>{overloadInfo.desc}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-4 text-xs font-mono font-bold shrink-0">
+                    <div className="text-center"><span className="text-[10px] text-slate-400 block font-sans">Brust</span>{chestSets} Sätze</div>
+                    <div className="text-center"><span className="text-[10px] text-slate-400 block font-sans">Rücken</span>{backSets} Sätze</div>
+                    <div className="text-center"><span className="text-[10px] text-slate-400 block font-sans">Schulter</span>{shoulderSets} Sätze</div>
+                    <div className="text-center"><span className="text-[10px] text-slate-400 block font-sans">Arme</span>{armSets} Sätze</div>
                   </div>
                 </div>
               </div>
