@@ -45,7 +45,8 @@ export default function DashboardPage() {
   
   const [departures, setDepartures] = useState<Departure[]>([]);
   const [weather, setWeather] = useState<string>("Lädt...");
-  const [weatherTip, setWeatherTip] = useState<string>("Guten Tag!");
+const [weatherTip, setWeatherTip] = useState<string>("Guten Tag!");
+const [locationName, setLocationName] = useState<string>("Erfurt");
 
   // Proaktive Wetter-Hinweise ermitteln
   const getProactiveTip = (code: number, temp: number) => {
@@ -174,15 +175,51 @@ export default function DashboardPage() {
     fetch("https://www.mvg.de/api/bgw-pt/v3/departures?globalId=de:09162:70").then(res => res.json()).then(data => {
       if (Array.isArray(data)) setDepartures(data.slice(0, 5).map((d: any) => ({ line: d.label || "U", destination: d.destination || "Unbekannt", time: new Date(d.realtimeDepartureTime || d.plannedDepartureTime).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) })));
     }).catch(() => {});
-    fetch(`https://api.open-meteo.com/v1/forecast?latitude=48.1764&longitude=11.5311&current=temperature_2m,weather_code`)
-      .then(res => res.json())
-      .then(data => {
+    const fetchWeatherForCoords = async (lat: number, lon: number, cityName?: string) => {
+      try {
+        const weatherRes = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code`
+        );
+        const data = await weatherRes.json();
         const temp = Math.round(data?.current?.temperature_2m ?? 0);
         const code = data?.current?.weather_code ?? 0;
         setWeather(`${temp}°C`);
         setWeatherTip(getProactiveTip(code, temp));
-      })
-      .catch(() => { setWeather("--"); setWeatherTip("Wetterdaten nicht verfügbar"); });
+
+        if (cityName) {
+          setLocationName(cityName);
+        } else {
+          // Stadtname via Reverse-Geocoding auflösen
+          try {
+            const geoRes = await fetch(
+              `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=de`
+            );
+            const geoData = await geoRes.json();
+            setLocationName(geoData.city || geoData.locality || "Vor Ort");
+          } catch {
+            setLocationName("Vor Ort");
+          }
+        }
+      } catch {
+        setWeather("--");
+        setWeatherTip("Wetterdaten nicht verfügbar");
+      }
+    };
+
+    // Prüfen, ob GPS verfügbar ist, sonst Fallback auf Erfurt (50.9803, 11.0291)
+    if (typeof window !== "undefined" && "geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          fetchWeatherForCoords(pos.coords.latitude, pos.coords.longitude);
+        },
+        () => {
+          fetchWeatherForCoords(50.9803, 11.0291, "Erfurt");
+        },
+        { timeout: 8000 }
+      );
+    } else {
+      fetchWeatherForCoords(50.9803, 11.0291, "Erfurt");
+    }
   }, []);
 
   const toggleTheme = () => {
@@ -828,7 +865,10 @@ if (activeTab === "gym" && isWorkoutActive) {
             <div className="space-y-8">
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-[#E8E2D9] dark:border-white/[0.08]">
                 <div><div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${accentGreen} mb-1`}><Sparkle className="h-3.5 w-3.5 fill-current" /> {todayStr}</div><h1 className={`text-3xl md:text-4xl font-extrabold tracking-tight ${textTitle}`}>Guten Tag, {activeUser}!</h1></div>
-                <div className={`flex items-center gap-3 px-4 py-2 rounded-2xl ${bgCard}`}><CloudSun className={`h-6 w-6 ${accentBlue}`} /><div><div className="flex items-center gap-2"><span className={`text-base font-extrabold font-mono leading-none ${textTitle}`}>{weather}</span><span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${badgeGreen}`}>Erfurt</span></div><span className={`text-[11px] ${textSub} font-medium`}>Wetter vor Ort</span></div></div>
+                <div className="flex items-center gap-2">
+  <span className={`text-base font-extrabold font-mono leading-none ${textTitle}`}>{weather}</span>
+  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${badgeGreen}`}>{locationName}</span>
+</div>
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 <div className="lg:col-span-7 space-y-6">

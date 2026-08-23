@@ -16,7 +16,7 @@ export async function GET(request: Request) {
 
   // 1. Live-Wetter Erfurt abrufen
   let temp = "--";
-  let weatherTip = "Schönen Tag!";
+  let weatherTip = "Schoenen Tag!";
   try {
     const weatherRes = await fetch(
       "https://api.open-meteo.com/v1/forecast?latitude=50.9803&longitude=11.0291&current=temperature_2m,weather_code"
@@ -27,7 +27,7 @@ export async function GET(request: Request) {
     temp = `${t}°C`;
     if (code >= 51 && code <= 67) weatherTip = "🌧️ Regen gemeldet (Schirm mitnehmen!)";
     else if (t >= 23) weatherTip = "☀️ Warm & sonnig";
-    else if (t <= 5) weatherTip = "🧣 Kalt draußen";
+    else if (t <= 5) weatherTip = "🧣 Kalt draussen";
   } catch (e: any) {
     errors.push(`Wetter: ${e.message}`);
   }
@@ -36,13 +36,13 @@ export async function GET(request: Request) {
   let gymPlanJonas = "";
   switch (dayOfWeek) {
     case 2: // Di
-      gymPlanJonas = "🏋️ Heute: PULL DAY (Rücken/Bizeps)!";
+      gymPlanJonas = "🏋️ Heute: PULL DAY (Ruecken/Bizeps)!";
       break;
     case 3: // Mi
       gymPlanJonas = "🏋️ Heute: PUSH DAY (Brust/Schulter/Trizeps)!";
       break;
     case 6: // Sa
-      gymPlanJonas = "🏋️ Heute: PULL DAY (Rücken/Bizeps)!";
+      gymPlanJonas = "🏋️ Heute: PULL DAY (Ruecken/Bizeps)!";
       break;
     case 0: // So
       gymPlanJonas = "🏋️ Heute: PUSH DAY (Brust/Schulter/Trizeps)!";
@@ -69,7 +69,7 @@ export async function GET(request: Request) {
     offeneTodosCount = todosRes.count || 0;
     offeneEinkaufCount = einkaufRes.count || 0;
 
-    // Fällige Putzaufgaben berechnen
+    // Faellige Putzaufgaben berechnen
     if (haushaltRes.data) {
       haushaltRes.data.forEach((item: any) => {
         if (item.letztes_datum && item.intervall) {
@@ -83,7 +83,7 @@ export async function GET(request: Request) {
       });
     }
 
-    // Nächsten Meilenstein berechnen
+    // Naechsten Meilenstein berechnen
     if (countdownsRes.data && countdownsRes.data.length > 0) {
       const futureCds = countdownsRes.data
         .map((c: any) => {
@@ -126,7 +126,7 @@ export async function GET(request: Request) {
 
   // 5. Texte zusammensetzen
   const putzText = faelligePutzaufgaben.length > 0
-    ? `🧹 Putzen fällig: ${faelligePutzaufgaben.slice(0, 2).join(", ")}${faelligePutzaufgaben.length > 2 ? ` (+${faelligePutzaufgaben.length - 2})` : ""}`
+    ? `🧹 Putzen faellig: ${faelligePutzaufgaben.slice(0, 2).join(", ")}${faelligePutzaufgaben.length > 2 ? ` (+${faelligePutzaufgaben.length - 2})` : ""}`
     : "🧹 Haushalt ist top in Schuss!";
 
   const cdText = naechsterMeilenstein
@@ -134,32 +134,32 @@ export async function GET(request: Request) {
     : "";
 
   const createBodyJonas = () =>
-    `Guten Morgen Jonas! ☀️ ${temp} (${weatherTip})\n${gymPlanJonas}\n📅 ${heuteTermineCount} Termine heute\n${putzText}\n📋 ${offeneTodosCount} To-Dos | 🛒 ${offeneEinkaufCount} Einkäufe${cdText}`;
+    `Guten Morgen Jonas! ☀️ ${temp} (${weatherTip})\n${gymPlanJonas}\n📅 ${heuteTermineCount} Termine heute\n${putzText}\n📋 ${offeneTodosCount} To-Dos | 🛒 ${offeneEinkaufCount} Einkaeufe${cdText}`;
 
   const createBodyLena = () =>
-    `Guten Morgen Lena! ☀️ ${temp} (${weatherTip})\n📅 ${heuteTermineCount} Termine heute\n${putzText}\n📋 ${offeneTodosCount} To-Dos | 🛒 ${offeneEinkaufCount} Einkäufe${cdText}`;
+    `Guten Morgen Lena! ☀️ ${temp} (${weatherTip})\n📅 ${heuteTermineCount} Termine heute\n${putzText}\n📋 ${offeneTodosCount} To-Dos | 🛒 ${offeneEinkaufCount} Einkaeufe${cdText}`;
 
-  // 6. ntfy Push versenden (an beide getrennt + Action-Buttons)
+  // 6. ntfy Push versenden (ASCII-konforme Header gegen ByteString-Fehler)
   try {
     await Promise.all([
       fetch("https://ntfy.sh/HaushaltJonas", {
         method: "POST",
         body: createBodyJonas(),
         headers: {
-          "Title": "Guten Morgen Jonas ☀️",
+          "Title": "Guten Morgen Jonas",
           "Tags": dayOfWeek === 2 || dayOfWeek === 3 || dayOfWeek === 6 || dayOfWeek === 0 ? "muscle,sunny" : "sunrise,coffee",
           "Priority": "default",
-          "Actions": `view, 📱 App öffnen, ${appUrl}`
+          "Actions": `view, App oeffnen, ${appUrl}`
         }
       }),
       fetch("https://ntfy.sh/HaushaltLena", {
         method: "POST",
         body: createBodyLena(),
         headers: {
-          "Title": "Guten Morgen Lena ☀️",
+          "Title": "Guten Morgen Lena",
           "Tags": "sparkles,coffee",
           "Priority": "default",
-          "Actions": `view, 📱 App öffnen, ${appUrl}`
+          "Actions": `view, App oeffnen, ${appUrl}`
         }
       })
     ]);
