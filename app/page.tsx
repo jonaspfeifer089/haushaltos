@@ -245,7 +245,7 @@ export default function DashboardPage() {
     setGymData(prev => [...prev, ...completedSets]);
     setIsWorkoutActive(false);
     for (const set of completedSets) await supabase.from("gym").insert(set);
-    fetch("https://ntfy.sh/HaushaltJonas", { method: "POST", body: `${activeUser} hat ein Workout beendet! (${completedSets.length} Sätze absolviert).`, headers: { "Title": "Workout abgeschlossen", "Tags": "muscle" }});
+    fetch("https://ntfy.sh/HaushaltLenaJonas", { method: "POST", body: `${activeUser} hat ein Workout beendet! (${completedSets.length} Sätze absolviert).`, headers: { "Title": "Workout abgeschlossen", "Tags": "muscle" }});
   };
 
   const markAufgabeErledigt = async (item: PutzItem) => {
@@ -436,12 +436,35 @@ if (activeTab === "gym" && isWorkoutActive) {
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 <div className="lg:col-span-7 space-y-6">
-                  {countdowns.length > 0 && (
-                    <div className="space-y-3"><div className="flex justify-between items-center px-1"><h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Meilensteine</h3><span className={`text-xs ${accentBlue} font-semibold cursor-pointer`} onClick={() => setActiveTab("kalender")}>Verwalten &gt;</span></div>
-                      <div className="space-y-2.5">{countdowns.map((cd, idx) => (
-                        <motion.div whileHover={{ scale: 1.02 }} transition={springConfig} key={idx} className={`${bgCard} rounded-2xl p-4 flex items-center justify-between border relative overflow-hidden`}><div className="flex items-center gap-3.5"><span className="text-2xl p-2 rounded-xl bg-[#5B8C5A]/15 border border-[#5B8C5A]/30">{cd.icon}</span><div><h4 className={`text-sm font-bold ${textTitle}`}>{cd.title}</h4><p className={`text-xs ${textSub} font-medium`}>{cd.date}</p></div></div><div className="text-right flex items-baseline gap-1"><span className={`text-xl font-black font-mono ${accentGreen}`}>{Math.max(0, calculateDaysLeft(cd.date))}</span><span className={`text-[11px] font-bold ${textSub}`}>Tage</span></div></motion.div>
-                      ))}</div></div>
-                  )}
+                  <div className="space-y-3">
+  <div className="flex justify-between items-center px-1">
+    <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Meilensteine</h3>
+    <span className={`text-xs ${accentBlue} font-semibold cursor-pointer`} onClick={() => setActiveTab("kalender")}>Verwalten &gt;</span>
+  </div>
+  {countdowns.length > 0 ? (
+    <div className="space-y-2.5">
+      {countdowns.map((cd, idx) => (
+        <motion.div whileHover={{ scale: 1.02 }} transition={springConfig} key={idx} className={`${bgCard} rounded-2xl p-4 flex items-center justify-between border relative overflow-hidden`}>
+          <div className="flex items-center gap-3.5">
+            <span className="text-2xl p-2 rounded-xl bg-[#5B8C5A]/15 border border-[#5B8C5A]/30">{cd.icon}</span>
+            <div>
+              <h4 className={`text-sm font-bold ${textTitle}`}>{cd.title}</h4>
+              <p className={`text-xs ${textSub} font-medium`}>{cd.date}</p>
+            </div>
+          </div>
+          <div className="text-right flex items-baseline gap-1">
+            <span className={`text-xl font-black font-mono ${accentGreen}`}>{Math.max(0, calculateDaysLeft(cd.date))}</span>
+            <span className={`text-[11px] font-bold ${textSub}`}>Tage</span>
+          </div>
+        </motion.div>
+      ))}
+    </div>
+  ) : (
+    <div className={`${bgCard} rounded-2xl p-6 border text-center text-xs ${textSub}`}>
+      Keine Meilensteine eingetragen.
+    </div>
+  )}
+</div>
                   <div className="space-y-3 pt-2">
                     <div className="flex justify-between items-center px-1"><h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Termine & Putzplan</h3><span className={`text-[10px] ${textSub}`}>System OS</span></div>
                     <div className={`${bgCard} rounded-3xl p-6 border space-y-3`}>
