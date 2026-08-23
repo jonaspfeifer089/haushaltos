@@ -16,11 +16,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  viewportFit: "cover",
-  themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#05070A" },
-    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-  ],
+  viewportFit: "cover", // Wichtig für Notch / Dynamic Island
 };
 
 export default function RootLayout({

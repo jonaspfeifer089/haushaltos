@@ -545,8 +545,8 @@ if (activeTab === "gym" && isWorkoutActive) {
     return (
       <div className="flex h-[100dvh] w-full bg-black text-white font-sans overflow-hidden">
         <main className="flex-1 flex flex-col h-full overflow-y-auto">
-          {/* Hevy Header */}
-          <div className="sticky top-0 z-50 bg-[#0C0C0E] border-b border-[#2C2C2E] px-4 py-3 flex justify-between items-center">
+          {/* Hevy Header mit Safe-Area-Padding oben */}
+          <div className="sticky top-0 z-50 bg-[#0C0C0E] border-b border-[#2C2C2E] px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] flex justify-between items-center">
             <div className="flex items-center gap-4">
               <button onClick={() => setIsWorkoutActive(false)} className="h-8 w-8 rounded-full bg-[#1C1C1E] flex items-center justify-center text-white"><ChevronDown className="h-5 w-5" /></button>
               <span className="font-semibold text-[15px]">Workout</span>
@@ -748,8 +748,8 @@ if (activeTab === "gym" && isWorkoutActive) {
       </aside>
 
       <main className="flex-1 flex flex-col h-full overflow-y-auto relative z-10">
-        <header className={`pt-safe sticky top-0 z-30 ${isDarkMode ? "bg-[#100A0B]/85 border-white/[0.08]" : "bg-[#FAF8F5]/85 border-[#E8E2D9]"} backdrop-blur-md border-b transition-colors duration-300`}>
-          <div className="h-14 px-4 md:px-8 flex items-center justify-between">
+        <header className={`sticky top-0 z-30 ${isDarkMode ? "bg-[#100A0B]/85 border-white/[0.08]" : "bg-[#FAF8F5]/85 border-[#E8E2D9]"} backdrop-blur-md border-b transition-colors duration-300 pt-[env(safe-area-inset-top)]`}>
+            <div className="h-14 px-4 md:px-8 flex items-center justify-between">
             <div className={`flex items-center gap-2 text-xs ${textSub} font-medium tracking-wide`}><span>Workspace</span><span>/</span><span className={`capitalize font-bold ${textTitle}`}>{activeTab}</span></div>
             <div className="flex items-center gap-2">
               <button onClick={() => switchUser(activeUser === "Jonas" ? "Lena" : "Jonas")} className={`md:hidden h-8 px-2.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition-all ${isDarkMode ? "bg-[#251A1E] border-white/[0.08] text-white" : "bg-[#FAF8F5] border-[#E8E2D9] text-[#2D2A26]"}`}><UserCheck className={`h-3.5 w-3.5 ${accentGreen}`} /> <span>{activeUser}</span></button>
@@ -1280,7 +1280,7 @@ if (activeTab === "gym" && isWorkoutActive) {
         </div>
       </main>
 
-      <div className="fixed bottom-20 md:bottom-8 right-5 md:right-8 z-50">
+      <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+5rem)] md:bottom-8 right-5 md:right-8 z-50">
         <AnimatePresence>
           {isFabOpen && (
             <motion.div initial={{ opacity: 0, scale: 0.85, y: 15 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.85, y: 15 }} className="absolute bottom-16 right-0 flex flex-col gap-2.5 items-end mb-2 w-max">
@@ -1293,7 +1293,7 @@ if (activeTab === "gym" && isWorkoutActive) {
         <button onClick={() => setIsFabOpen(!isFabOpen)} className={`h-14 w-14 rounded-2xl shadow-2xl flex items-center justify-center transition-all duration-300 ${isFabOpen ? "bg-[#49111C] text-white rotate-45" : "bg-[#005377] text-white hover:scale-105 shadow-[#005377]/40"}`}><Plus className="h-6 w-6" /></button>
       </div>
 
-      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-40 ${isDarkMode ? "bg-[#100A0B]/90 border-white/[0.08]" : "bg-[#FAF8F5]/90 border-[#E8E2D9]"} backdrop-blur-xl border-t px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] flex justify-around items-center`}>
+      <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-40 ${isDarkMode ? "bg-[#100A0B]/90 border-white/[0.08]" : "bg-[#FAF8F5]/90 border-[#E8E2D9]"} backdrop-blur-xl border-t px-3 pt-2.5 pb-[calc(env(safe-area-inset-bottom)+0.6rem)] flex justify-around items-center`}>
         {TABS.map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex flex-col items-center justify-center min-w-[42px] h-11 gap-0.5 rounded-lg relative ${activeTab === tab.id ? `${accentBlue} font-bold` : textSub}`}><tab.icon className="h-4 w-4" /><span className="text-[9px] tracking-tight">{tab.label}</span></button>
         ))}
