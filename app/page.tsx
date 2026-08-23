@@ -3,25 +3,21 @@
 import React, { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  Home, ShoppingCart, Package, Calendar as CalendarIcon, Clock, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2, Bell, Settings, Sun, Moon, ChevronDown, ChevronUp, Sparkles, Hourglass, UserCheck, Trash2, StickyNote, CloudSun, Pin, Sparkle, ArrowRight, X, ChevronLeft, ChevronRight, CheckSquare, ListTodo, Tag, Dumbbell, Activity, Flame
+  Home, ShoppingCart, Package, Calendar as CalendarIcon, Clock, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2, Bell, Settings, Sun, Moon, ChevronDown, ChevronUp, Sparkles, Hourglass, UserCheck, Trash2, StickyNote, CloudSun, Pin, Sparkle, ArrowRight, X, ChevronLeft, ChevronRight, CheckSquare, ListTodo, Tag, Dumbbell, Activity, Flame, MoreVertical
 } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
-
-// SUPABASE CLIENT IMPORTIEREN
 import { supabase } from "../lib/supabaseClient";
 
-// --- INTERFACES ---
 interface Departure { line: string; destination: string; time: string; }
-interface PutzItem { rowIndex: number; aufgabe: string; letztesDatum: string; intervall: string; }
-interface VorratItem { rowIndex: number; artikel: string; ablaufdatum: string; anbruch: string; }
-interface CountdownItem { rowIndex: number; title: string; date: string; icon: string; }
-interface NoteItem { rowIndex: number; title: string; content: string; category: string; color: string; }
 interface CalendarEvent { title: string; date: string; type?: "termin" | "putz"; }
 
-// NEU: Supabase Interfaces mit echter UUID
 interface TodoItem { id: string; aufgabe: string; kategorie: string; status: string; zustaendig: string; }
 interface EinkaufItem { id: string; artikel: string; status: string; kategorie?: string; }
 interface GymItem { id: string; datum: string; uebung: string; gewicht: number; reps: number; setnum: number; username: string; }
+interface PutzItem { id: string; aufgabe: string; letztes_datum: string; intervall: string; username: string; }
+interface VorratItem { id: string; artikel: string; ablaufdatum: string; anbruch: string; }
+interface CountdownItem { id: string; title: string; date: string; icon: string; }
+interface NoteItem { id: string; title: string; content: string; category: string; color: string; }
 
 const EINKAUF_KATEGORIEN = ["Obst & Gemüse", "Kühlregal", "Vorrat & Teigwaren", "Getränke", "Drogerie & Haushalt", "Sonstiges"] as const;
 const TODO_KATEGORIEN = ["Haushalt & Reparatur", "Bürokratie & Verträge", "Besorgungen", "Freizeit & Projekte", "Sonstiges"] as const;
@@ -55,12 +51,19 @@ export default function DashboardPage() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [termine, setTermine] = useState<CalendarEvent[]>([]);
 
-  // Supabase States
   const [einkauf, setEinkauf] = useState<EinkaufItem[]>([]);
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [gymData, setGymData] = useState<GymItem[]>([]);
+  const [aufgaben, setAufgaben] = useState<PutzItem[]>([]);
+  const [vorrat, setVorrat] = useState<VorratItem[]>([]);
+  const [countdowns, setCountdowns] = useState<CountdownItem[]>([]);
+  const [notes, setNotes] = useState<NoteItem[]>([]);
 
-  // Input States
+  // Hevy Active Workout State
+  const [isWorkoutActive, setIsWorkoutActive] = useState(false);
+  const [workoutDauer, setWorkoutDauer] = useState(0);
+  const [activeExercises, setActiveExercises] = useState<any[]>([]);
+
   const [neuerArtikel, setNeuerArtikel] = useState("");
   const [neuesTodo, setNeuesTodo] = useState("");
   const [todoKategorie, setTodoKategorie] = useState<string>("Haushalt & Reparatur");
@@ -68,20 +71,10 @@ export default function DashboardPage() {
   const [activeTodoFilter, setActiveTodoFilter] = useState<string>("Alle");
 
   const [gymUebung, setGymUebung] = useState("");
-  const [gymGewicht, setGymGewicht] = useState("");
-  const [gymReps, setGymReps] = useState("");
-  const [gymSetNum, setGymSetNum] = useState("1");
-  const [recovery, setRecovery] = useState<number>(80);
-
-  // Legacy Google Sheets States
-  const [aufgaben, setAufgaben] = useState<PutzItem[]>([]);
-  const [vorrat, setVorrat] = useState<VorratItem[]>([]);
-  const [countdowns, setCountdowns] = useState<CountdownItem[]>([]);
+  
   const [newCdTitle, setNewCdTitle] = useState("");
   const [newCdDate, setNewCdDate] = useState("");
-  const [newCdIcon, setNewCdIcon] = useState("✈️");
-
-  const [notes, setNotes] = useState<NoteItem[]>([]);
+  
   const [activeNoteCategory, setActiveNoteCategory] = useState<string>("Alle");
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [newNoteTitle, setNewNoteTitle] = useState("");
@@ -93,27 +86,32 @@ export default function DashboardPage() {
   
   const todayStr = new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).format(new Date());
 
-  // --- INITIALISIERUNG & SUPABASE REALTIME ---
   useEffect(() => {
     const savedTheme = localStorage.getItem("haushalt_theme");
     if (savedTheme === "dark") setIsDarkMode(true);
     const savedUser = localStorage.getItem("haushalt_user") as "Jonas" | "Lena" | null;
     if (savedUser) setActiveUser(savedUser);
 
-    // 1. Initialer Supabase Fetch
     const fetchSupabase = async () => {
-      const [todosRes, einkaufRes, gymRes] = await Promise.all([
+      const [todosRes, einkaufRes, gymRes, haushaltRes, vorratRes, cdRes, notesRes] = await Promise.all([
         supabase.from("todos").select("*"),
         supabase.from("einkauf").select("*"),
-        supabase.from("gym").select("*")
+        supabase.from("gym").select("*"),
+        supabase.from("haushalt").select("*"),
+        supabase.from("vorrat").select("*"),
+        supabase.from("countdowns").select("*"),
+        supabase.from("notizen").select("*")
       ]);
       if (todosRes.data) setTodos(todosRes.data);
       if (einkaufRes.data) setEinkauf(einkaufRes.data);
       if (gymRes.data) setGymData(gymRes.data);
+      if (haushaltRes.data) setAufgaben(haushaltRes.data);
+      if (vorratRes.data) setVorrat(vorratRes.data);
+      if (cdRes.data) setCountdowns(cdRes.data);
+      if (notesRes.data) setNotes(notesRes.data);
     };
     fetchSupabase();
 
-    // 2. Realtime WebSockets aktivieren (0ms Latenz zwischen Geräten)
     const handlePayload = (payload: any, setState: React.Dispatch<React.SetStateAction<any[]>>) => {
       if (payload.eventType === 'INSERT') {
         setState(prev => prev.find(item => item.id === payload.new.id) ? prev : [...prev, payload.new]);
@@ -128,26 +126,22 @@ export default function DashboardPage() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, payload => handlePayload(payload, setTodos))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'einkauf' }, payload => handlePayload(payload, setEinkauf))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'gym' }, payload => handlePayload(payload, setGymData))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'haushalt' }, payload => handlePayload(payload, setAufgaben))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'vorrat' }, payload => handlePayload(payload, setVorrat))
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  // Legacy Google Sheets Fetch (für Putzplan, Vorrat, Notizen)
-  const fetchGoogleSheets = async () => {
-    try {
-      const res = await fetch("/api/data");
-      if (!res.ok) return;
-      const raw = await res.json();
-      if (raw.haushalt) setAufgaben(raw.haushalt.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, aufgabe: r[0], letztesDatum: r[1], intervall: r[2] })).filter((x: any) => x.aufgabe));
-      if (raw.vorrat) setVorrat(raw.vorrat.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, artikel: r[0], ablaufdatum: r[1], anbruch: r[2] || "" })).filter((x: any) => x.artikel));
-      if (raw.countdowns) setCountdowns(raw.countdowns.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, title: r[0], date: r[1], icon: r[2] || "⏳" })).filter((x: any) => x.title));
-      if (raw.notizen) setNotes(raw.notizen.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, title: r[0], content: r[1], category: r[2] || "Allgemein", color: r[3] || "green" })).filter((x: any) => x.title));
-    } catch (e) { console.warn("Offline-Modus aktiv.", e); }
-  };
+  useEffect(() => {
+    let interval: any;
+    if (isWorkoutActive) {
+      interval = setInterval(() => setWorkoutDauer(prev => prev + 1), 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isWorkoutActive]);
 
   useEffect(() => {
-    fetchGoogleSheets();
     fetch("/api/calendar").then(res => res.json()).then(data => setTermine(data.events || [])).catch(() => {});
     fetch("https://www.mvg.de/api/bgw-pt/v3/departures?globalId=de:09162:70").then(res => res.json()).then(data => {
       if (Array.isArray(data)) setDepartures(data.slice(0, 5).map((d: any) => ({
@@ -170,19 +164,19 @@ export default function DashboardPage() {
     localStorage.setItem("haushalt_user", user);
   };
 
-  // --- SUPABASE MUTATIONEN (Echtzeit + Optimistic UI) ---
-
+  // --- SUPABASE MUTATIONEN ---
   const addEinkauf = async (artikelName?: string) => {
     const text = (artikelName || neuerArtikel).trim();
     if (!text) return;
     const newItem: EinkaufItem = { id: crypto.randomUUID(), artikel: text, status: "Offen", kategorie: ermittleKategorie(text) };
-    
-    setEinkauf(prev => [...prev, newItem]); // Optimistic UI
+    setEinkauf(prev => [...prev, newItem]); 
     if (!artikelName) setNeuerArtikel("");
     setIsFabOpen(false);
     
     await supabase.from("einkauf").insert(newItem);
+    fetch("https://ntfy.sh/HaushaltLenaJonas", { method: "POST", body: `${activeUser} hat "${text}" auf die Einkaufsliste gesetzt.`, headers: { "Title": "Neuer Einkauf", "Tags": "shopping_cart" }});
   };
+
   const markEinkaufErledigt = async (item: EinkaufItem, status: "Erledigt" | "Offen") => {
     setEinkauf(prev => prev.map(e => e.id === item.id ? { ...e, status } : e));
     await supabase.from("einkauf").update({ status }).eq("id", item.id);
@@ -196,13 +190,14 @@ export default function DashboardPage() {
     const text = neuesTodo.trim();
     if (!text) return;
     const newItem: TodoItem = { id: crypto.randomUUID(), aufgabe: text, kategorie: todoKategorie, status: "Offen", zustaendig: todoZustaendig };
-    
     setTodos(prev => [...prev, newItem]); 
     setNeuesTodo("");
     setIsFabOpen(false);
     
     await supabase.from("todos").insert(newItem);
+    fetch("https://ntfy.sh/HaushaltLenaJonas", { method: "POST", body: `${activeUser} hat ein neues To-Do angelegt: "${text}"`, headers: { "Title": "Neues To-Do", "Tags": "memo" } });
   };
+
   const markTodoErledigt = async (item: TodoItem, status: "Erledigt" | "Offen") => {
     setTodos(prev => prev.map(t => t.id === item.id ? { ...t, status } : t));
     await supabase.from("todos").update({ status }).eq("id", item.id);
@@ -212,48 +207,92 @@ export default function DashboardPage() {
     await supabase.from("todos").delete().eq("id", item.id);
   };
 
-  const addGymEntry = async () => {
-    if (!gymUebung || !gymGewicht || !gymReps) return;
-    const today = new Date().toISOString().split("T")[0];
-    const newItem: GymItem = { 
-      id: crypto.randomUUID(), datum: today, uebung: gymUebung.trim(), 
-      gewicht: parseFloat(gymGewicht), reps: parseInt(gymReps, 10), 
-      setnum: parseInt(gymSetNum, 10), username: activeUser 
-    };
-    
-    setGymData(prev => [...prev, newItem]); 
-    setGymSetNum((prev) => (parseInt(prev) + 1).toString());
-    setGymGewicht(""); setGymReps("");
-    
-    await supabase.from("gym").insert(newItem);
+  // --- HEVY WORKOUT LOGIK ---
+  const startWorkout = () => {
+    setWorkoutDauer(0);
+    setActiveExercises([
+      {
+        id: crypto.randomUUID(),
+        name: "Sitzendes Rudern am Kabelzug - V-Griff",
+        sets: [
+          { id: crypto.randomUUID(), set: 1, prev: "52kg x 7", kg: "", reps: "", done: false },
+          { id: crypto.randomUUID(), set: 2, prev: "52kg x 8", kg: "", reps: "", done: false },
+          { id: crypto.randomUUID(), set: 3, prev: "52kg x 8", kg: "", reps: "", done: false }
+        ]
+      },
+      {
+        id: crypto.randomUUID(),
+        name: "Latzug (Kabel)",
+        sets: [
+          { id: crypto.randomUUID(), set: 1, prev: "52kg x 8", kg: "", reps: "", done: false },
+          { id: crypto.randomUUID(), set: 2, prev: "45kg x 9", kg: "", reps: "", done: false },
+          { id: crypto.randomUUID(), set: 3, prev: "10kg x 8", kg: "", reps: "", done: false }
+        ]
+      }
+    ]);
+    setIsWorkoutActive(true);
   };
 
-  // --- LEGACY GOOGLE SHEETS MUTATIONEN ---
+  const updateSet = (exerciseId: string, setId: string, field: 'kg'|'reps', value: string) => {
+    setActiveExercises(prev => prev.map(ex => {
+      if (ex.id !== exerciseId) return ex;
+      return { ...ex, sets: ex.sets.map((s: any) => s.id === setId ? { ...s, [field]: value } : s) };
+    }));
+  };
+
+  const toggleSetDone = (exerciseId: string, setId: string) => {
+    setActiveExercises(prev => prev.map(ex => {
+      if (ex.id !== exerciseId) return ex;
+      return { ...ex, sets: ex.sets.map((s: any) => s.id === setId ? { ...s, done: !s.done } : s) };
+    }));
+  };
+
+  const endWorkout = async () => {
+    const today = new Date().toISOString().split("T")[0];
+    const completedSets: GymItem[] = [];
+    
+    activeExercises.forEach(ex => {
+      ex.sets.filter((s:any) => s.done && s.kg && s.reps).forEach((s:any) => {
+        completedSets.push({
+          id: crypto.randomUUID(), datum: today, uebung: ex.name,
+          gewicht: parseFloat(s.kg), reps: parseInt(s.reps, 10),
+          setnum: s.set, username: activeUser
+        });
+      });
+    });
+
+    setGymData(prev => [...prev, ...completedSets]);
+    setIsWorkoutActive(false);
+
+    for (const set of completedSets) {
+      await supabase.from("gym").insert(set);
+    }
+    fetch("https://ntfy.sh/HaushaltLenaJonas", { method: "POST", body: `${activeUser} hat ein Workout beendet! (${completedSets.length} Sätze absolviert).`, headers: { "Title": "Workout abgeschlossen", "Tags": "muscle" }});
+  };
+
   const markAufgabeErledigt = async (item: PutzItem) => {
     const today = new Date().toISOString().split("T")[0];
-    setAufgaben(aufgaben.map(a => a.rowIndex === item.rowIndex ? { ...a, letztesDatum: today } : a));
-    await fetch("/api/data", { method: "PUT", body: JSON.stringify({ sheetName: "Haushalt", rowIndex: item.rowIndex, values: [item.aufgabe, today, item.intervall, activeUser] }) });
-    fetchGoogleSheets();
+    setAufgaben(prev => prev.map(a => a.id === item.id ? { ...a, letztes_datum: today } : a));
+    await supabase.from("haushalt").update({ letztes_datum: today }).eq("id", item.id);
   };
 
   const addCountdown = async () => {
     if (!newCdTitle || !newCdDate) return;
-    const newItem: CountdownItem = { rowIndex: Date.now(), title: newCdTitle, date: newCdDate, icon: newCdIcon || "⏳" };
+    const newItem: CountdownItem = { id: crypto.randomUUID(), title: newCdTitle, date: newCdDate, icon: "⏳" };
     setCountdowns(prev => [...prev, newItem]);
     setNewCdTitle(""); setNewCdDate("");
-    await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Countdowns", values: [newItem.title, newItem.date, newItem.icon] }) });
-    fetchGoogleSheets();
+    await supabase.from("countdowns").insert(newItem);
   };
 
   const addNote = async () => {
     if (!newNoteTitle || !newNoteContent) return;
-    const newItem: NoteItem = { rowIndex: Date.now(), title: newNoteTitle, content: newNoteContent, category: newNoteCategory, color: "green" };
+    const newItem: NoteItem = { id: crypto.randomUUID(), title: newNoteTitle, content: newNoteContent, category: newNoteCategory, color: "green" };
     setNotes(prev => [...prev, newItem]);
     setNewNoteTitle(""); setNewNoteContent(""); setShowNoteModal(false); setIsFabOpen(false);
-    await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Notizen", values: [newItem.title, newItem.content, newItem.category, newItem.color] }) });
-    fetchGoogleSheets();
+    await supabase.from("notizen").insert(newItem);
   };
 
+  // ECHTE KAMERA LOGIK
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -275,8 +314,9 @@ export default function DashboardPage() {
           const res = await fetch("/api/vision", { method: "POST", body: JSON.stringify({ imageBase64: compressedBase64 }) });
           const aiData = await res.json();
           if (aiData.artikel && aiData.mhd) {
-            await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Vorrat", values: [aiData.artikel, aiData.mhd, ""] }) });
-            fetchGoogleSheets(); 
+            const newItem: VorratItem = { id: crypto.randomUUID(), artikel: aiData.artikel, ablaufdatum: aiData.mhd, anbruch: "" };
+            setVorrat(prev => [...prev, newItem]);
+            await supabase.from("vorrat").insert(newItem);
           } else { alert(aiData.error || "Konnte kein Produkt erkennen."); }
         } catch (err) { alert("Fehler bei der Bildanalyse."); }
         setIsScanning(false);
@@ -286,7 +326,7 @@ export default function DashboardPage() {
     reader.readAsDataURL(file);
   };
 
-  // --- HILFSFUNKTIONEN (KALENDER ETC) ---
+  // --- KALENDER BERECHNUNGEN ---
   const calculateDaysLeft = (targetDateStr: string) => Math.ceil((new Date(targetDateStr).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
   
   const handlePrev = () => {
@@ -330,14 +370,24 @@ export default function DashboardPage() {
     const iEvents = termine.filter(t => t.date.includes(isoStr) || t.date.includes(gerStr)).map(t => ({ title: t.title, type: "termin" as const }));
     const pEvents: { title: string; type: "putz" }[] = [];
     aufgaben.forEach(a => {
-      if (!a.letztesDatum || !a.intervall) return;
-      const dueDate = new Date(a.letztesDatum);
+      if (!a.letztes_datum || !a.intervall) return;
+      const dueDate = new Date(a.letztes_datum);
       dueDate.setDate(dueDate.getDate() + parseInt(a.intervall, 10));
       if (dueDate.toDateString() === dateObj.toDateString()) pEvents.push({ title: `🧹 ${a.aufgabe}`, type: "putz" });
     });
     return [...iEvents, ...pEvents];
   };
 
+  const formatDauer = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    if (h > 0) return `${h}h ${m}m`;
+    if (m > 0) return `${m}m ${s}s`;
+    return `${s}s`;
+  };
+
+  // --- RENDERING PREPARATION ---
   const offeneEinkaeufe = einkauf.filter(e => e.status !== "Erledigt");
   const offeneTodos = todos.filter(t => t.status !== "Erledigt");
 
@@ -356,11 +406,18 @@ export default function DashboardPage() {
   
   const chartData = userGymData
     .filter(g => selectedExercise === "" || g.uebung.toLowerCase() === selectedExercise)
-    .map(g => ({
-      datum: g.datum.substring(5, 10),
-      oneRepMax: calculate1RM(g.gewicht, g.reps),
-      volumen: g.gewicht * g.reps
-    }));
+    .map(g => ({ datum: g.datum.substring(5, 10), oneRepMax: calculate1RM(g.gewicht, g.reps), volumen: g.gewicht * g.reps }));
+
+  let currentWorkoutVolume = 0;
+  let currentWorkoutSets = 0;
+  activeExercises.forEach(ex => {
+    ex.sets.forEach((s:any) => {
+      if (s.done && s.kg && s.reps) {
+        currentWorkoutVolume += (parseFloat(s.kg) * parseInt(s.reps, 10));
+        currentWorkoutSets++;
+      }
+    });
+  });
 
   const TABS = [
     { id: "home", icon: Home, label: "Übersicht" },
@@ -375,25 +432,118 @@ export default function DashboardPage() {
 
   const bgMain = isDarkMode ? "bg-[#100A0B] text-[#EDE7E3]" : "bg-[#FAF8F5] text-[#2D2A26]";
   const bgSidebar = isDarkMode ? "bg-[#180F12] border-white/[0.08]" : "bg-[#FFFFFF] border-[#E8E2D9]";
-  const bgCard = isDarkMode ? "bg-[#1E1418] border border-white/[0.08] text-[#FAF8F5] shadow-[0_4px_20px_rgba(0,0,0,0.4)]" : "bg-[#FFFFFF] border border-[#E8E2D9] shadow-[0_2px_8px_rgba(80,36,25,0.04)] text-[#2D2A26]";
+  const bgCard = isDarkMode ? "bg-[#1E1418] border border-white/[0.08] text-[#FAF8F5]" : "bg-[#FFFFFF] border border-[#E8E2D9] text-[#2D2A26]";
   const bgInput = isDarkMode ? "bg-[#140C0E] border-white/[0.1] text-white focus:border-[#CFD186]" : "bg-[#FAF8F5] border-[#E8E2D9] text-[#2D2A26] focus:border-[#005377]";
   const bgItem = isDarkMode ? "bg-[#251A1E] border-white/[0.05]" : "bg-[#F7F4EF] border-[#E8E2D9]";
   const textTitle = isDarkMode ? "text-[#FAF8F5]" : "text-[#2D2A26]";
   const textSub = isDarkMode ? "text-[#A89F91]" : "text-[#7A7265]";
-  const accentGreen = isDarkMode ? "text-[#7DB47C]" : "text-[#3D693C]";
-  const accentBlue = isDarkMode ? "text-[#3A8EBA]" : "text-[#005377]";
   const badgeGreen = isDarkMode ? "bg-[#5B8C5A]/20 text-[#9ED09D] border border-[#5B8C5A]/40" : "bg-[#5B8C5A]/15 text-[#2C522B] border border-[#5B8C5A]/30";
   const badgeBlue = isDarkMode ? "bg-[#005377]/30 text-[#6BB9E0] border border-[#005377]/50" : "bg-[#005377]/10 text-[#005377] border border-[#005377]/25";
   const buttonPrimary = isDarkMode ? "bg-[#005377] hover:bg-[#006894] text-white" : "bg-[#005377] hover:bg-[#00415E] text-white shadow-sm";
 
+  // --- RENDER BRANCH 1: HEVY 1:1 UI OVERRIDE WENN WORKOUT AKTIV IST ---
+  if (activeTab === "gym" && isWorkoutActive) {
+    return (
+      <div className="flex h-[100dvh] w-full bg-black text-white font-sans overflow-hidden">
+        <main className="flex-1 flex flex-col h-full overflow-y-auto">
+          {/* Hevy Header */}
+          <div className="sticky top-0 z-50 bg-[#0C0C0E] border-b border-[#2C2C2E] px-4 py-3 flex justify-between items-center">
+            <div className="flex items-center gap-4">
+              <button onClick={() => setIsWorkoutActive(false)} className="h-8 w-8 rounded-full bg-[#1C1C1E] flex items-center justify-center text-white"><ChevronDown className="h-5 w-5" /></button>
+              <span className="font-semibold text-[15px]">Workout</span>
+            </div>
+            <div className="flex items-center gap-4">
+              <Clock className="h-5 w-5 text-gray-300" />
+              <button onClick={endWorkout} className="bg-[#0A84FF] text-white px-4 py-1.5 rounded-full text-sm font-semibold">Beenden</button>
+            </div>
+          </div>
+          
+          {/* Stats Bar */}
+          <div className="bg-[#000000] px-6 py-4 flex justify-between items-center border-b border-[#1C1C1E]">
+            <div className="flex flex-col">
+              <span className="text-[10px] text-gray-400 font-medium mb-1">Dauer</span>
+              <span className="text-[#0A84FF] font-semibold text-[15px]">{formatDauer(workoutDauer)}</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <span className="text-[10px] text-gray-400 font-medium mb-1">Volumen</span>
+              <span className="font-semibold text-[15px]">{currentWorkoutVolume} kg</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <span className="text-[10px] text-gray-400 font-medium mb-1">Sätze</span>
+              <span className="font-semibold text-[15px]">{currentWorkoutSets}</span>
+            </div>
+            <div className="h-8 w-8 opacity-70"><Activity className="h-full w-full" /></div>
+          </div>
+
+          {/* Exercises */}
+          <div className="p-2 space-y-4 pb-32">
+            {activeExercises.map(ex => (
+              <div key={ex.id} className="bg-black p-2">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 bg-white rounded-full flex items-center justify-center text-black font-bold">
+                      <Dumbbell className="h-5 w-5" />
+                    </div>
+                    <span className="text-[#0A84FF] font-semibold text-[15px] tracking-wide leading-tight max-w-[240px]">{ex.name}</span>
+                  </div>
+                  <MoreVertical className="text-gray-400 h-5 w-5" />
+                </div>
+                
+                <input type="text" placeholder="Notizen hier hinzufügen..." className="bg-transparent text-[13px] text-gray-400 w-full mb-3 outline-none" />
+                
+                <div className="flex items-center gap-1 text-[#0A84FF] text-[13px] font-medium mb-4">
+                  <Clock className="h-4 w-4" /> <span>Pausentimer: AUS</span>
+                </div>
+
+                <div className="grid grid-cols-12 gap-2 mb-2 text-[10px] text-gray-500 font-bold tracking-wider text-center px-1">
+                  <div className="col-span-2 text-left">SET</div>
+                  <div className="col-span-4 text-left">VORHERIGE</div>
+                  <div className="col-span-2">KG</div>
+                  <div className="col-span-2">WDH</div>
+                  <div className="col-span-2 flex justify-center"><Check className="h-4 w-4" /></div>
+                </div>
+
+                <div className="space-y-2">
+                  {ex.sets.map((s:any) => (
+                    <div key={s.id} className={`grid grid-cols-12 gap-2 items-center px-1 py-1 rounded-lg ${s.done ? "bg-[#1C1C1E]/50" : ""}`}>
+                      <div className="col-span-2 flex items-center">
+                        <div className="bg-[#1C1C1E] text-white w-7 h-7 flex items-center justify-center rounded-md font-semibold text-xs">{s.set}</div>
+                      </div>
+                      <div className="col-span-4 text-gray-400 text-[13px] font-medium">{s.prev}</div>
+                      <div className="col-span-2">
+                        <input type="number" value={s.kg} onChange={e => updateSet(ex.id, s.id, 'kg', e.target.value)} className={`w-full h-8 bg-[#1C1C1E] border border-[#2C2C2E] rounded-md text-center text-white font-semibold text-xs outline-none focus:border-[#0A84FF] ${s.done ? "opacity-50" : ""}`} />
+                      </div>
+                      <div className="col-span-2">
+                        <input type="number" value={s.reps} onChange={e => updateSet(ex.id, s.id, 'reps', e.target.value)} className={`w-full h-8 bg-[#1C1C1E] border border-[#2C2C2E] rounded-md text-center text-white font-semibold text-xs outline-none focus:border-[#0A84FF] ${s.done ? "opacity-50" : ""}`} />
+                      </div>
+                      <div className="col-span-2 flex justify-center">
+                        <button onClick={() => toggleSetDone(ex.id, s.id)} className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors ${s.done ? "bg-[#32D74B] text-black" : "bg-[#1C1C1E] text-gray-500 hover:bg-[#2C2C2E]"}`}>
+                          <Check className="h-5 w-5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                <button className="w-full bg-[#1C1C1E] text-gray-300 rounded-lg py-2 mt-3 text-sm font-semibold flex items-center justify-center gap-1">
+                  <Plus className="h-4 w-4" /> Satz hinzufügen
+                </button>
+              </div>
+            ))}
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // --- RENDER BRANCH 2: STANDARD HAUSHALT OS UI ---
   return (
     <div className={`flex h-[100dvh] min-h-[100dvh] w-full overflow-hidden ${bgMain} font-sans transition-colors duration-300 relative`}>
-      
       {/* SIDEBAR */}
       <aside className={`hidden md:flex w-64 ${bgSidebar} border-r flex-col justify-between p-4 h-full z-20`}>
         <div>
           <div className="flex items-center gap-3 px-3 py-4 mb-4">
-            <div className="h-8 w-8 rounded-xl bg-[#005377] flex items-center justify-center shadow-md shadow-[#005377]/20"><Sparkles className="w-4 h-4 text-[#CFD186]" /></div>
+            <div className="h-8 w-8 rounded-xl bg-[#005377] flex items-center justify-center"><Sparkles className="w-4 h-4 text-[#CFD186]" /></div>
             <div><span className={`font-bold text-sm tracking-tight ${textTitle} block leading-none`}>Haushalt OS</span><span className={`text-[10px] ${textSub} font-medium`}>Workspace Jonas & Lena</span></div>
           </div>
           <nav className="space-y-1">
@@ -410,134 +560,45 @@ export default function DashboardPage() {
            <button onClick={() => switchUser(activeUser === "Jonas" ? "Lena" : "Jonas")} className={`h-8 px-3 rounded-lg text-xs font-bold flex items-center gap-2 border transition-all ${isDarkMode ? "bg-[#251A1E] border-white/[0.08] text-white" : "bg-[#FAF8F5] border-[#E8E2D9] text-[#2D2A26]"}`}>
              <UserCheck className="h-3.5 w-3.5 text-[#5B8C5A]" /> {activeUser}
            </button>
-           <button className={`${textSub} hover:text-[#005377]`}><Settings className="h-4 w-4" /></button>
+           <button onClick={toggleTheme} className={`${textSub} hover:text-[#005377]`}><Settings className="h-4 w-4" /></button>
         </div>
       </aside>
 
-      {/* MAIN CONTENT */}
       <main className="flex-1 flex flex-col h-full overflow-y-auto relative z-10">
         <header className={`pt-safe sticky top-0 z-30 ${isDarkMode ? "bg-[#100A0B]/85 border-white/[0.08]" : "bg-[#FAF8F5]/85 border-[#E8E2D9]"} backdrop-blur-md border-b transition-colors duration-300`}>
           <div className="h-14 px-4 md:px-8 flex items-center justify-between">
             <div className={`flex items-center gap-2 text-xs ${textSub} font-medium tracking-wide`}><span>Workspace</span><span>/</span><span className={`capitalize font-bold ${textTitle}`}>{activeTab}</span></div>
             <div className="flex items-center gap-2">
-              <button onClick={() => switchUser(activeUser === "Jonas" ? "Lena" : "Jonas")} className={`md:hidden h-8 px-2.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition-all ${isDarkMode ? "bg-[#251A1E] border-white/[0.08] text-white" : "bg-[#FAF8F5] border-[#E8E2D9] text-[#2D2A26]"}`}>
-                <UserCheck className="h-3.5 w-3.5 text-[#5B8C5A]" /> <span>{activeUser}</span>
-              </button>
-              <button onClick={toggleTheme} className={`h-8 w-8 flex items-center justify-center rounded-lg ${bgCard} transition-transform active:scale-95`}>
-                {isDarkMode ? <Sun className="h-4 w-4 text-[#CFD186]" /> : <Moon className="h-4 w-4 text-[#49111C]" />}
-              </button>
-              <button className={`h-8 w-8 flex items-center justify-center rounded-lg ${bgCard}`}><Bell className="h-4 w-4 text-slate-400" /></button>
+              <button onClick={() => switchUser(activeUser === "Jonas" ? "Lena" : "Jonas")} className={`md:hidden h-8 px-2.5 rounded-lg text-xs font-bold flex items-center gap-1.5 border transition-all ${isDarkMode ? "bg-[#251A1E] border-white/[0.08] text-white" : "bg-[#FAF8F5] border-[#E8E2D9] text-[#2D2A26]"}`}><UserCheck className="h-3.5 w-3.5 text-[#5B8C5A]" /> <span>{activeUser}</span></button>
+              <button onClick={toggleTheme} className={`h-8 w-8 flex items-center justify-center rounded-lg ${bgCard}`}><Sun className="h-4 w-4" /></button>
             </div>
           </div>
         </header>
 
         <div className="p-4 md:p-8 pb-32 md:pb-12 max-w-[1400px] mx-auto w-full space-y-8">
-          
           {/* TAB 1: ÜBERSICHT */}
           {activeTab === "home" && (
             <div className="space-y-8">
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-[#E8E2D9] dark:border-white/[0.08]">
-                <div>
-                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#5B8C5A] mb-1"><Sparkle className="h-3.5 w-3.5 fill-current" /> {todayStr}</div>
-                  <h1 className={`text-3xl md:text-4xl font-extrabold tracking-tight ${textTitle}`}>Guten Tag, {activeUser}!</h1>
-                </div>
-                <div className={`flex items-center gap-3 px-4 py-2 rounded-2xl ${bgCard}`}>
-                  <CloudSun className={`h-6 w-6 ${accentBlue}`} />
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className={`text-base font-extrabold font-mono leading-none ${textTitle}`}>{weather}</span>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${badgeGreen}`}>München</span>
-                    </div>
-                    <span className={`text-[11px] ${textSub} font-medium`}>Wetter vor Ort</span>
-                  </div>
-                </div>
+                <div><div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#5B8C5A] mb-1"><Sparkle className="h-3.5 w-3.5 fill-current" /> {todayStr}</div><h1 className={`text-3xl md:text-4xl font-extrabold tracking-tight ${textTitle}`}>Guten Tag, {activeUser}!</h1></div>
               </div>
-
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
                 <div className="lg:col-span-7 space-y-6">
                   {countdowns.length > 0 && (
                     <div className="space-y-3">
-                      <div className="flex justify-between items-center px-1">
-                        <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Meilensteine</h3>
-                      </div>
+                      <div className="flex justify-between items-center px-1"><h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Meilensteine</h3></div>
                       <div className="space-y-2.5">
-                        {countdowns.map((cd, idx) => {
-                          const days = calculateDaysLeft(cd.date);
-                          return (
-                            <motion.div whileHover={{ scale: 1.02 }} transition={springConfig} key={idx} className={`${bgCard} rounded-2xl p-4 flex items-center justify-between border relative overflow-hidden`}>
-                              <div className="flex items-center gap-3.5">
-                                <span className="text-2xl p-2 rounded-xl bg-[#5B8C5A]/15 border border-[#5B8C5A]/30">{cd.icon}</span>
-                                <div><h4 className={`text-sm font-bold ${textTitle}`}>{cd.title}</h4><p className={`text-xs ${textSub} font-medium`}>{cd.date}</p></div>
-                              </div>
-                              <div className="text-right flex items-baseline gap-1">
-                                <span className={`text-xl font-black font-mono ${accentGreen}`}>{days >= 0 ? days : 0}</span>
-                                <span className={`text-[11px] font-bold ${textSub}`}>Tage</span>
-                              </div>
-                            </motion.div>
-                          );
-                        })}
+                        {countdowns.map((cd, idx) => (
+                          <div key={idx} className={`${bgCard} rounded-2xl p-4 flex items-center justify-between border`}><div className="flex items-center gap-3.5"><span className="text-2xl p-2 rounded-xl">{cd.icon}</span><div><h4 className={`text-sm font-bold ${textTitle}`}>{cd.title}</h4><p className={`text-xs ${textSub}`}>{cd.date}</p></div></div><div className="text-right flex items-baseline gap-1"><span className="text-xl font-black font-mono">{calculateDaysLeft(cd.date)}</span><span className={`text-[11px] font-bold ${textSub}`}>Tage</span></div></div>
+                        ))}
                       </div>
                     </div>
                   )}
-
-                  <div className="space-y-3 pt-2">
-                    <div className="flex justify-between items-center px-1">
-                      <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Termine & Putzplan</h3>
-                      <span className={`text-[10px] ${textSub}`}>iCloud & Haushalt OS</span>
-                    </div>
-                    <div className={`${bgCard} rounded-3xl p-6 border space-y-3`}>
-                      {termine.slice(0, 4).map((t, i) => (
-                        <div key={i} className={`flex items-center justify-between p-3 rounded-2xl border ${bgItem} gap-4`}>
-                          <div className="flex items-center gap-3"><div className="h-2 w-2 rounded-full bg-[#005377]" /><span className={`text-xs font-bold ${textTitle} truncate max-w-[220px] sm:max-w-none`}>{t.title}</span></div>
-                          <span className={`text-[10px] font-mono font-bold ${badgeBlue} px-2.5 py-1 rounded-lg shrink-0`}>{t.date}</span>
-                        </div>
-                      ))}
-                      {termine.length === 0 && <p className={`text-xs ${textSub} py-4 text-center`}>Keine Termine synchronisiert.</p>}
-                    </div>
-                  </div>
                 </div>
-
                 <div className="lg:col-span-5 space-y-6">
-                  <div className="space-y-3">
-                    <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub} px-1`}>Schnellübersicht</h3>
-                    <div onClick={() => setActiveTab("todos")} className={`${bgCard} rounded-3xl p-5 border cursor-pointer hover:border-[#005377]/50 transition-all group`}>
-                      <div className="flex justify-between items-center mb-3">
-                        <div className="flex items-center gap-2"><ListTodo className={`h-4 w-4 ${accentBlue}`} /><span className={`text-xs font-bold ${textTitle}`}>To-Do Liste</span></div>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badgeBlue}`}>{offeneTodos.length} offen</span>
-                      </div>
-                      <div className="space-y-1.5 mb-3">
-                        {offeneTodos.slice(0, 3).map((item, i) => (
-                          <div key={i} className={`text-xs ${textSub} flex items-center justify-between gap-2`}><div className="flex items-center gap-2 truncate"><span className="h-1 w-1 rounded-full bg-[#005377]" /><span className="truncate">{item.aufgabe}</span></div></div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div onClick={() => setActiveTab("einkauf")} className={`${bgCard} rounded-3xl p-5 border cursor-pointer hover:border-[#5B8C5A]/50 transition-all group`}>
-                      <div className="flex justify-between items-center mb-3">
-                        <div className="flex items-center gap-2"><ShoppingCart className={`h-4 w-4 ${accentGreen}`} /><span className={`text-xs font-bold ${textTitle}`}>Einkaufsliste</span></div>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badgeGreen}`}>{offeneEinkaeufe.length} offen</span>
-                      </div>
-                      <div className="space-y-1.5 mb-3">
-                        {offeneEinkaeufe.slice(0, 2).map((item, i) => (
-                          <div key={i} className={`text-xs ${textSub} flex items-center gap-2`}><span className="h-1 w-1 rounded-full bg-slate-400" /><span className="truncate">{item.artikel}</span></div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className={`${bgCard} rounded-3xl p-6 border space-y-4`}>
-                    <div className="flex justify-between items-center">
-                      <div><h3 className={`text-xs font-bold ${textTitle}`}>Abfahrten OEZ</h3><p className={`text-[10px] ${textSub}`}>MVG Live</p></div>
-                      <span className={`text-[10px] font-bold font-mono px-2 py-0.5 rounded-md ${badgeBlue}`}>LIVE</span>
-                    </div>
-                    <div className="space-y-2.5">
-                      {departures.slice(0, 3).map((d, i) => (
-                        <div key={i} className="flex justify-between items-center text-xs">
-                          <div className="flex items-center gap-2"><span className={`text-[10px] font-bold font-mono px-1.5 py-0.5 rounded ${badgeBlue}`}>{d.line}</span><span className={`truncate max-w-[120px] font-semibold ${textTitle}`}>{d.destination}</span></div>
-                          <span className={`font-mono font-bold ${textSub}`}>{d.time}</span>
-                        </div>
-                      ))}
-                    </div>
+                  <div className={`${bgCard} rounded-3xl p-5 border cursor-pointer`} onClick={() => setActiveTab("todos")}>
+                    <div className="flex justify-between items-center mb-3"><div className="flex items-center gap-2"><ListTodo className="h-4 w-4" /><span className="text-xs font-bold">To-Do Liste</span></div><span className="text-[10px] font-bold px-2 py-0.5 rounded-full">{offeneTodos.length} offen</span></div>
+                    <div className="space-y-1.5">{offeneTodos.slice(0, 3).map((item, i) => (<div key={i} className={`text-xs ${textSub} truncate`}>• {item.aufgabe}</div>))}</div>
                   </div>
                 </div>
               </div>
@@ -547,51 +608,21 @@ export default function DashboardPage() {
           {/* TAB 2: TO-DOS */}
           {activeTab === "todos" && (
             <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <div><h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>To-Do Liste</h2><p className={`text-xs ${textSub}`}>Wischen: Links = Erledigen, Rechts = Löschen</p></div>
-                <span className={`text-xs px-3 py-1 rounded-full font-mono font-bold ${badgeBlue}`}>{offeneTodos.length} offen</span>
-              </div>
+              <div className="flex justify-between items-center"><div><h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>To-Do Liste</h2><p className={`text-xs ${textSub}`}>Wischen: Links = Erledigen, Rechts = Löschen</p></div></div>
               <div className={`${bgCard} rounded-2xl p-6 space-y-4`}>
                 <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
                   <input type="text" placeholder="Neue Aufgabe..." value={neuesTodo} onChange={(e) => setNeuesTodo(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addTodo()} className={`sm:col-span-6 ${bgInput} border rounded-xl px-4 py-2.5 text-sm font-medium`} />
-                  <select value={todoKategorie} onChange={(e) => setTodoKategorie(e.target.value)} className={`sm:col-span-3 ${bgInput} border rounded-xl px-3 py-2.5 text-xs font-semibold`}>
-                    {TODO_KATEGORIEN.map(kat => <option key={kat} value={kat}>{kat}</option>)}
-                  </select>
-                  <select value={todoZustaendig} onChange={(e) => setTodoZustaendig(e.target.value)} className={`sm:col-span-1.5 ${bgInput} border rounded-xl px-3 py-2.5 text-xs font-semibold`}>
-                    <option value="Beide">Beide</option><option value="Jonas">Jonas</option><option value="Lena">Lena</option>
-                  </select>
                   <motion.button whileTap={tapGesture} onClick={addTodo} className={`sm:col-span-1.5 px-4 py-2.5 ${buttonPrimary} text-xs font-bold rounded-xl`}>Hinzufügen</motion.button>
-                </div>
-                <div className="flex gap-2 overflow-x-auto pt-2 pb-1 scrollbar-hide">
-                  {["Alle", ...TODO_KATEGORIEN, "Jonas", "Lena", "Beide"].map(filter => (
-                    <button key={filter} onClick={() => setActiveTodoFilter(filter)} className={`px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${activeTodoFilter === filter ? `${badgeBlue} shadow-sm` : `${bgItem} ${textSub}`}`}>{filter}</button>
-                  ))}
                 </div>
               </div>
               <div className={`${bgCard} rounded-2xl p-6 space-y-3`}>
                 {filteredTodos.map((todo) => (
                   <div key={todo.id} className="relative rounded-xl overflow-hidden">
                     <div className="absolute inset-0 flex justify-between items-center px-4 rounded-xl bg-gradient-to-r from-[#49111C] via-[#251A1E] to-[#5B8C5A] text-white">
-                      <div className="flex items-center gap-1 text-xs font-bold text-rose-200"><Trash2 className="h-4 w-4" /> Löschen</div>
-                      <div className="flex items-center gap-1 text-xs font-bold text-emerald-200">Erledigt <Check className="h-4 w-4" /></div>
+                      <div className="text-xs font-bold">Löschen</div><div className="text-xs font-bold">Erledigt</div>
                     </div>
-                    <motion.div 
-                      drag="x" dragConstraints={{ left: 0, right: 0 }} dragElastic={0.8} whileTap={tapGesture} layout transition={springConfig}
-                      onDragEnd={(_, info) => { 
-                        const isSwipeRight = info.offset.x > 80 || info.velocity.x > 500;
-                        const isSwipeLeft = info.offset.x < -80 || info.velocity.x < -500;
-                        if (isSwipeRight) deleteTodo(todo); 
-                        else if (isSwipeLeft) markTodoErledigt(todo, "Erledigt"); 
-                      }}
-                      className={`relative z-10 flex justify-between p-4 rounded-xl border ${bgItem} ${bgCard} shadow-sm cursor-grab`}
-                    >
-                      <div>
-                        <span className={`text-sm font-semibold ${textTitle} block`}>{todo.aufgabe}</span>
-                        <div className="flex items-center gap-2 mt-1.5"><span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${badgeBlue}`}>{todo.kategorie}</span><span className="text-[10px] font-bold opacity-70">👤 {todo.zustaendig}</span></div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => markTodoErledigt(todo, "Erledigt")} className={`h-7 px-3 text-[11px] font-bold rounded-lg ${badgeGreen} hover:opacity-80 flex items-center gap-1`}><Check className="h-3.5 w-3.5" /> <span>Erledigen</span></button>
-                      </div>
+                    <motion.div drag="x" dragConstraints={{ left: 0, right: 0 }} dragElastic={0.8} whileTap={tapGesture} layout transition={springConfig} onDragEnd={(_, info) => { if (info.offset.x > 80 || info.velocity.x > 500) deleteTodo(todo); else if (info.offset.x < -80 || info.velocity.x < -500) markTodoErledigt(todo, "Erledigt"); }} className={`relative z-10 flex justify-between p-4 rounded-xl border ${bgItem} ${bgCard}`}>
+                      <div><span className={`text-sm font-semibold ${textTitle} block`}>{todo.aufgabe}</span></div>
                     </motion.div>
                   </div>
                 ))}
@@ -602,17 +633,9 @@ export default function DashboardPage() {
           {/* TAB 3: EINKAUF */}
           {activeTab === "einkauf" && (
             <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <div><h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>Einkaufsliste</h2><p className={`text-xs ${textSub}`}>Wischen: Links = Erledigen, Rechts = Löschen</p></div>
-              </div>
-              <div className={`${bgCard} rounded-2xl p-5 space-y-2`}>
-                <div className={`text-[11px] font-bold ${textSub}`}>Schnellwahl:</div>
-                <div className="flex flex-wrap gap-2">
-                  {SCHNELLWAHL_FAVORITEN.map((fav, idx) => <button key={idx} onClick={() => addEinkauf(fav)} className={`text-xs px-3 py-1.5 rounded-lg border font-semibold ${bgItem} ${textTitle}`}>+ {fav}</button>)}
-                </div>
-              </div>
+              <div className="flex justify-between items-center"><div><h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>Einkaufsliste</h2></div></div>
               <div className={`${bgCard} rounded-2xl p-6`}>
-                <div className={`flex gap-3 mb-6 pb-6 border-b ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"}`}>
+                <div className="flex gap-3 mb-6 pb-6 border-b">
                   <input type="text" placeholder="Neuer Artikel..." value={neuerArtikel} onChange={(e) => setNeuerArtikel(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addEinkauf()} className={`flex-1 ${bgInput} border rounded-xl px-4 py-2.5`} />
                   <motion.button whileTap={tapGesture} onClick={() => addEinkauf()} className={`px-6 py-2.5 ${buttonPrimary} text-xs font-bold rounded-xl`}>Hinzufügen</motion.button>
                 </div>
@@ -624,21 +647,10 @@ export default function DashboardPage() {
                         {items.map((item) => (
                           <div key={item.id} className="relative rounded-xl overflow-hidden">
                             <div className="absolute inset-0 flex justify-between items-center px-4 rounded-xl bg-gradient-to-r from-[#49111C] via-[#251A1E] to-[#5B8C5A] text-white">
-                              <div className="flex items-center gap-1 text-xs font-bold text-rose-200"><Trash2 className="h-4 w-4" /> Löschen</div>
-                              <div className="flex items-center gap-1 text-xs font-bold text-emerald-200">Erledigt <Check className="h-4 w-4" /></div>
+                              <div className="text-xs font-bold">Löschen</div><div className="text-xs font-bold">Erledigt</div>
                             </div>
-                            <motion.div 
-                              drag="x" dragConstraints={{ left: 0, right: 0 }} dragElastic={0.8} whileTap={tapGesture} layout transition={springConfig}
-                              onDragEnd={(_, info) => { 
-                                const isSwipeRight = info.offset.x > 80 || info.velocity.x > 500;
-                                const isSwipeLeft = info.offset.x < -80 || info.velocity.x < -500;
-                                if (isSwipeRight) deleteEinkauf(item); 
-                                else if (isSwipeLeft) markEinkaufErledigt(item, "Erledigt"); 
-                              }}
-                              className={`relative z-10 flex items-center justify-between p-3.5 rounded-xl border ${bgItem} ${bgCard} shadow-sm cursor-grab`}
-                            >
+                            <motion.div drag="x" dragConstraints={{ left: 0, right: 0 }} dragElastic={0.8} whileTap={tapGesture} layout transition={springConfig} onDragEnd={(_, info) => { if (info.offset.x > 80 || info.velocity.x > 500) deleteEinkauf(item); else if (info.offset.x < -80 || info.velocity.x < -500) markEinkaufErledigt(item, "Erledigt"); }} className={`relative z-10 flex items-center justify-between p-3.5 rounded-xl border ${bgItem} ${bgCard}`}>
                               <span className={`text-sm font-semibold ${textTitle}`}>{item.artikel}</span>
-                              <button onClick={() => markEinkaufErledigt(item, "Erledigt")} className={`h-7 px-3 text-[11px] font-bold rounded-lg ${badgeGreen} hover:opacity-80 flex items-center gap-1`}><Check className="h-3.5 w-3.5" /> Erledigt</button>
                             </motion.div>
                           </div>
                         ))}
@@ -650,67 +662,31 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* TAB 4: GYM & PERFORMANCE */}
-          {activeTab === "gym" && (
+          {/* TAB 4: GYM START SEITE */}
+          {activeTab === "gym" && !isWorkoutActive && (
             <div className="space-y-6">
               <div className="flex justify-between items-center">
-                <div>
-                  <h2 className={`text-xl font-bold tracking-tight ${textTitle} flex items-center gap-2`}><Dumbbell className="h-5 w-5 text-[#82CBEE]" /> Performance OS</h2>
-                  <p className={`text-xs ${textSub}`}>Progressive Overload & Recovery für {activeUser}</p>
-                </div>
+                <div><h2 className={`text-xl font-bold tracking-tight ${textTitle} flex items-center gap-2`}><Dumbbell className="h-5 w-5 text-[#82CBEE]" /> Performance OS</h2></div>
               </div>
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                <div className="lg:col-span-5 space-y-6">
-                  <div className={`${bgCard} rounded-3xl p-6 border relative overflow-hidden group`}>
-                    <div className="absolute top-0 right-0 p-4 opacity-10"><Flame className="h-24 w-24" /></div>
-                    <h3 className={`text-sm font-bold ${textTitle} mb-4 relative z-10`}>Neuer Satz (Track)</h3>
-                    <div className="space-y-4 relative z-10">
-                      <div><label className={`text-[10px] font-bold uppercase tracking-wider ${textSub}`}>Übung</label><input type="text" placeholder="z.B. Bankdrücken" value={gymUebung} onChange={e => setGymUebung(e.target.value)} className={`w-full mt-1 ${bgInput} border rounded-xl px-4 py-2.5 text-sm font-bold`} /></div>
-                      <div className="grid grid-cols-3 gap-3">
-                        <div><label className={`text-[10px] font-bold uppercase tracking-wider ${textSub}`}>Gewicht</label><input type="number" placeholder="kg" value={gymGewicht} onChange={e => setGymGewicht(e.target.value)} className={`w-full mt-1 ${bgInput} border rounded-xl px-3 py-2.5 text-sm font-mono font-bold`} /></div>
-                        <div><label className={`text-[10px] font-bold uppercase tracking-wider ${textSub}`}>Reps</label><input type="number" value={gymReps} onChange={e => setGymReps(e.target.value)} className={`w-full mt-1 ${bgInput} border rounded-xl px-3 py-2.5 text-sm font-mono font-bold`} /></div>
-                        <div><label className={`text-[10px] font-bold uppercase tracking-wider ${textSub}`}>Satz</label><input type="number" value={gymSetNum} onChange={e => setGymSetNum(e.target.value)} className={`w-full mt-1 ${bgInput} border rounded-xl px-3 py-2.5 text-sm font-mono font-bold`} /></div>
-                      </div>
-                      <motion.button whileTap={tapGesture} onClick={addGymEntry} className={`w-full py-3 ${buttonPrimary} text-xs font-bold rounded-xl shadow-lg`}>Satz eintragen</motion.button>
-                    </div>
-                  </div>
+              
+              <div className={`${bgCard} rounded-3xl p-8 border flex flex-col items-center justify-center text-center space-y-4`}>
+                <Dumbbell className="h-12 w-12 text-[#0A84FF]" />
+                <div>
+                  <h3 className={`text-lg font-bold ${textTitle}`}>Hevy Workout Tracker</h3>
+                  <p className={`text-sm ${textSub} max-w-md mx-auto mt-2`}>Starte dein Workout. Die UI wechselt in den Fokus-Modus, genau wie in deiner Hevy-App.</p>
                 </div>
-                <div className="lg:col-span-7 space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className={`${bgCard} rounded-3xl p-6 border`}>
-                      <div className="flex justify-between items-center mb-6"><h3 className={`text-[10px] font-bold uppercase tracking-wider ${textSub}`}>1RM Verlauf</h3><span className={`text-[9px] px-2 py-0.5 rounded-md ${badgeBlue}`}>{gymUebung || "Übersicht"}</span></div>
-                      <div className="h-[140px] w-full">
-                        {chartData.length > 0 ? (
-                          <ResponsiveContainer width="100%" height="100%"><LineChart data={chartData}><XAxis dataKey="datum" stroke={isDarkMode ? "#555" : "#ccc"} fontSize={9} tickLine={false} axisLine={false} /><Tooltip contentStyle={{ backgroundColor: isDarkMode ? '#1E1418' : '#fff', borderRadius: '12px', border: 'none' }} /><Line type="monotone" dataKey="oneRepMax" stroke={isDarkMode ? "#82CBEE" : "#005377"} strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} /></LineChart></ResponsiveContainer>
-                        ) : (<div className="h-full w-full flex flex-col items-center justify-center border-2 border-dashed border-slate-500/20 rounded-xl px-4 text-center"><span className={`text-xs font-medium ${textSub}`}>Gib eine Übung ein, um deinen Max-Kraft-Graphen zu sehen.</span></div>)}
-                      </div>
-                    </div>
-                    <div className={`${bgCard} rounded-3xl p-6 border`}>
-                      <div className="flex justify-between items-center mb-6"><h3 className={`text-[10px] font-bold uppercase tracking-wider ${textSub}`}>Volumen (Workload)</h3><span className={`text-[9px] px-2 py-0.5 rounded-md ${isDarkMode ? "bg-[#7DB47C]/20 text-[#7DB47C]" : "bg-[#5B8C5A]/15 text-[#3D693C]"}`}>Pro Satz (kg)</span></div>
-                      <div className="h-[140px] w-full">
-                        {chartData.length > 0 ? (
-                          <ResponsiveContainer width="100%" height="100%"><BarChart data={chartData}><XAxis dataKey="datum" stroke={isDarkMode ? "#555" : "#ccc"} fontSize={9} tickLine={false} axisLine={false} /><Tooltip contentStyle={{ backgroundColor: isDarkMode ? '#1E1418' : '#fff', borderRadius: '12px', border: 'none' }} cursor={{fill: isDarkMode ? '#ffffff05' : '#00000005'}}/><Bar dataKey="volumen" fill={isDarkMode ? "#7DB47C" : "#5B8C5A"} radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer>
-                        ) : (<div className="h-full w-full flex items-center justify-center border-2 border-dashed border-slate-500/20 rounded-xl"><span className={`text-[10px] font-medium ${textSub}`}>Keine Sätze gefunden.</span></div>)}
-                      </div>
-                    </div>
-                  </div>
-                  <div className={`${bgCard} rounded-3xl p-6 border`}>
-                    <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub} mb-4`}>Heutiges Workout</h3>
-                    <div className="space-y-3">
-                      {userGymData.filter(g => g.datum === new Date().toISOString().split("T")[0]).length === 0 ? (
-                        <div className={`p-4 rounded-xl border border-dashed border-slate-500/20 text-center`}><p className={`text-xs ${textSub}`}>Noch keine Sätze heute absolviert. Let's go! 🚀</p></div>
-                      ) : (
-                        userGymData.filter(g => g.datum === new Date().toISOString().split("T")[0]).reverse().map((g) => (
-                          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={g.id} className={`flex items-center justify-between p-3.5 rounded-xl border ${bgItem}`}>
-                            <div className="flex flex-col"><span className={`text-sm font-bold ${textTitle}`}>{g.uebung}</span><span className={`text-[10px] font-bold ${textSub}`}>Satz {g.setnum}</span></div>
-                            <div className="flex items-center gap-3">
-                              <div className="text-right"><span className={`text-sm font-mono font-bold ${textTitle}`}>{g.gewicht} kg</span><span className={`text-[10px] font-mono text-slate-500 block`}>× {g.reps} Reps</span></div>
-                              {calculate1RM(g.gewicht, g.reps) > 100 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-[#5B8C5A]/20 text-[#7DB47C]">PR 🏆</span>}
-                            </div>
-                          </motion.div>
-                        ))
-                      )}
-                    </div>
+                <button onClick={startWorkout} className="bg-[#0A84FF] text-white px-8 py-3 rounded-xl font-bold mt-4 shadow-lg hover:scale-105 transition-transform">
+                  Leeres Workout starten
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className={`${bgCard} rounded-3xl p-6 border`}>
+                  <div className="flex justify-between items-center mb-6"><h3 className={`text-[10px] font-bold uppercase tracking-wider ${textSub}`}>Historie / 1RM</h3></div>
+                  <div className="h-[140px] w-full">
+                    {chartData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%"><LineChart data={chartData}><XAxis dataKey="datum" stroke={isDarkMode ? "#555" : "#ccc"} fontSize={9} tickLine={false} axisLine={false} /><Tooltip contentStyle={{ backgroundColor: isDarkMode ? '#1E1418' : '#fff', borderRadius: '12px', border: 'none' }} /><Line type="monotone" dataKey="oneRepMax" stroke={isDarkMode ? "#82CBEE" : "#005377"} strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} /></LineChart></ResponsiveContainer>
+                    ) : (<div className="h-full w-full flex items-center justify-center border-2 border-dashed rounded-xl"><span className={`text-xs ${textSub}`}>Keine Sätze gefunden.</span></div>)}
                   </div>
                 </div>
               </div>
@@ -724,24 +700,27 @@ export default function DashboardPage() {
               <div className={`${bgCard} rounded-2xl p-6 space-y-3`}>
                 {aufgaben.map((a, idx) => (
                   <div key={idx} className={`flex justify-between items-center p-4 rounded-xl border ${bgItem}`}>
-                    <div><div className={`font-bold text-sm ${textTitle}`}>{a.aufgabe}</div><div className={`text-[11px] ${textSub}`}>Intervall: {a.intervall} Tage | Letztes Mal: {a.letztesDatum}</div></div>
-                    <motion.button whileTap={tapGesture} onClick={() => markAufgabeErledigt(a)} className={`h-8 px-4 text-xs font-bold rounded-lg border ${isDarkMode ? "bg-white/5" : "bg-[#FAF8F5]"} shadow-sm`}>Erledigt</motion.button>
+                    <div><div className={`font-bold text-sm ${textTitle}`}>{a.aufgabe}</div><div className={`text-[11px] ${textSub}`}>Intervall: {a.intervall} Tage | Letztes Mal: {a.letztes_datum}</div></div>
+                    <motion.button whileTap={tapGesture} onClick={() => markAufgabeErledigt(a)} className={`h-8 px-4 text-xs font-bold rounded-lg border shadow-sm`}>Erledigt</motion.button>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* TAB 6: VORRAT */}
+          {/* TAB 6: VORRAT & KAMERA SCANNEN */}
           {activeTab === "vorrat" && (
             <div className="space-y-6">
               <h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>Vorratskammer & KI Scanner</h2>
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className={`lg:col-span-1 ${bgCard} rounded-2xl p-6 flex flex-col h-[280px]`}>
-                  <h3 className={`text-[11px] font-bold uppercase tracking-wider ${textSub} mb-3 flex items-center gap-2`}><Camera className={`h-4 w-4 ${accentBlue}`} /> Scanner</h3>
-                  <div className={`flex-1 border-2 border-dashed ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} rounded-xl flex flex-col items-center justify-center`}>
-                    {isScanning ? <Loader2 className={`h-6 w-6 ${accentBlue} animate-spin`} /> : (
-                      <><input type="file" accept="image/*" capture="environment" ref={fileInputRef} className="hidden" onChange={handleImageUpload} /><motion.button whileTap={tapGesture} onClick={() => fileInputRef.current?.click()} className={`text-xs ${buttonPrimary} px-4 py-2 rounded-xl`}>Kamera starten</motion.button></>
+                  <h3 className={`text-[11px] font-bold uppercase tracking-wider ${textSub} mb-3 flex items-center gap-2`}><Camera className="h-4 w-4 text-[#005377]" /> Scanner</h3>
+                  <div className={`flex-1 border-2 border-dashed rounded-xl flex flex-col items-center justify-center`}>
+                    {isScanning ? <Loader2 className={`h-6 w-6 text-[#005377] animate-spin`} /> : (
+                      <>
+                        <input type="file" accept="image/*" capture="environment" ref={fileInputRef} className="hidden" onChange={handleImageUpload} />
+                        <motion.button whileTap={tapGesture} onClick={() => fileInputRef.current?.click()} className={`text-xs ${buttonPrimary} px-4 py-2 rounded-xl`}>Kamera starten</motion.button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -749,7 +728,7 @@ export default function DashboardPage() {
                   <h3 className={`text-[11px] font-bold uppercase tracking-wider ${textSub} mb-3`}>Bestand</h3>
                   <div className="overflow-y-auto flex-1">
                     <table className="w-full text-left border-collapse">
-                      <thead><tr className={`border-b ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"}`}><th className={`pb-2 text-[10px] font-bold ${textSub}`}>Artikel</th><th className={`pb-2 text-[10px] font-bold ${textSub} text-right`}>MHD</th></tr></thead>
+                      <thead><tr className="border-b"><th className={`pb-2 text-[10px] font-bold ${textSub}`}>Artikel</th><th className={`pb-2 text-[10px] font-bold ${textSub} text-right`}>MHD</th></tr></thead>
                       <tbody className="divide-y divide-white/[0.04]">
                         {vorrat.map((v, idx) => <tr key={idx}><td className={`py-3 text-xs font-bold ${textTitle}`}>{v.artikel}</td><td className={`py-3 text-xs ${textSub} text-right font-mono`}>{v.ablaufdatum}</td></tr>)}
                       </tbody>
@@ -763,11 +742,7 @@ export default function DashboardPage() {
           {/* TAB 7: PINNWAND */}
           {activeTab === "notizen" && (
             <div className="space-y-6">
-              <div className="flex justify-between items-center">
-                <h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>Pinnwand</h2>
-                <motion.button whileTap={tapGesture} onClick={() => setShowNoteModal(true)} className={`px-4 py-2 ${buttonPrimary} text-xs font-bold rounded-xl`}><Plus className="h-4 w-4 inline" /> Notiz</motion.button>
-              </div>
-              
+              <div className="flex justify-between items-center"><h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>Pinnwand</h2><motion.button whileTap={tapGesture} onClick={() => setShowNoteModal(true)} className={`px-4 py-2 ${buttonPrimary} text-xs font-bold rounded-xl`}><Plus className="h-4 w-4 inline" /> Notiz</motion.button></div>
               {showNoteModal && (
                 <div className={`${bgCard} rounded-2xl p-6 border space-y-4`}>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -780,16 +755,14 @@ export default function DashboardPage() {
                   <div className="flex justify-end gap-2"><button onClick={() => setShowNoteModal(false)} className={`px-4 py-2 text-xs font-bold ${textSub}`}>Abbrechen</button><button onClick={addNote} className={`px-6 py-2 ${buttonPrimary} text-xs font-bold rounded-xl`}>Speichern</button></div>
                 </div>
               )}
-
               <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
                   {noteCategories.map(cat => (
                     <button key={cat} onClick={() => setActiveNoteCategory(cat)} className={`px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${activeNoteCategory === cat ? `${badgeBlue} shadow-sm` : `${bgItem} ${textSub}`}`}>{cat}</button>
                   ))}
               </div>
-
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {filteredNotes.map((note) => (
-                  <motion.div whileHover={{ scale: 1.02 }} transition={springConfig} key={note.rowIndex} className={`${bgCard} rounded-2xl p-5 border`}>
+                  <motion.div whileHover={{ scale: 1.02 }} transition={springConfig} key={note.id} className={`${bgCard} rounded-2xl p-5 border`}>
                     <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-md ${badgeGreen}`}>{note.category}</span>
                     <h3 className={`text-sm font-bold mt-2.5 mb-1 ${textTitle}`}>{note.title}</h3>
                     <p className={`text-xs ${textSub} whitespace-pre-line`}>{note.content}</p>
@@ -798,7 +771,7 @@ export default function DashboardPage() {
               </div>
             </div>
           )}
-          
+
           {/* TAB 8: KALENDER */}
           {activeTab === "kalender" && (
             <div className="space-y-6">
@@ -864,7 +837,6 @@ export default function DashboardPage() {
         </div>
       </main>
 
-      {/* FAB ICON */}
       <div className="fixed bottom-20 md:bottom-8 right-5 md:right-8 z-50">
         <AnimatePresence>
           {isFabOpen && (
@@ -886,7 +858,6 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {/* MOBILE NAV */}
       <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-40 ${isDarkMode ? "bg-[#100A0B]/90 border-white/[0.08]" : "bg-[#FAF8F5]/90 border-[#E8E2D9]"} backdrop-blur-xl border-t px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] flex justify-around items-center`}>
         {TABS.map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex flex-col items-center justify-center min-w-[42px] h-11 gap-0.5 rounded-lg relative ${activeTab === tab.id ? `${accentBlue} font-bold` : textSub}`}>
