@@ -217,21 +217,93 @@ export default function DashboardPage() {
     await supabase.from("todos").delete().eq("id", item.id);
   };
 
-  const startWorkout = () => {
+  const PUSH_ROUTINE = [
+    "Bankdrücken Langhantel",
+    "Schrägbankdrücken Kurzhantel",
+    "Tiefe Cable crossovers",
+    "Schulterpresse sitzend (Maschine)",
+    "Seitheben (Kurzhantel)",
+    "Trizepsdrücken mit dem Seil",
+    "Überkopf-Trizepsstrecken (Kabelzug)",
+    "Einarmiges Seitheben (Kabelzug)"
+  ];
+
+  const PULL_ROUTINE = [
+    "Sitzendes Rudern am Kabelzug - V-Griff",
+    "Latzug (Kabel)",
+    "Incline Curls sitzend (Kurzhantel)",
+    "Hammer Curls (Kurzhantel)",
+    "Preacher Curl (SZ-Stange)"
+  ];
+
+  const startWorkout = (type: "push" | "pull" | "empty") => {
     setWorkoutDauer(0);
-    setActiveExercises([
-      { id: crypto.randomUUID(), name: "Sitzendes Rudern am Kabelzug - V-Griff", sets: [{ id: crypto.randomUUID(), set: 1, prev: "52kg x 7", kg: "", reps: "", done: false }, { id: crypto.randomUUID(), set: 2, prev: "52kg x 8", kg: "", reps: "", done: false }, { id: crypto.randomUUID(), set: 3, prev: "52kg x 8", kg: "", reps: "", done: false }] },
-      { id: crypto.randomUUID(), name: "Latzug (Kabel)", sets: [{ id: crypto.randomUUID(), set: 1, prev: "52kg x 8", kg: "", reps: "", done: false }, { id: crypto.randomUUID(), set: 2, prev: "45kg x 9", kg: "", reps: "", done: false }, { id: crypto.randomUUID(), set: 3, prev: "10kg x 8", kg: "", reps: "", done: false }] }
-    ]);
+    const exerciseNames = type === "push" ? PUSH_ROUTINE : type === "pull" ? PULL_ROUTINE : ["Freie Übung"];
+
+    const builtExercises = exerciseNames.map(name => {
+      // Suche die letzten Sätze dieser Übung aus deiner Gym-Historie
+      const previousSets = gymData
+        .filter(g => g.username === activeUser && g.uebung.toLowerCase() === name.toLowerCase())
+        .sort((a, b) => new Date(b.datum).getTime() - new Date(a.datum).getTime());
+
+      // Erstelle standardmäßig 3 Sätze mit den letzten Werten als Placeholder
+      const sets = [1, 2, 3].map(setNum => {
+        const lastMatchingSet = previousSets.find(s => s.setnum === setNum) || previousSets[0];
+        const prevText = lastMatchingSet ? `${lastMatchingSet.gewicht}kg x ${lastMatchingSet.reps}` : "-";
+        return {
+          id: crypto.randomUUID(),
+          set: setNum,
+          prev: prevText,
+          kg: "",
+          reps: "",
+          done: false
+        };
+      });
+
+      return {
+        id: crypto.randomUUID(),
+        name,
+        sets
+      };
+    });
+
+    setActiveExercises(builtExercises);
     setIsWorkoutActive(true);
   };
 
+  const addSetToExercise = (exerciseId: string) => {
+    setActiveExercises(prev => prev.map(ex => {
+      if (ex.id !== exerciseId) return ex;
+      const nextSetNum = ex.sets.length + 1;
+      return {
+        ...ex,
+        sets: [
+          ...ex.sets,
+          {
+            id: crypto.randomUUID(),
+            set: nextSetNum,
+            prev: ex.sets[ex.sets.length - 1]?.prev || "-",
+            kg: "",
+            reps: "",
+            done: false
+          }
+        ]
+      };
+    }));
+  };
+
   const updateSet = (exerciseId: string, setId: string, field: 'kg'|'reps', value: string) => {
-    setActiveExercises(prev => prev.map(ex => { if (ex.id !== exerciseId) return ex; return { ...ex, sets: ex.sets.map((s: any) => s.id === setId ? { ...s, [field]: value } : s) }; }));
+    setActiveExercises(prev => prev.map(ex => {
+      if (ex.id !== exerciseId) return ex;
+      return { ...ex, sets: ex.sets.map((s: any) => s.id === setId ? { ...s, [field]: value } : s) };
+    }));
   };
 
   const toggleSetDone = (exerciseId: string, setId: string) => {
-    setActiveExercises(prev => prev.map(ex => { if (ex.id !== exerciseId) return ex; return { ...ex, sets: ex.sets.map((s: any) => s.id === setId ? { ...s, done: !s.done } : s) }; }));
+    setActiveExercises(prev => prev.map(ex => {
+      if (ex.id !== exerciseId) return ex;
+      return { ...ex, sets: ex.sets.map((s: any) => s.id === setId ? { ...s, done: !s.done } : s) };
+    }));
   };
 
   const endWorkout = async () => {
@@ -239,13 +311,34 @@ export default function DashboardPage() {
     const completedSets: GymItem[] = [];
     activeExercises.forEach(ex => {
       ex.sets.filter((s:any) => s.done && s.kg && s.reps).forEach((s:any) => {
-        completedSets.push({ id: crypto.randomUUID(), datum: today, uebung: ex.name, gewicht: parseFloat(s.kg), reps: parseInt(s.reps, 10), setnum: s.set, username: activeUser });
+        completedSets.push({
+          id: crypto.randomUUID(),
+          datum: today,
+          uebung: ex.name,
+          gewicht: parseFloat(s.kg),
+          reps: parseInt(s.reps, 10),
+          setnum: s.set,
+          username: activeUser
+        });
       });
     });
+
+    if (completedSets.length === 0) {
+      setIsWorkoutActive(false);
+      return;
+    }
+
     setGymData(prev => [...prev, ...completedSets]);
     setIsWorkoutActive(false);
-    for (const set of completedSets) await supabase.from("gym").insert(set);
-    fetch("https://ntfy.sh/HaushaltLenaJonas", { method: "POST", body: `${activeUser} hat ein Workout beendet! (${completedSets.length} Sätze absolviert).`, headers: { "Title": "Workout abgeschlossen", "Tags": "muscle" }});
+
+    for (const set of completedSets) {
+      await supabase.from("gym").insert(set);
+    }
+    fetch("https://ntfy.sh/HaushaltLenaJonas", {
+      method: "POST",
+      body: `${activeUser} hat ein Workout beendet! (${completedSets.length} Sätze absolviert).`,
+      headers: { "Title": "Workout abgeschlossen", "Tags": "muscle" }
+    });
   };
 
   const markAufgabeErledigt = async (item: PutzItem) => {
@@ -382,7 +475,9 @@ if (activeTab === "gym" && isWorkoutActive) {
                     </div>
                   ))}
                 </div>
-                <button className="w-full bg-[#1C1C1E] text-gray-300 rounded-lg py-2 mt-3 text-sm font-semibold flex items-center justify-center gap-1"><Plus className="h-4 w-4" /> Satz hinzufügen</button>
+                <button onClick={() => addSetToExercise(ex.id)} className="w-full bg-[#1C1C1E] text-gray-300 hover:bg-[#2C2C2E] rounded-lg py-2 mt-3 text-sm font-semibold flex items-center justify-center gap-1 transition-colors">
+                  <Plus className="h-4 w-4" /> Satz hinzufügen
+                </button>
               </div>
             ))}
           </div>
@@ -673,18 +768,150 @@ if (activeTab === "gym" && isWorkoutActive) {
 
           {activeTab === "gym" && !isWorkoutActive && (
             <div className="space-y-6">
-              <div className="flex justify-between items-center"><div><h2 className={`text-xl font-bold tracking-tight ${textTitle} flex items-center gap-2`}><Dumbbell className={`h-5 w-5 ${accentBlue}`} /> Performance OS</h2><p className={`text-xs ${textSub}`}>Progressive Overload & Recovery für {activeUser}</p></div></div>
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                <div className="lg:col-span-5 space-y-6">
-                  <div className={`${bgCard} rounded-3xl p-6 border space-y-4`}><div className="flex justify-between items-center"><h3 className={`text-xs font-bold uppercase tracking-wider ${textSub} flex items-center gap-2`}><Activity className={`h-4 w-4 ${accentGreen}`} /> Recovery Status</h3><span className={`text-xl font-mono font-black ${recovery > 70 ? accentGreen : recovery > 40 ? 'text-yellow-500' : 'text-[#E27B88]'}`}>{recovery}%</span></div><input type="range" min="0" max="100" value={recovery} onChange={(e) => setRecovery(parseInt(e.target.value))} className={`w-full h-2 rounded-lg appearance-none cursor-pointer outline-none ${isDarkMode ? "bg-white/10" : "bg-black/10"} [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#005377] dark:[&::-webkit-slider-thumb]:bg-[#82CBEE]`} /></div>
-                  <div className={`${bgCard} rounded-3xl p-8 border flex flex-col items-center justify-center text-center space-y-4`}><Dumbbell className="h-12 w-12 text-[#0A84FF]" /><div><h3 className={`text-lg font-bold ${textTitle}`}>Hevy Workout Tracker</h3><p className={`text-sm ${textSub} max-w-md mx-auto mt-2`}>Starte dein Workout. Die UI wechselt in den Fokus-Modus, genau wie in deiner Hevy-App.</p></div><button onClick={startWorkout} className="bg-[#0A84FF] text-white px-8 py-3 rounded-xl font-bold mt-4 shadow-lg hover:scale-105 transition-transform">Leeres Workout starten</button></div>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h2 className={`text-xl font-bold tracking-tight ${textTitle} flex items-center gap-2`}>
+                    <Dumbbell className={`h-5 w-5 ${accentBlue}`} /> Performance OS & Hevy Routinen
+                  </h2>
+                  <p className={`text-xs ${textSub}`}>Progressive Overload & Routine-Tracking für {activeUser}</p>
                 </div>
-                <div className="lg:col-span-7 space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className={`${bgCard} rounded-3xl p-6 border`}><div className="flex justify-between items-center mb-6"><h3 className={`text-[10px] font-bold uppercase tracking-wider ${textSub}`}>1RM Verlauf</h3><span className={`text-[9px] px-2 py-0.5 rounded-md ${badgeBlue}`}>{gymUebung || "Übersicht"}</span></div><div className="h-[140px] w-full">{chartData.length > 0 ? (<ResponsiveContainer width="100%" height="100%"><LineChart data={chartData}><XAxis dataKey="datum" stroke={isDarkMode ? "#555" : "#ccc"} fontSize={9} tickLine={false} axisLine={false} /><Tooltip contentStyle={{ backgroundColor: isDarkMode ? '#1E1418' : '#fff', borderRadius: '12px', border: 'none' }} /><Line type="monotone" dataKey="oneRepMax" stroke={isDarkMode ? "#82CBEE" : "#005377"} strokeWidth={3} dot={{ r: 3 }} activeDot={{ r: 5 }} /></LineChart></ResponsiveContainer>) : (<div className="h-full w-full flex flex-col items-center justify-center border-2 border-dashed border-slate-500/20 rounded-xl px-4 text-center"><span className={`text-xs font-medium ${textSub}`}>Gib eine Übung ein, um deinen Max-Kraft-Graphen zu sehen.</span></div>)}</div></div>
-                    <div className={`${bgCard} rounded-3xl p-6 border`}><div className="flex justify-between items-center mb-6"><h3 className={`text-[10px] font-bold uppercase tracking-wider ${textSub}`}>Volumen (Workload)</h3><span className={`text-[9px] px-2 py-0.5 rounded-md ${isDarkMode ? "bg-[#7DB47C]/20 text-[#7DB47C]" : "bg-[#5B8C5A]/15 text-[#3D693C]"}`}>Pro Satz (kg)</span></div><div className="h-[140px] w-full">{chartData.length > 0 ? (<ResponsiveContainer width="100%" height="100%"><BarChart data={chartData}><XAxis dataKey="datum" stroke={isDarkMode ? "#555" : "#ccc"} fontSize={9} tickLine={false} axisLine={false} /><Tooltip contentStyle={{ backgroundColor: isDarkMode ? '#1E1418' : '#fff', borderRadius: '12px', border: 'none' }} cursor={{fill: isDarkMode ? '#ffffff05' : '#00000005'}}/><Bar dataKey="volumen" fill={isDarkMode ? "#7DB47C" : "#5B8C5A"} radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer>) : (<div className="h-full w-full flex items-center justify-center border-2 border-dashed border-slate-500/20 rounded-xl"><span className={`text-[10px] font-medium ${textSub}`}>Keine Sätze gefunden.</span></div>)}</div></div>
+              </div>
+
+              {/* Workout Starter Templates */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className={`${bgCard} rounded-2xl p-5 border flex flex-col justify-between space-y-4 hover:border-[#0A84FF]/50 transition-all`}>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold font-mono px-2 py-0.5 rounded bg-[#0A84FF]/20 text-[#0A84FF]">ROUTINE</span>
+                      <Flame className="h-4 w-4 text-[#0A84FF]" />
+                    </div>
+                    <h3 className={`text-base font-bold ${textTitle}`}>Push Day</h3>
+                    <p className={`text-xs ${textSub} mt-1`}>8 Übungen (Brust, Schultern, Trizeps)</p>
                   </div>
-                  <div className={`${bgCard} rounded-3xl p-6 border`}><h3 className={`text-xs font-bold uppercase tracking-wider ${textSub} mb-4`}>Heutiges Workout</h3><div className="space-y-3">{userGymData.filter(g => g.datum === new Date().toISOString().split("T")[0]).length === 0 ? (<div className={`p-4 rounded-xl border border-dashed border-slate-500/20 text-center`}><p className={`text-xs ${textSub}`}>Noch keine Sätze heute absolviert. Let's go! 🚀</p></div>) : (userGymData.filter(g => g.datum === new Date().toISOString().split("T")[0]).reverse().map((g) => (<motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={g.id} className={`flex items-center justify-between p-3.5 rounded-xl border ${bgItem}`}><div className="flex flex-col"><span className={`text-sm font-bold ${textTitle}`}>{g.uebung}</span><span className={`text-[10px] font-bold ${textSub}`}>Satz {g.setnum}</span></div><div className="flex items-center gap-3"><div className="text-right"><span className={`text-sm font-mono font-bold ${textTitle}`}>{g.gewicht} kg</span><span className={`text-[10px] font-mono text-slate-500 block`}>× {g.reps} Reps</span></div>{calculate1RM(g.gewicht, g.reps) > 100 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-[#5B8C5A]/20 text-[#7DB47C]">PR 🏆</span>}</div></motion.div>)))}</div></div>
+                  <button onClick={() => startWorkout("push")} className="w-full py-2.5 bg-[#0A84FF] hover:bg-[#0070E0] text-white text-xs font-bold rounded-xl transition-all shadow-md">
+                    Push Workout starten
+                  </button>
+                </div>
+
+                <div className={`${bgCard} rounded-2xl p-5 border flex flex-col justify-between space-y-4 hover:border-[#32D74B]/50 transition-all`}>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-xs font-bold font-mono px-2 py-0.5 rounded bg-[#32D74B]/20 text-[#32D74B]">ROUTINE</span>
+                      <Activity className="h-4 w-4 text-[#32D74B]" />
+                    </div>
+                    <h3 className={`text-base font-bold ${textTitle}`}>Pull Day</h3>
+                    <p className={`text-xs ${textSub} mt-1`}>5 Übungen (Rücken, Bizeps)</p>
+                  </div>
+                  <button onClick={() => startWorkout("pull")} className="w-full py-2.5 bg-[#32D74B] hover:bg-[#28B840] text-black text-xs font-bold rounded-xl transition-all shadow-md">
+                    Pull Workout starten
+                  </button>
+                </div>
+
+                <div className={`${bgCard} rounded-2xl p-5 border flex flex-col justify-between space-y-4`}>
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={`text-xs font-bold font-mono px-2 py-0.5 rounded ${badgeBlue}`}>FREIES TRAINING</span>
+                    </div>
+                    <h3 className={`text-base font-bold ${textTitle}`}>Individuell</h3>
+                    <p className={`text-xs ${textSub} mt-1`}>Freie Übungsauswahl ohne Template</p>
+                  </div>
+                  <button onClick={() => startWorkout("empty")} className={`w-full py-2.5 ${buttonPrimary} text-xs font-bold rounded-xl transition-all`}>
+                    Leeres Training starten
+                  </button>
+                </div>
+              </div>
+
+              {/* Analytics & Insights Suite */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <div className="lg:col-span-8 space-y-6">
+                  {/* Kraftentwicklung Selector & Chart */}
+                  <div className={`${bgCard} rounded-3xl p-6 border space-y-4`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Kraft-Entwicklung (Geschätztes 1RM)</h3>
+                        <p className={`text-xs font-semibold ${textTitle} mt-0.5`}>Progressive Overload Kurve</p>
+                      </div>
+                      <select 
+                        value={gymUebung} 
+                        onChange={(e) => setGymUebung(e.target.value)} 
+                        className={`text-xs font-semibold ${bgInput} border rounded-xl px-3 py-1.5 focus:outline-none`}
+                      >
+                        <option value="">Alle Übungen / Übersicht</option>
+                        {[...PUSH_ROUTINE, ...PULL_ROUTINE].map(ex => (
+                          <option key={ex} value={ex}>{ex}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="h-[200px] w-full pt-2">
+                      {chartData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={chartData}>
+                            <XAxis dataKey="datum" stroke={isDarkMode ? "#555" : "#ccc"} fontSize={10} tickLine={false} axisLine={false} />
+                            <Tooltip contentStyle={{ backgroundColor: isDarkMode ? '#1E1418' : '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }} />
+                            <Line type="monotone" dataKey="oneRepMax" stroke={isDarkMode ? "#82CBEE" : "#005377"} strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full w-full flex flex-col items-center justify-center border-2 border-dashed border-slate-500/20 rounded-xl px-4 text-center">
+                          <span className={`text-xs font-medium ${textSub}`}>Wähle oben eine Übung, um deine 1RM-Kurve zu analysieren.</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Volume Tonnage Chart */}
+                  <div className={`${bgCard} rounded-3xl p-6 border space-y-4`}>
+                    <div className="flex justify-between items-center">
+                      <div>
+                        <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Workload pro Satz (kg × Reps)</h3>
+                        <p className={`text-xs font-semibold ${textTitle} mt-0.5`}>Bewegte Last & Ermüdung</p>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${badgeGreen}`}>Volumen</span>
+                    </div>
+                    <div className="h-[140px] w-full">
+                      {chartData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={chartData}>
+                            <XAxis dataKey="datum" stroke={isDarkMode ? "#555" : "#ccc"} fontSize={10} tickLine={false} axisLine={false} />
+                            <Tooltip contentStyle={{ backgroundColor: isDarkMode ? '#1E1418' : '#fff', borderRadius: '12px', border: 'none' }} cursor={{fill: isDarkMode ? '#ffffff05' : '#00000005'}}/>
+                            <Bar dataKey="volumen" fill={isDarkMode ? "#7DB47C" : "#5B8C5A"} radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center border-2 border-dashed border-slate-500/20 rounded-xl">
+                          <span className={`text-xs ${textSub}`}>Keine Sätze vorhanden.</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rechte Spalte: Letzte PRs & Historie */}
+                <div className="lg:col-span-4 space-y-6">
+                  <div className={`${bgCard} rounded-3xl p-6 border space-y-3`}>
+                    <div className="flex justify-between items-center">
+                      <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Letzte Einträge ({activeUser})</h3>
+                    </div>
+                    <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+                      {userGymData.length === 0 ? (
+                        <div className="p-4 text-center text-xs opacity-60">Noch keine Workouts abgeschlossen.</div>
+                      ) : (
+                        userGymData.slice(-8).reverse().map((g) => (
+                          <div key={g.id} className={`p-3 rounded-xl border ${bgItem} flex items-center justify-between`}>
+                            <div className="truncate max-w-[150px]">
+                              <span className={`text-xs font-bold ${textTitle} block truncate`}>{g.uebung}</span>
+                              <span className={`text-[10px] ${textSub}`}>Satz {g.setnum} • {g.datum}</span>
+                            </div>
+                            <div className="text-right">
+                              <span className={`text-xs font-mono font-bold ${textTitle}`}>{g.gewicht} kg</span>
+                              <span className={`text-[10px] font-mono ${textSub} block`}>× {g.reps} WDH</span>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
