@@ -437,6 +437,8 @@ export default function DashboardPage() {
   const bgItem = isDarkMode ? "bg-[#251A1E] border-white/[0.05]" : "bg-[#F7F4EF] border-[#E8E2D9]";
   const textTitle = isDarkMode ? "text-[#FAF8F5]" : "text-[#2D2A26]";
   const textSub = isDarkMode ? "text-[#A89F91]" : "text-[#7A7265]";
+  const accentBlue = isDarkMode ? "text-[#82CBEE]" : "text-[#005377]";
+  const accentGreen = isDarkMode ? "text-[#7DB47C]" : "text-[#5B8C5A]";
   const badgeGreen = isDarkMode ? "bg-[#5B8C5A]/20 text-[#9ED09D] border border-[#5B8C5A]/40" : "bg-[#5B8C5A]/15 text-[#2C522B] border border-[#5B8C5A]/30";
   const badgeBlue = isDarkMode ? "bg-[#005377]/30 text-[#6BB9E0] border border-[#005377]/50" : "bg-[#005377]/10 text-[#005377] border border-[#005377]/25";
   const buttonPrimary = isDarkMode ? "bg-[#005377] hover:bg-[#006894] text-white" : "bg-[#005377] hover:bg-[#00415E] text-white shadow-sm";
