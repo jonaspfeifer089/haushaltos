@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { 
   Home, ShoppingCart, Package, Calendar as CalendarIcon, Clock, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2, Bell, Settings, Sun, Moon, ChevronDown, ChevronUp, Sparkles, Hourglass, UserCheck, Trash2, StickyNote, CloudSun, Pin, Sparkle, ArrowRight, X, ChevronLeft, ChevronRight, CheckSquare, ListTodo, Tag, Dumbbell, Activity, Flame, MoreVertical
 } from "lucide-react";
-import { LineChart, Line, BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, BarChart, Bar, AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { supabase } from "../lib/supabaseClient";
 
 interface Departure { line: string; destination: string; time: string; }
@@ -410,16 +410,49 @@ const PULL_ROUTINE = [
   const noteCategories = ["Alle", ...Array.from(new Set(notes.map(n => n.category)))];
   const filteredNotes = activeNoteCategory === "Alle" ? notes : notes.filter(n => n.category === activeNoteCategory);
   const userGymData = gymData.filter(g => g.username === activeUser);
-  const selectedExercise = gymUebung.trim().toLowerCase();
+  const activeExerciseName = gymUebung.trim() || PUSH_ROUTINE[0];
+
+  // Filtere alle Sätze der gewählten Übung, sortiert nach Datum (alt -> neu)
+  const exerciseSets = userGymData
+    .filter(g => g.uebung.toLowerCase() === activeExerciseName.toLowerCase())
+    .sort((a, b) => new Date(a.datum).getTime() - new Date(b.datum).getTime());
+
+  // Aggregiere Sätze pro Workout-Tag (Best 1RM & Gesamt-Volumen des Tages)
+  const sessionsByDate = exerciseSets.reduce((acc, curr) => {
+    if (!acc[curr.datum]) {
+      acc[curr.datum] = { datum: curr.datum, sets: [] };
+    }
+    acc[curr.datum].sets.push(curr);
+    return acc;
+  }, {} as Record<string, { datum: string; sets: GymItem[] }>);
+
+  const chartData = Object.values(sessionsByDate).map(session => {
+    const bestSet = session.sets.reduce((prev, curr) => {
+      return calculate1RM(curr.gewicht, curr.reps) > calculate1RM(prev.gewicht, prev.reps) ? curr : prev;
+    }, session.sets[0]);
+
+    const sessionVolume = session.sets.reduce((sum, s) => sum + (s.gewicht * s.reps), 0);
+    const max1RM = calculate1RM(bestSet.gewicht, bestSet.reps);
+
+    return {
+      datum: session.datum.substring(5, 10),
+      rawDatum: session.datum,
+      oneRepMax: max1RM,
+      bestWeight: bestSet.gewicht,
+      bestReps: bestSet.reps,
+      volumen: sessionVolume,
+      setCount: session.sets.length
+    };
+  });
+
+  // KPIs berechnen
+  const allTimePR = chartData.length > 0 ? Math.max(...chartData.map(c => c.oneRepMax)) : 0;
+  const maxWeightLifted = exerciseSets.length > 0 ? Math.max(...exerciseSets.map(s => s.gewicht)) : 0;
+  const totalVolumeLifetime = exerciseSets.reduce((sum, s) => sum + (s.gewicht * s.reps), 0);
   
-  const chartData = userGymData
-  .filter(g => selectedExercise === "" || g.uebung.toLowerCase() === selectedExercise)
-  .sort((a, b) => new Date(a.datum).getTime() - new Date(b.datum).getTime())
-  .map(g => ({
-    datum: g.datum.substring(5, 10),
-    oneRepMax: calculate1RM(g.gewicht, g.reps),
-    volumen: g.gewicht * g.reps
-  }));
+  const lastSession1RM = chartData.length > 0 ? chartData[chartData.length - 1].oneRepMax : 0;
+  const prevSession1RM = chartData.length > 1 ? chartData[chartData.length - 2].oneRepMax : lastSession1RM;
+  const growthRate = prevSession1RM > 0 ? (((lastSession1RM - prevSession1RM) / prevSession1RM) * 100).toFixed(1) : "0.0";
 
   let currentWorkoutVolume = 0; let currentWorkoutSets = 0;
   activeExercises.forEach(ex => { ex.sets.forEach((s:any) => { if (s.done && s.kg && s.reps) { currentWorkoutVolume += (parseFloat(s.kg) * parseInt(s.reps, 10)); currentWorkoutSets++; } }); });
@@ -828,61 +861,133 @@ if (activeTab === "gym" && isWorkoutActive) {
                 </div>
               </div>
 
+              {/* KPI Quick Metrics */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className={`${bgCard} rounded-2xl p-4 border`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[11px] font-bold uppercase tracking-wider ${textSub}`}>All-Time PR (1RM)</span>
+                    <span className="text-xs">🏆</span>
+                  </div>
+                  <div className="mt-2 flex items-baseline gap-1.5">
+                    <span className={`text-2xl font-black font-mono ${accentBlue}`}>{allTimePR}</span>
+                    <span className={`text-xs font-bold ${textSub}`}>kg</span>
+                  </div>
+                </div>
+
+                <div className={`${bgCard} rounded-2xl p-4 border`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[11px] font-bold uppercase tracking-wider ${textSub}`}>Max. Arbeitsgewicht</span>
+                    <span className="text-xs">⚡</span>
+                  </div>
+                  <div className="mt-2 flex items-baseline gap-1.5">
+                    <span className={`text-2xl font-black font-mono ${textTitle}`}>{maxWeightLifted}</span>
+                    <span className={`text-xs font-bold ${textSub}`}>kg</span>
+                  </div>
+                </div>
+
+                <div className={`${bgCard} rounded-2xl p-4 border`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[11px] font-bold uppercase tracking-wider ${textSub}`}>Trend vs. Vorwoche</span>
+                    <span className="text-xs">📈</span>
+                  </div>
+                  <div className="mt-2 flex items-baseline gap-1.5">
+                    <span className={`text-2xl font-black font-mono ${parseFloat(growthRate) >= 0 ? accentGreen : "text-rose-500"}`}>
+                      {parseFloat(growthRate) > 0 ? `+${growthRate}` : `${growthRate}`}%
+                    </span>
+                  </div>
+                </div>
+
+                <div className={`${bgCard} rounded-2xl p-4 border`}>
+                  <div className="flex items-center justify-between">
+                    <span className={`text-[11px] font-bold uppercase tracking-wider ${textSub}`}>Lifetime Tonnage</span>
+                    <span className="text-xs">🏋️</span>
+                  </div>
+                  <div className="mt-2 flex items-baseline gap-1.5">
+                    <span className={`text-2xl font-black font-mono ${textTitle}`}>{(totalVolumeLifetime / 1000).toFixed(1)}</span>
+                    <span className={`text-xs font-bold ${textSub}`}>Tonnen</span>
+                  </div>
+                </div>
+              </div>
+
               {/* Analytics & Insights Suite */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 <div className="lg:col-span-8 space-y-6">
-                  {/* Kraftentwicklung Selector & Chart */}
+                  {/* Kraftentwicklung Selector & Area Chart */}
                   <div className={`${bgCard} rounded-3xl p-6 border space-y-4`}>
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
-                        <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Kraft-Entwicklung (Geschätztes 1RM)</h3>
-                        <p className={`text-xs font-semibold ${textTitle} mt-0.5`}>Progressive Overload Kurve</p>
+                        <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>1RM Progression (Maximal-Kraftkurve)</h3>
+                        <p className={`text-sm font-bold ${textTitle} mt-0.5`}>{activeExerciseName}</p>
                       </div>
                       <select 
                         value={gymUebung} 
                         onChange={(e) => setGymUebung(e.target.value)} 
-                        className={`text-xs font-semibold ${bgInput} border rounded-xl px-3 py-1.5 focus:outline-none`}
+                        className={`text-xs font-semibold ${bgInput} border rounded-xl px-3 py-2 focus:outline-none`}
                       >
-                        <option value="">Alle Übungen / Übersicht</option>
                         {[...PUSH_ROUTINE, ...PULL_ROUTINE].map(ex => (
                           <option key={ex} value={ex}>{ex}</option>
                         ))}
                       </select>
                     </div>
 
-                    <div className="h-[200px] w-full pt-2">
+                    <div className="h-[240px] w-full pt-2">
                       {chartData.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={chartData}>
-                            <XAxis dataKey="datum" stroke={isDarkMode ? "#555" : "#ccc"} fontSize={10} tickLine={false} axisLine={false} />
-                            <Tooltip contentStyle={{ backgroundColor: isDarkMode ? '#1E1418' : '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }} />
-                            <Line type="monotone" dataKey="oneRepMax" stroke={isDarkMode ? "#82CBEE" : "#005377"} strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                          </LineChart>
+                          <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="color1RM" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor={isDarkMode ? "#82CBEE" : "#005377"} stopOpacity={0.4}/>
+                                <stop offset="95%" stopColor={isDarkMode ? "#82CBEE" : "#005377"} stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDarkMode ? "#ffffff10" : "#00000010"} />
+                            <XAxis dataKey="datum" stroke={isDarkMode ? "#777" : "#aaa"} fontSize={11} tickLine={false} axisLine={false} />
+                            <YAxis domain={['dataMin - 5', 'dataMax + 5']} stroke={isDarkMode ? "#777" : "#aaa"} fontSize={11} tickLine={false} axisLine={false} />
+                            <Tooltip 
+                              content={({ active, payload }) => {
+                                if (active && payload && payload.length) {
+                                  const data = payload[0].payload;
+                                  return (
+                                    <div className={`${bgCard} p-3 rounded-xl border shadow-xl text-xs space-y-1`}>
+                                      <div className="font-bold text-slate-400">{data.rawDatum}</div>
+                                      <div className="font-extrabold text-sm text-[#0A84FF]">1RM: {data.oneRepMax} kg</div>
+                                      <div className="text-slate-400">Top-Satz: {data.bestWeight} kg × {data.bestReps} WDH</div>
+                                      <div className="text-slate-400">Workload: {data.volumen} kg ({data.setCount} Sätze)</div>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              }} 
+                            />
+                            <Area type="monotone" dataKey="oneRepMax" stroke={isDarkMode ? "#82CBEE" : "#005377"} strokeWidth={3} fillOpacity={1} fill="url(#color1RM)" dot={{ r: 4, strokeWidth: 2, fill: isDarkMode ? "#100A0B" : "#FFFFFF" }} activeDot={{ r: 6 }} />
+                          </AreaChart>
                         </ResponsiveContainer>
                       ) : (
                         <div className="h-full w-full flex flex-col items-center justify-center border-2 border-dashed border-slate-500/20 rounded-xl px-4 text-center">
-                          <span className={`text-xs font-medium ${textSub}`}>Wähle oben eine Übung, um deine 1RM-Kurve zu analysieren.</span>
+                          <span className={`text-xs font-medium ${textSub}`}>Keine Sessions für diese Übung gefunden.</span>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  {/* Volume Tonnage Chart */}
+                  {/* Session Workload Tonnage Chart */}
                   <div className={`${bgCard} rounded-3xl p-6 border space-y-4`}>
                     <div className="flex justify-between items-center">
                       <div>
-                        <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Workload pro Satz (kg × Reps)</h3>
-                        <p className={`text-xs font-semibold ${textTitle} mt-0.5`}>Bewegte Last & Ermüdung</p>
+                        <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Workout Workload (Gesamtgewicht pro Training)</h3>
+                        <p className={`text-xs font-semibold ${textTitle} mt-0.5`}>Volumen-Reiz für Muskelwachstum</p>
                       </div>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${badgeGreen}`}>Volumen</span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${badgeGreen}`}>Tonnage (kg)</span>
                     </div>
-                    <div className="h-[140px] w-full">
+                    <div className="h-[160px] w-full">
                       {chartData.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
-                          <BarChart data={chartData}>
-                            <XAxis dataKey="datum" stroke={isDarkMode ? "#555" : "#ccc"} fontSize={10} tickLine={false} axisLine={false} />
-                            <Tooltip contentStyle={{ backgroundColor: isDarkMode ? '#1E1418' : '#fff', borderRadius: '12px', border: 'none' }} cursor={{fill: isDarkMode ? '#ffffff05' : '#00000005'}}/>
-                            <Bar dataKey="volumen" fill={isDarkMode ? "#7DB47C" : "#5B8C5A"} radius={[4, 4, 0, 0]} />
+                          <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDarkMode ? "#ffffff10" : "#00000010"} />
+                            <XAxis dataKey="datum" stroke={isDarkMode ? "#777" : "#aaa"} fontSize={11} tickLine={false} axisLine={false} />
+                            <YAxis stroke={isDarkMode ? "#777" : "#aaa"} fontSize={11} tickLine={false} axisLine={false} />
+                            <Tooltip contentStyle={{ backgroundColor: isDarkMode ? '#1E1418' : '#fff', borderRadius: '12px', border: 'none', boxShadow: '0 4px 20px rgba(0,0,0,0.15)' }} />
+                            <Bar dataKey="volumen" fill={isDarkMode ? "#7DB47C" : "#5B8C5A"} radius={[6, 6, 0, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
                       ) : (
@@ -894,25 +999,28 @@ if (activeTab === "gym" && isWorkoutActive) {
                   </div>
                 </div>
 
-                {/* Rechte Spalte: Letzte PRs & Historie */}
+                {/* Rechte Spalte: Letzte PRs & Workout-Log */}
                 <div className="lg:col-span-4 space-y-6">
                   <div className={`${bgCard} rounded-3xl p-6 border space-y-3`}>
                     <div className="flex justify-between items-center">
-                      <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Letzte Einträge ({activeUser})</h3>
+                      <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Satz-Historie: {activeExerciseName}</h3>
                     </div>
-                    <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
-                      {userGymData.length === 0 ? (
-                        <div className="p-4 text-center text-xs opacity-60">Noch keine Workouts abgeschlossen.</div>
+                    <div className="space-y-2.5 max-h-[480px] overflow-y-auto pr-1">
+                      {exerciseSets.length === 0 ? (
+                        <div className="p-4 text-center text-xs opacity-60">Keine absolvierten Sätze.</div>
                       ) : (
-                        userGymData.slice(-8).reverse().map((g) => (
+                        exerciseSets.slice().reverse().map((g) => (
                           <div key={g.id} className={`p-3 rounded-xl border ${bgItem} flex items-center justify-between`}>
-                            <div className="truncate max-w-[150px]">
-                              <span className={`text-xs font-bold ${textTitle} block truncate`}>{g.uebung}</span>
-                              <span className={`text-[10px] ${textSub}`}>Satz {g.setnum} • {g.datum}</span>
+                            <div>
+                              <span className={`text-xs font-bold ${textTitle} block`}>Satz {g.setnum}</span>
+                              <span className={`text-[10px] ${textSub}`}>{g.datum}</span>
                             </div>
-                            <div className="text-right">
-                              <span className={`text-xs font-mono font-bold ${textTitle}`}>{g.gewicht} kg</span>
-                              <span className={`text-[10px] font-mono ${textSub} block`}>× {g.reps} WDH</span>
+                            <div className="text-right flex items-center gap-2">
+                              <span className={`text-sm font-mono font-extrabold ${textTitle}`}>{g.gewicht} kg</span>
+                              <span className={`text-[11px] font-mono ${textSub}`}>× {g.reps}</span>
+                              {calculate1RM(g.gewicht, g.reps) === allTimePR && (
+                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#5B8C5A]/20 text-[#7DB47C]">PR</span>
+                              )}
                             </div>
                           </div>
                         ))
