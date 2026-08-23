@@ -611,8 +611,15 @@ const PULL_ROUTINE = [
   const maxWeightLifted = exerciseSets.length > 0 ? Math.max(...exerciseSets.map(s => s.gewicht)) : 0;
   const totalVolumeLifetime = exerciseSets.reduce((sum, s) => sum + (s.gewicht * s.reps), 0);
   
+  // KPIs berechnen
+  const allTimePR = chartData.length > 0 ? Math.max(...chartData.map(c => c.oneRepMax)) : 0;
+  const maxWeightLifted = exerciseSets.length > 0 ? Math.max(...exerciseSets.map(s => s.gewicht)) : 0;
+  const totalVolumeLifetime = exerciseSets.reduce((sum, s) => sum + (s.gewicht * s.reps), 0);
+  
   const lastSession1RM = chartData.length > 0 ? chartData[chartData.length - 1].oneRepMax : 0;
   const prevSession1RM = chartData.length > 1 ? chartData[chartData.length - 2].oneRepMax : lastSession1RM;
+  const growthRate = prevSession1RM > 0 ? (((lastSession1RM - prevSession1RM) / prevSession1RM) * 100).toFixed(1) : "0.0";
+
   // Workout-Historie pro Tag aggregieren & Typ (Push / Pull) erkennen
   const allUserSessionsByDate = userGymData.reduce((acc, curr) => {
     if (!acc[curr.datum]) {
@@ -652,7 +659,8 @@ const PULL_ROUTINE = [
       };
     });
 
-  let currentWorkoutVolume = 0; let currentWorkoutSets = 0;
+  let currentWorkoutVolume = 0; 
+  let currentWorkoutSets = 0;
   activeExercises.forEach(ex => { ex.sets.forEach((s:any) => { if (s.done && s.kg && s.reps) { currentWorkoutVolume += (parseFloat(s.kg) * parseInt(s.reps, 10)); currentWorkoutSets++; } }); });
 
   const TABS = [
