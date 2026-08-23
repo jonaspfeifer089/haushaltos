@@ -45,6 +45,17 @@ export default function DashboardPage() {
   
   const [departures, setDepartures] = useState<Departure[]>([]);
   const [weather, setWeather] = useState<string>("Lädt...");
+  const [weatherTip, setWeatherTip] = useState<string>("Guten Tag!");
+
+  // Proaktive Wetter-Hinweise ermitteln
+  const getProactiveTip = (code: number, temp: number) => {
+    if (code >= 51 && code <= 67) return "🌧️ Regen gemeldet: Fenster zu & Schirm mitnehmen!";
+    if (code >= 71 && code <= 77) return "❄️ Schneefall: Warm anziehen!";
+    if (code >= 95) return "⚡ Gewitter im Anmarsch: Stecker ziehen & Balkon sichern!";
+    if (temp >= 24 && code <= 3) return "☀️ Sonnig & warm: Perfekt zum Wäsche aufhängen!";
+    if (temp <= 5) return "🧣 Kalt draußen: Stoßlüften nicht vergessen!";
+    return "🌤️ Angenehmes Wetter heute!";
+  };
   const [calendarMode, setCalendarMode] = useState<"month" | "week">("month");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [termine, setTermine] = useState<CalendarEvent[]>([]);
@@ -164,7 +175,14 @@ export default function DashboardPage() {
       if (Array.isArray(data)) setDepartures(data.slice(0, 5).map((d: any) => ({ line: d.label || "U", destination: d.destination || "Unbekannt", time: new Date(d.realtimeDepartureTime || d.plannedDepartureTime).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) })));
     }).catch(() => {});
     fetch(`https://api.open-meteo.com/v1/forecast?latitude=48.1764&longitude=11.5311&current=temperature_2m,weather_code`)
-      .then(res => res.json()).then(data => { setWeather(`${Math.round(data?.current?.temperature_2m ?? 0)}°C`); }).catch(() => setWeather("--"));
+      .then(res => res.json())
+      .then(data => {
+        const temp = Math.round(data?.current?.temperature_2m ?? 0);
+        const code = data?.current?.weather_code ?? 0;
+        setWeather(`${temp}°C`);
+        setWeatherTip(getProactiveTip(code, temp));
+      })
+      .catch(() => { setWeather("--"); setWeatherTip("Wetterdaten nicht verfügbar"); });
   }, []);
 
   const toggleTheme = () => {
@@ -211,6 +229,14 @@ export default function DashboardPage() {
   const markTodoErledigt = async (item: TodoItem, status: "Erledigt" | "Offen") => {
     setTodos(prev => prev.map(t => t.id === item.id ? { ...t, status } : t));
     await supabase.from("todos").update({ status }).eq("id", item.id);
+
+    if (status === "Erledigt") {
+      fetch("https://ntfy.sh/HaushaltLenaJonas", {
+        method: "POST",
+        body: `✅ ${activeUser} hat die Aufgabe "${item.aufgabe}" erledigt!`,
+        headers: { "Title": "To-Do erledigt", "Tags": "white_check_mark" }
+      });
+    }
   };
   const deleteTodo = async (item: TodoItem) => {
     setTodos(prev => prev.filter(t => t.id !== item.id));
@@ -677,7 +703,7 @@ if (activeTab === "gym" && isWorkoutActive) {
 
           {/* Modal: Neue Übung auswählen/eingeben */}
           {showAddExerciseModal && (
-            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+4.5rem)] md:bottom-8 right-4 md:right-8 z-40">
               <div className="bg-[#1C1C1E] border border-white/10 w-full max-w-md rounded-2xl p-5 space-y-4">
                 <div className="flex justify-between items-center">
                   <h3 className="text-sm font-bold text-white">Übung zum Workout hinzufügen</h3>
@@ -759,7 +785,7 @@ if (activeTab === "gym" && isWorkoutActive) {
           </div>
         </header>
 
-        <div className="p-4 md:p-8 pb-32 md:pb-12 max-w-[1400px] mx-auto w-full space-y-8">
+        <div className="p-3.5 md:p-8 pb-[calc(env(safe-area-inset-bottom)+7rem)] max-w-[1400px] mx-auto w-full space-y-5 md:space-y-8">
           {activeTab === "home" && (
             <div className="space-y-8">
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-[#E8E2D9] dark:border-white/[0.08]">
@@ -776,19 +802,19 @@ if (activeTab === "gym" && isWorkoutActive) {
   {countdowns.length > 0 ? (
     <div className="space-y-2.5">
       {countdowns.map((cd, idx) => (
-        <motion.div whileHover={{ scale: 1.02 }} transition={springConfig} key={idx} className={`${bgCard} rounded-2xl p-4 flex items-center justify-between border relative overflow-hidden`}>
-          <div className="flex items-center gap-3.5">
-            <span className="text-2xl p-2 rounded-xl bg-[#5B8C5A]/15 border border-[#5B8C5A]/30">{cd.icon}</span>
-            <div>
-              <h4 className={`text-sm font-bold ${textTitle}`}>{cd.title}</h4>
-              <p className={`text-xs ${textSub} font-medium`}>{cd.date}</p>
-            </div>
-          </div>
-          <div className="text-right flex items-baseline gap-1">
-            <span className={`text-xl font-black font-mono ${accentGreen}`}>{Math.max(0, calculateDaysLeft(cd.date))}</span>
-            <span className={`text-[11px] font-bold ${textSub}`}>Tage</span>
-          </div>
-        </motion.div>
+        <motion.div whileHover={{ scale: 1.02 }} transition={springConfig} key={idx} className={`${bgCard} rounded-2xl p-3 md:p-4 flex items-center justify-between border relative overflow-hidden`}>
+  <div className="flex items-center gap-3">
+    <span className="text-xl md:text-2xl p-1.5 md:p-2 rounded-xl bg-[#5B8C5A]/15 border border-[#5B8C5A]/30 shrink-0">{cd.icon}</span>
+    <div className="truncate">
+      <h4 className={`text-xs md:text-sm font-bold ${textTitle} truncate`}>{cd.title}</h4>
+      <p className={`text-[10px] md:text-xs ${textSub} font-medium`}>{cd.date}</p>
+    </div>
+  </div>
+  <div className="text-right flex items-baseline gap-1 shrink-0">
+    <span className={`text-lg md:text-xl font-black font-mono ${accentGreen}`}>{Math.max(0, calculateDaysLeft(cd.date))}</span>
+    <span className={`text-[10px] md:text-[11px] font-bold ${textSub}`}>Tage</span>
+  </div>
+</motion.div>
       ))}
     </div>
   ) : (
