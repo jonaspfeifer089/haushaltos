@@ -522,6 +522,48 @@ if (activeTab === "gym" && isWorkoutActive) {
                   ))}
                 </div>
               </div>
+
+              <div className={`${bgCard} rounded-2xl p-6 space-y-3`}>
+                {filteredTodos.map((todo) => (
+                  <div key={todo.id} className="relative rounded-xl overflow-hidden">
+                    <div className="absolute inset-0 flex justify-between items-center px-4 rounded-xl bg-gradient-to-r from-[#49111C] via-[#251A1E] to-[#5B8C5A] text-white">
+                      <div className="flex items-center gap-1 text-xs font-bold text-rose-200"><Trash2 className="h-4 w-4" /> Löschen</div>
+                      <div className="flex items-center gap-1 text-xs font-bold text-emerald-200">Erledigt <Check className="h-4 w-4" /></div>
+                    </div>
+                    <motion.div 
+                      drag="x" 
+                      dragConstraints={{ left: 0, right: 0 }} 
+                      dragElastic={0.8} 
+                      whileTap={tapGesture} 
+                      layout 
+                      transition={springConfig} 
+                      onDragEnd={(_, info) => { 
+                        const isSwipeRight = info.offset.x > 80 || info.velocity.x > 500; 
+                        const isSwipeLeft = info.offset.x < -80 || info.velocity.x < -500; 
+                        if (isSwipeRight) deleteTodo(todo); 
+                        else if (isSwipeLeft) markTodoErledigt(todo, "Erledigt"); 
+                      }} 
+                      className={`relative z-10 flex justify-between p-4 rounded-xl border ${bgItem} ${bgCard} shadow-sm cursor-grab`}
+                    >
+                      <div>
+                        <span className={`text-sm font-semibold ${textTitle} block`}>{todo.aufgabe}</span>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${badgeBlue}`}>{todo.kategorie}</span>
+                          <span className="text-[10px] font-bold opacity-70">👤 {todo.zustaendig}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => markTodoErledigt(todo, "Erledigt")} className={`h-7 px-3 text-[11px] font-bold rounded-lg ${badgeGreen} hover:opacity-80 flex items-center gap-1`}>
+                          <Check className="h-3.5 w-3.5" /> <span>Erledigen</span>
+                        </button>
+                      </div>
+                    </motion.div>
+                  </div>
+                ))}
+                {filteredTodos.length === 0 && (
+                  <div className={`p-6 text-center text-xs ${textSub}`}>Keine offenen To-Dos vorhanden. 🎉</div>
+                )}
+              </div>
             </div>
           )}
 
@@ -559,6 +601,47 @@ if (activeTab === "gym" && isWorkoutActive) {
                   <motion.button whileTap={tapGesture} onClick={() => addEinkauf()} className={`px-6 py-2.5 ${buttonPrimary} text-xs font-bold rounded-xl`}>
                     Hinzufügen
                   </motion.button>
+                </div>
+
+                <div className="space-y-6">
+                  {Object.entries(einkaufNachKategorien).map(([kategorie, items]) => (
+                    <div key={kategorie} className="space-y-2">
+                      <div className={`text-[10px] font-bold ${textSub} uppercase tracking-wider px-1`}>{kategorie}</div>
+                      <div className="space-y-2">
+                        {items.map((item) => (
+                          <div key={item.id} className="relative rounded-xl overflow-hidden">
+                            <div className="absolute inset-0 flex justify-between items-center px-4 rounded-xl bg-gradient-to-r from-[#49111C] via-[#251A1E] to-[#5B8C5A] text-white">
+                              <div className="flex items-center gap-1 text-xs font-bold text-rose-200"><Trash2 className="h-4 w-4" /> Löschen</div>
+                              <div className="flex items-center gap-1 text-xs font-bold text-emerald-200">Erledigt <Check className="h-4 w-4" /></div>
+                            </div>
+                            <motion.div 
+                              drag="x" 
+                              dragConstraints={{ left: 0, right: 0 }} 
+                              dragElastic={0.8} 
+                              whileTap={tapGesture} 
+                              layout 
+                              transition={springConfig} 
+                              onDragEnd={(_, info) => { 
+                                const isSwipeRight = info.offset.x > 80 || info.velocity.x > 500; 
+                                const isSwipeLeft = info.offset.x < -80 || info.velocity.x < -500; 
+                                if (isSwipeRight) deleteEinkauf(item); 
+                                else if (isSwipeLeft) markEinkaufErledigt(item, "Erledigt"); 
+                              }} 
+                              className={`relative z-10 flex items-center justify-between p-3.5 rounded-xl border ${bgItem} ${bgCard} shadow-sm cursor-grab`}
+                            >
+                              <span className={`text-sm font-semibold ${textTitle}`}>{item.artikel}</span>
+                              <button onClick={() => markEinkaufErledigt(item, "Erledigt")} className={`h-7 px-3 text-[11px] font-bold rounded-lg ${badgeGreen} hover:opacity-80 flex items-center gap-1`}>
+                                <Check className="h-3.5 w-3.5" /> Erledigt
+                              </button>
+                            </motion.div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {Object.keys(einkaufNachKategorien).length === 0 && (
+                    <div className={`p-6 text-center text-xs ${textSub}`}>Einkaufsliste ist leer. ✨</div>
+                  )}
                 </div>
               </div>
             </div>
