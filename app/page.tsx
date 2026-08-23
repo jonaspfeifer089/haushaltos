@@ -245,7 +245,7 @@ export default function DashboardPage() {
     setGymData(prev => [...prev, ...completedSets]);
     setIsWorkoutActive(false);
     for (const set of completedSets) await supabase.from("gym").insert(set);
-    fetch("https://ntfy.sh/HaushaltLenaJonas", { method: "POST", body: `${activeUser} hat ein Workout beendet! (${completedSets.length} Sätze absolviert).`, headers: { "Title": "Workout abgeschlossen", "Tags": "muscle" }});
+    fetch("https://ntfy.sh/HaushaltJonas", { method: "POST", body: `${activeUser} hat ein Workout beendet! (${completedSets.length} Sätze absolviert).`, headers: { "Title": "Workout abgeschlossen", "Tags": "muscle" }});
   };
 
   const markAufgabeErledigt = async (item: PutzItem) => {
