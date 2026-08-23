@@ -223,7 +223,18 @@ export default function DashboardPage() {
     setNeuesTodo("");
     setIsFabOpen(false);
     await supabase.from("todos").insert(newItem);
-    fetch("https://ntfy.sh/HaushaltLenaJonas", { method: "POST", body: `${activeUser} hat ein neues To-Do angelegt: "${text}"`, headers: { "Title": "Neues To-Do", "Tags": "memo" } });
+    
+    // Ntfy mit Action-Buttons (Push-to-Run)
+    const appUrl = typeof window !== 'undefined' ? window.location.origin : 'https://haushaltos.vercel.app';
+    fetch("https://ntfy.sh/HaushaltLenaJonas", {
+      method: "POST",
+      body: `${activeUser} hat ein neues To-Do angelegt: "${text}"`,
+      headers: {
+        "Title": "Neues To-Do",
+        "Tags": "memo",
+        "Actions": `http, ✅ Erledigen, ${appUrl}/api/action, method=POST, body='{"type":"todo","id":"${newItem.id}","action":"erledigt"}', clear=true`
+      }
+    });
   };
 
   const markTodoErledigt = async (item: TodoItem, status: "Erledigt" | "Offen") => {
@@ -498,6 +509,36 @@ const PULL_ROUTINE = [
   const userGymData = gymData.filter(g => g.username === activeUser);
   const activeExerciseName = gymUebung.trim() || PUSH_ROUTINE[0];
 
+  // MCI Intelligence Analytics
+  const last7Days = new Date();
+  last7Days.setDate(last7Days.getDate() - 7);
+  
+  const recentSets = userGymData.filter(g => new Date(g.datum) >= last7Days);
+  const weeklyHardSets = recentSets.length;
+  
+  // Schätzung der Muskelgruppen-Reize (Sätze der letzten 7 Tage)
+  const chestSets = recentSets.filter(g => /bank|cross|brust/i.test(g.uebung)).length;
+  const backSets = recentSets.filter(g => /ruder|lat|zug|klimm/i.test(g.uebung)).length;
+  const shoulderSets = recentSets.filter(g => /schulter|presse|seitheben/i.test(g.uebung)).length;
+  const armSets = recentSets.filter(g => /curl|trizeps|preacher/i.test(g.uebung)).length;
+
+  // Progressive Overload Status für die aktive Übung
+  const getOverloadRecommendation = () => {
+    if (chartData.length < 2) return { status: "Basis aufbauen", desc: "Noch nicht genügend Daten für Empfehlung." };
+    const latest = chartData[chartData.length - 1];
+    const prev = chartData[chartData.length - 2];
+    
+    if (latest.oneRepMax > prev.oneRepMax) {
+      return { status: "🔥 Overload aktiv", desc: `+${latest.oneRepMax - prev.oneRepMax} kg 1RM Steigerung! Nächstes Mal Gewicht halten und Reps stabilisieren.` };
+    } else if (latest.oneRepMax === prev.oneRepMax) {
+      return { status: "⚡ Steigerung bereit", desc: "Arbeitsgewicht erreicht: Erhöhe im 1. Satz um +2.5 kg oder peile +1 Rep an." };
+    } else {
+      return { status: "🛡️ Ermüdung beachten", desc: "Leistungsabfall erkannt: Regeneration prüfen oder 1 Satz weniger ausführen." };
+    }
+  };
+
+  const overloadInfo = getOverloadRecommendation();
+
   // Filtere alle Sätze der gewählten Übung, sortiert nach Datum (alt -> neu)
   const exerciseSets = userGymData
     .filter(g => g.uebung.toLowerCase() === activeExerciseName.toLowerCase())
@@ -586,6 +627,31 @@ if (activeTab === "gym" && isWorkoutActive) {
               </button>
             </div>
           </div>
+
+          {/* MCI Intelligence Banner */}
+<div className={`${bgCard} rounded-3xl p-5 border border-[#0A84FF]/20 bg-gradient-to-r ${isDarkMode ? "from-[#0A84FF]/10 via-transparent to-transparent" : "from-[#0A84FF]/5 via-transparent to-transparent"} space-y-4`}>
+  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+    <div className="flex items-center gap-3">
+      <div className="h-10 w-10 rounded-2xl bg-[#0A84FF]/20 text-[#0A84FF] flex items-center justify-center font-black">
+        MCI
+      </div>
+      <div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold uppercase tracking-wider text-[#0A84FF]">Overload Intelligence</span>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badgeGreen}`}>{overloadInfo.status}</span>
+        </div>
+        <p className={`text-xs ${textTitle} font-medium mt-0.5`}>{overloadInfo.desc}</p>
+      </div>
+    </div>
+    
+    <div className="flex items-center gap-4 text-xs font-mono font-bold shrink-0">
+      <div className="text-center"><span className="text-[10px] text-slate-400 block font-sans">Brust</span>{chestSets} Sätze</div>
+      <div className="text-center"><span className="text-[10px] text-slate-400 block font-sans">Rücken</span>{backSets} Sätze</div>
+      <div className="text-center"><span className="text-[10px] text-slate-400 block font-sans">Schulter</span>{shoulderSets} Sätze</div>
+      <div className="text-center"><span className="text-[10px] text-slate-400 block font-sans">Arme</span>{armSets} Sätze</div>
+    </div>
+  </div>
+</div>
           
           {/* Stats Bar */}
           <div className="bg-[#000000] px-6 py-4 flex justify-between items-center border-b border-[#1C1C1E]">
@@ -1290,8 +1356,111 @@ if (activeTab === "gym" && isWorkoutActive) {
           )}
 
           {activeTab === "notizen" && (
-            <div className="space-y-6"><div className="flex justify-between items-center"><h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>Pinnwand</h2><motion.button whileTap={tapGesture} onClick={() => setShowNoteModal(true)} className={`px-4 py-2 ${buttonPrimary} text-xs font-bold rounded-xl`}><Plus className="h-4 w-4 inline" /> Notiz</motion.button></div>{showNoteModal && (<div className={`${bgCard} rounded-2xl p-6 border space-y-4`}><div className="grid grid-cols-1 sm:grid-cols-3 gap-3"><input type="text" placeholder="Titel..." value={newNoteTitle} onChange={e => setNewNoteTitle(e.target.value)} className={`sm:col-span-2 ${bgInput} border rounded-xl px-4 py-2 text-xs font-medium`} /><select value={newNoteCategory} onChange={e => setNewNoteCategory(e.target.value)} className={`${bgInput} border rounded-xl px-3 py-2 text-xs font-medium`}><option value="Allgemein">Allgemein</option><option value="WLAN & Haus">WLAN & Haus</option><option value="Wichtig">Wichtig</option></select></div><textarea placeholder="Inhalt..." value={newNoteContent} onChange={e => setNewNoteContent(e.target.value)} className={`w-full ${bgInput} border rounded-xl px-4 py-3 text-xs font-medium h-24`} /><div className="flex justify-end gap-2"><button onClick={() => setShowNoteModal(false)} className={`px-4 py-2 text-xs font-bold ${textSub}`}>Abbrechen</button><button onClick={addNote} className={`px-6 py-2 ${buttonPrimary} text-xs font-bold rounded-xl`}>Speichern</button></div></div>)}<div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">{noteCategories.map(cat => (<button key={cat} onClick={() => setActiveNoteCategory(cat)} className={`px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${activeNoteCategory === cat ? `${badgeBlue} shadow-sm` : `${bgItem} ${textSub}`}`}>{cat}</button>))}</div><div className="grid grid-cols-1 sm:grid-cols-3 gap-4">{filteredNotes.map((note) => (<motion.div whileHover={{ scale: 1.02 }} transition={springConfig} key={note.id} className={`${bgCard} rounded-2xl p-5 border`}><span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-md ${badgeGreen}`}>{note.category}</span><h3 className={`text-sm font-bold mt-2.5 mb-1 ${textTitle}`}>{note.title}</h3><p className={`text-xs ${textSub} whitespace-pre-line`}>{note.content}</p></motion.div>))}</div></div>
-          )}
+  <div className="space-y-6">
+    <div className="flex justify-between items-center">
+      <h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>Pinnwand</h2>
+      <motion.button whileTap={tapGesture} onClick={() => setShowNoteModal(true)} className={`px-4 py-2 ${buttonPrimary} text-xs font-bold rounded-xl`}>
+        <Plus className="h-4 w-4 inline mr-1" /> Notiz
+      </motion.button>
+    </div>
+
+    {showNoteModal && (
+      <div className={`${bgCard} rounded-2xl p-6 border space-y-4`}>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <input 
+            type="text" 
+            placeholder="Titel..." 
+            value={newNoteTitle} 
+            onChange={e => setNewNoteTitle(e.target.value)} 
+            className={`sm:col-span-2 ${bgInput} border rounded-xl px-4 py-2 text-xs font-medium`} 
+          />
+          <select 
+            value={newNoteCategory} 
+            onChange={e => setNewNoteCategory(e.target.value)} 
+            className={`${bgInput} border rounded-xl px-3 py-2 text-xs font-medium`}
+          >
+            <option value="Allgemein">Allgemein</option>
+            <option value="WLAN & Haus">WLAN & Haus</option>
+            <option value="Wichtig">Wichtig</option>
+          </select>
+        </div>
+        <textarea 
+          placeholder="Inhalt... (Tipp: Zeilen mit '- [ ] ' werden zu Checkboxen)" 
+          value={newNoteContent} 
+          onChange={e => setNewNoteContent(e.target.value)} 
+          className={`w-full ${bgInput} border rounded-xl px-4 py-3 text-xs font-medium h-28`} 
+        />
+        <div className="flex justify-end gap-2">
+          <button onClick={() => setShowNoteModal(false)} className={`px-4 py-2 text-xs font-bold ${textSub}`}>
+            Abbrechen
+          </button>
+          <button onClick={addNote} className={`px-6 py-2 ${buttonPrimary} text-xs font-bold rounded-xl`}>
+            Speichern
+          </button>
+        </div>
+      </div>
+    )}
+
+    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+      {noteCategories.map(cat => (
+        <button 
+          key={cat} 
+          onClick={() => setActiveNoteCategory(cat)} 
+          className={`px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${activeNoteCategory === cat ? `${badgeBlue} shadow-sm` : `${bgItem} ${textSub}`}`}
+        >
+          {cat}
+        </button>
+      ))}
+    </div>
+
+    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {filteredNotes.map((note) => {
+        const lines = note.content.split("\n");
+
+        const toggleCheckItem = async (lineIdx: number) => {
+          const updatedLines = lines.map((line, idx) => {
+            if (idx !== lineIdx) return line;
+            if (line.includes("- [ ]")) return line.replace("- [ ]", "- [x]");
+            if (line.includes("- [x]")) return line.replace("- [x]", "- [ ]");
+            return line;
+          });
+          const newContent = updatedLines.join("\n");
+          setNotes(prev => prev.map(n => n.id === note.id ? { ...n, content: newContent } : n));
+          await supabase.from("notizen").update({ content: newContent }).eq("id", note.id);
+        };
+
+        return (
+          <motion.div whileHover={{ scale: 1.02 }} transition={springConfig} key={note.id} className={`${bgCard} rounded-2xl p-5 border space-y-3`}>
+            <div className="flex justify-between items-start">
+              <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-md ${badgeGreen}`}>{note.category}</span>
+            </div>
+            <h3 className={`text-sm font-bold ${textTitle}`}>{note.title}</h3>
+            <div className="space-y-1.5 text-xs">
+              {lines.map((line, idx) => {
+                const isTodo = line.trim().startsWith("- [ ]") || line.trim().startsWith("- [x]");
+                const isChecked = line.trim().startsWith("- [x]");
+                const itemText = line.replace(/^- \[[ x]\]\s*/, "");
+
+                if (isTodo) {
+                  return (
+                    <div key={idx} onClick={() => toggleCheckItem(idx)} className="flex items-center gap-2 cursor-pointer py-0.5 hover:opacity-80 select-none">
+                      <div className={`h-4 w-4 rounded border flex items-center justify-center transition-colors shrink-0 ${isChecked ? "bg-[#5B8C5A] border-[#5B8C5A] text-white" : "border-slate-400"}`}>
+                        {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
+                      </div>
+                      <span className={`${isChecked ? "line-through opacity-50" : textTitle}`}>{itemText}</span>
+                    </div>
+                  );
+                }
+
+                return <p key={idx} className={`${textSub} whitespace-pre-line`}>{line}</p>;
+              })}
+            </div>
+          </motion.div>
+        );
+      })}
+    </div>
+  </div>
+)}
 
           {activeTab === "kalender" && (
             <div className="space-y-6"><h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>Kalender & Termine</h2><div className={`${bgCard} rounded-3xl p-6 border`}><div className="flex justify-between mb-4"><div className={`flex p-1 rounded-xl border ${bgItem}`}><button onClick={() => setCalendarMode("month")} className={`px-3 py-1 rounded-lg text-xs font-bold ${calendarMode === "month" ? "bg-[#005377] text-white" : textSub}`}>Monat</button><button onClick={() => setCalendarMode("week")} className={`px-3 py-1 rounded-lg text-xs font-bold ${calendarMode === "week" ? "bg-[#005377] text-white" : textSub}`}>Woche</button></div><div className="flex items-center gap-1"><button onClick={handlePrev} className={`p-2 rounded-xl border ${bgItem}`}><ChevronLeft className="h-4 w-4" /></button><button onClick={handleNext} className={`p-2 rounded-xl border ${bgItem}`}><ChevronRight className="h-4 w-4" /></button></div></div>
