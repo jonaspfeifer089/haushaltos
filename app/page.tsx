@@ -3,19 +3,25 @@
 import React, { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  Home, ShoppingCart, Package, Calendar as CalendarIcon, Clock, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2, Bell, Settings, Sun, Moon, ChevronDown, ChevronUp, Sparkles, Hourglass, UserCheck, Trash2, StickyNote, ArrowUpRight, CloudSun, Pin, Sparkle, ArrowRight, X, ChevronLeft, ChevronRight, CheckSquare, ListTodo, Tag, Dumbbell, Activity, Flame
+  Home, ShoppingCart, Package, Calendar as CalendarIcon, Clock, Plus, Check, ClipboardList, Camera, UploadCloud, Loader2, Bell, Settings, Sun, Moon, ChevronDown, ChevronUp, Sparkles, Hourglass, UserCheck, Trash2, StickyNote, CloudSun, Pin, Sparkle, ArrowRight, X, ChevronLeft, ChevronRight, CheckSquare, ListTodo, Tag, Dumbbell, Activity, Flame
 } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
+// SUPABASE CLIENT IMPORTIEREN
+import { supabase } from "../lib/supabaseClient";
+
+// --- INTERFACES ---
 interface Departure { line: string; destination: string; time: string; }
-interface EinkaufItem { rowIndex: number; artikel: string; status: string; kategorie?: string; }
 interface PutzItem { rowIndex: number; aufgabe: string; letztesDatum: string; intervall: string; }
 interface VorratItem { rowIndex: number; artikel: string; ablaufdatum: string; anbruch: string; }
 interface CountdownItem { rowIndex: number; title: string; date: string; icon: string; }
 interface NoteItem { rowIndex: number; title: string; content: string; category: string; color: string; }
 interface CalendarEvent { title: string; date: string; type?: "termin" | "putz"; }
-interface TodoItem { rowIndex: number; aufgabe: string; kategorie: string; status: string; zustaendig: string; }
-interface GymItem { rowIndex: number; datum: string; uebung: string; gewicht: number; reps: number; setNum: number; user: string; }
+
+// NEU: Supabase Interfaces mit echter UUID
+interface TodoItem { id: string; aufgabe: string; kategorie: string; status: string; zustaendig: string; }
+interface EinkaufItem { id: string; artikel: string; status: string; kategorie?: string; }
+interface GymItem { id: string; datum: string; uebung: string; gewicht: number; reps: number; setnum: number; username: string; }
 
 const EINKAUF_KATEGORIEN = ["Obst & Gemüse", "Kühlregal", "Vorrat & Teigwaren", "Getränke", "Drogerie & Haushalt", "Sonstiges"] as const;
 const TODO_KATEGORIEN = ["Haushalt & Reparatur", "Bürokratie & Verträge", "Besorgungen", "Freizeit & Projekte", "Sonstiges"] as const;
@@ -44,29 +50,30 @@ export default function DashboardPage() {
   
   const [departures, setDepartures] = useState<Departure[]>([]);
   const [weather, setWeather] = useState<string>("Lädt...");
-  const [weatherLabel, setWeatherLabel] = useState<string>("Standort");
-  const [termine, setTermine] = useState<CalendarEvent[]>([]);
   
   const [calendarMode, setCalendarMode] = useState<"month" | "week">("month");
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [termine, setTermine] = useState<CalendarEvent[]>([]);
 
+  // Supabase States
   const [einkauf, setEinkauf] = useState<EinkaufItem[]>([]);
-  const [neuerArtikel, setNeuerArtikel] = useState("");
-
   const [todos, setTodos] = useState<TodoItem[]>([]);
+  const [gymData, setGymData] = useState<GymItem[]>([]);
+
+  // Input States
+  const [neuerArtikel, setNeuerArtikel] = useState("");
   const [neuesTodo, setNeuesTodo] = useState("");
   const [todoKategorie, setTodoKategorie] = useState<string>("Haushalt & Reparatur");
   const [todoZustaendig, setTodoZustaendig] = useState<string>("Beide");
   const [activeTodoFilter, setActiveTodoFilter] = useState<string>("Alle");
-  const [showErledigteTodos, setShowErledigteTodos] = useState(false);
 
-  const [gymData, setGymData] = useState<GymItem[]>([]);
   const [gymUebung, setGymUebung] = useState("");
   const [gymGewicht, setGymGewicht] = useState("");
   const [gymReps, setGymReps] = useState("");
   const [gymSetNum, setGymSetNum] = useState("1");
   const [recovery, setRecovery] = useState<number>(80);
 
+  // Legacy Google Sheets States
   const [aufgaben, setAufgaben] = useState<PutzItem[]>([]);
   const [vorrat, setVorrat] = useState<VorratItem[]>([]);
   const [countdowns, setCountdowns] = useState<CountdownItem[]>([]);
@@ -83,14 +90,74 @@ export default function DashboardPage() {
 
   const [isScanning, setIsScanning] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
+  
   const todayStr = new Intl.DateTimeFormat('de-DE', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }).format(new Date());
 
+  // --- INITIALISIERUNG & SUPABASE REALTIME ---
   useEffect(() => {
     const savedTheme = localStorage.getItem("haushalt_theme");
     if (savedTheme === "dark") setIsDarkMode(true);
     const savedUser = localStorage.getItem("haushalt_user") as "Jonas" | "Lena" | null;
     if (savedUser) setActiveUser(savedUser);
+
+    // 1. Initialer Supabase Fetch
+    const fetchSupabase = async () => {
+      const [todosRes, einkaufRes, gymRes] = await Promise.all([
+        supabase.from("todos").select("*"),
+        supabase.from("einkauf").select("*"),
+        supabase.from("gym").select("*")
+      ]);
+      if (todosRes.data) setTodos(todosRes.data);
+      if (einkaufRes.data) setEinkauf(einkaufRes.data);
+      if (gymRes.data) setGymData(gymRes.data);
+    };
+    fetchSupabase();
+
+    // 2. Realtime WebSockets aktivieren (0ms Latenz zwischen Geräten)
+    const handlePayload = (payload: any, setState: React.Dispatch<React.SetStateAction<any[]>>) => {
+      if (payload.eventType === 'INSERT') {
+        setState(prev => prev.find(item => item.id === payload.new.id) ? prev : [...prev, payload.new]);
+      } else if (payload.eventType === 'UPDATE') {
+        setState(prev => prev.map(item => item.id === payload.new.id ? payload.new : item));
+      } else if (payload.eventType === 'DELETE') {
+        setState(prev => prev.filter(item => item.id !== payload.old.id));
+      }
+    };
+
+    const channel = supabase.channel('schema-db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'todos' }, payload => handlePayload(payload, setTodos))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'einkauf' }, payload => handlePayload(payload, setEinkauf))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'gym' }, payload => handlePayload(payload, setGymData))
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, []);
+
+  // Legacy Google Sheets Fetch (für Putzplan, Vorrat, Notizen)
+  const fetchGoogleSheets = async () => {
+    try {
+      const res = await fetch("/api/data");
+      if (!res.ok) return;
+      const raw = await res.json();
+      if (raw.haushalt) setAufgaben(raw.haushalt.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, aufgabe: r[0], letztesDatum: r[1], intervall: r[2] })).filter((x: any) => x.aufgabe));
+      if (raw.vorrat) setVorrat(raw.vorrat.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, artikel: r[0], ablaufdatum: r[1], anbruch: r[2] || "" })).filter((x: any) => x.artikel));
+      if (raw.countdowns) setCountdowns(raw.countdowns.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, title: r[0], date: r[1], icon: r[2] || "⏳" })).filter((x: any) => x.title));
+      if (raw.notizen) setNotes(raw.notizen.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, title: r[0], content: r[1], category: r[2] || "Allgemein", color: r[3] || "green" })).filter((x: any) => x.title));
+    } catch (e) { console.warn("Offline-Modus aktiv.", e); }
+  };
+
+  useEffect(() => {
+    fetchGoogleSheets();
+    fetch("/api/calendar").then(res => res.json()).then(data => setTermine(data.events || [])).catch(() => {});
+    fetch("https://www.mvg.de/api/bgw-pt/v3/departures?globalId=de:09162:70").then(res => res.json()).then(data => {
+      if (Array.isArray(data)) setDepartures(data.slice(0, 5).map((d: any) => ({
+        line: d.label || "U", destination: d.destination || "Unbekannt", time: new Date(d.realtimeDepartureTime || d.plannedDepartureTime).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
+      })));
+    }).catch(() => {});
+    fetch(`https://api.open-meteo.com/v1/forecast?latitude=48.1764&longitude=11.5311&current=temperature_2m,weather_code`)
+      .then(res => res.json())
+      .then(data => { setWeather(`${Math.round(data?.current?.temperature_2m ?? 0)}°C`); })
+      .catch(() => setWeather("--"));
   }, []);
 
   const toggleTheme = () => {
@@ -98,137 +165,75 @@ export default function DashboardPage() {
     setIsDarkMode(nextMode);
     localStorage.setItem("haushalt_theme", nextMode ? "dark" : "light");
   };
-
   const switchUser = (user: "Jonas" | "Lena") => {
     setActiveUser(user);
     localStorage.setItem("haushalt_user", user);
   };
 
-  const fetchData = async () => {
-    try {
-      const cachedData = localStorage.getItem("haushaltOS_cache");
-      if (cachedData) {
-        const data = JSON.parse(cachedData);
-        if (data.einkauf) setEinkauf(data.einkauf);
-        if (data.todos) setTodos(data.todos);
-        if (data.haushalt) setAufgaben(data.haushalt);
-        if (data.vorrat) setVorrat(data.vorrat);
-        if (data.countdowns) setCountdowns(data.countdowns);
-        if (data.notizen) setNotes(data.notizen);
-        if (data.gym) setGymData(data.gym);
-      }
-
-      const res = await fetch("/api/data");
-      if (!res.ok) throw new Error("Offline");
-      const raw = await res.json();
-      
-      const parsedData = {
-        einkauf: raw.einkauf?.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, artikel: r[0], status: r[1] || "Offen", kategorie: ermittleKategorie(r[0]) })).filter((x: any) => x.artikel) || [],
-        haushalt: raw.haushalt?.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, aufgabe: r[0], letztesDatum: r[1], intervall: r[2] })).filter((x: any) => x.aufgabe) || [],
-        vorrat: raw.vorrat?.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, artikel: r[0], ablaufdatum: r[1], anbruch: r[2] || "" })).filter((x: any) => x.artikel) || [],
-        countdowns: raw.countdowns?.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, title: r[0], date: r[1], icon: r[2] || "⏳" })).filter((x: any) => x.title) || [],
-        notizen: raw.notizen?.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, title: r[0], content: r[1], category: r[2] || "Allgemein", color: r[3] || "green" })).filter((x: any) => x.title) || [],
-        todos: raw.todos?.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, aufgabe: r[0], kategorie: r[1] || "Sonstiges", status: r[2] || "Offen", zustaendig: r[3] || "Beide" })).filter((x: any) => x.aufgabe) || [],
-        gym: raw.gym?.slice(1).map((r: any, i: number) => ({ rowIndex: i + 2, datum: r[0], uebung: r[1], gewicht: parseFloat(r[2]), reps: parseInt(r[3]), setNum: parseInt(r[4]), user: r[5] })).filter((x: any) => x.uebung) || [],
-      };
-
-      localStorage.setItem("haushaltOS_cache", JSON.stringify(parsedData));
-      
-      setEinkauf(parsedData.einkauf); setAufgaben(parsedData.haushalt); setVorrat(parsedData.vorrat);
-      setCountdowns(parsedData.countdowns); setNotes(parsedData.notizen); setTodos(parsedData.todos); setGymData(parsedData.gym);
-    } catch (e) { 
-      console.warn("Offline-Modus aktiv.", e); 
-    }
-  };
-
-  useEffect(() => {
-    fetchData();
-    fetch("/api/calendar").then(res => res.json()).then(data => setTermine(data.events || [])).catch(() => {});
-    fetch("https://www.mvg.de/api/bgw-pt/v3/departures?globalId=de:09162:70").then(res => res.json()).then(data => {
-      if (Array.isArray(data)) setDepartures(data.slice(0, 5).map((d: any) => ({
-        line: d.label || "U", destination: d.destination || "Unbekannt", time: new Date(d.realtimeDepartureTime || d.plannedDepartureTime).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
-      })));
-    }).catch(() => {});
-
-    const fetchWeather = (lat: number, lon: number, label: string) => {
-      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code`)
-        .then(res => res.json())
-        .then(data => { setWeather(`${Math.round(data?.current?.temperature_2m ?? 0)}°C`); setWeatherLabel(label); })
-        .catch(() => setWeather("--"));
-    };
-    if (typeof window !== "undefined" && "geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        pos => fetchWeather(pos.coords.latitude, pos.coords.longitude, "Wetter vor Ort"),
-        () => fetchWeather(48.1764, 11.5311, "München (OEZ)"),
-        { enableHighAccuracy: false, timeout: 4000, maximumAge: 600000 }
-      );
-    } else { fetchWeather(48.1764, 11.5311, "München (OEZ)"); }
-  }, []);
+  // --- SUPABASE MUTATIONEN (Echtzeit + Optimistic UI) ---
 
   const addEinkauf = async (artikelName?: string) => {
     const text = (artikelName || neuerArtikel).trim();
     if (!text) return;
-    const newItem: EinkaufItem = { rowIndex: Date.now(), artikel: text, status: "Offen", kategorie: ermittleKategorie(text) };
-    setEinkauf(prev => [...prev, newItem]);
+    const newItem: EinkaufItem = { id: crypto.randomUUID(), artikel: text, status: "Offen", kategorie: ermittleKategorie(text) };
+    
+    setEinkauf(prev => [...prev, newItem]); // Optimistic UI
     if (!artikelName) setNeuerArtikel("");
     setIsFabOpen(false);
-    try {
-      await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Einkauf", values: [newItem.artikel, newItem.status] }) });
-      fetchData(); 
-    } catch (err) { fetchData(); }
+    
+    await supabase.from("einkauf").insert(newItem);
   };
-
   const markEinkaufErledigt = async (item: EinkaufItem, status: "Erledigt" | "Offen") => {
-    setEinkauf(einkauf.map(e => e.rowIndex === item.rowIndex ? { ...e, status } : e));
-    await fetch("/api/data", { method: "PUT", body: JSON.stringify({ sheetName: "Einkauf", rowIndex: item.rowIndex, values: [item.artikel, status] }) });
+    setEinkauf(prev => prev.map(e => e.id === item.id ? { ...e, status } : e));
+    await supabase.from("einkauf").update({ status }).eq("id", item.id);
   };
-
   const deleteEinkauf = async (item: EinkaufItem) => {
-    setEinkauf(einkauf.filter(e => e.rowIndex !== item.rowIndex));
-    await fetch("/api/data", { method: "PUT", body: JSON.stringify({ sheetName: "Einkauf", rowIndex: item.rowIndex, values: ["", ""] }) });
+    setEinkauf(prev => prev.filter(e => e.id !== item.id));
+    await supabase.from("einkauf").delete().eq("id", item.id);
   };
 
   const addTodo = async () => {
     const text = neuesTodo.trim();
     if (!text) return;
-    const newItem: TodoItem = { rowIndex: Date.now(), aufgabe: text, kategorie: todoKategorie, status: "Offen", zustaendig: todoZustaendig };
-    setTodos(prev => [...prev, newItem]);
+    const newItem: TodoItem = { id: crypto.randomUUID(), aufgabe: text, kategorie: todoKategorie, status: "Offen", zustaendig: todoZustaendig };
+    
+    setTodos(prev => [...prev, newItem]); 
     setNeuesTodo("");
     setIsFabOpen(false);
-    try {
-      await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Todos", values: [newItem.aufgabe, newItem.kategorie, newItem.status, newItem.zustaendig] }) });
-      fetchData();
-    } catch (err) { fetchData(); }
+    
+    await supabase.from("todos").insert(newItem);
   };
-
   const markTodoErledigt = async (item: TodoItem, status: "Erledigt" | "Offen") => {
-    setTodos(todos.map(t => t.rowIndex === item.rowIndex ? { ...t, status } : t));
-    await fetch("/api/data", { method: "PUT", body: JSON.stringify({ sheetName: "Todos", rowIndex: item.rowIndex, values: [item.aufgabe, item.kategorie, status, item.zustaendig] }) });
+    setTodos(prev => prev.map(t => t.id === item.id ? { ...t, status } : t));
+    await supabase.from("todos").update({ status }).eq("id", item.id);
   };
-
   const deleteTodo = async (item: TodoItem) => {
-    setTodos(todos.filter(t => t.rowIndex !== item.rowIndex));
-    await fetch("/api/data", { method: "PUT", body: JSON.stringify({ sheetName: "Todos", rowIndex: item.rowIndex, values: ["", "", "", ""] }) });
+    setTodos(prev => prev.filter(t => t.id !== item.id));
+    await supabase.from("todos").delete().eq("id", item.id);
   };
 
   const addGymEntry = async () => {
     if (!gymUebung || !gymGewicht || !gymReps) return;
     const today = new Date().toISOString().split("T")[0];
-    const newItem: GymItem = { rowIndex: Date.now(), datum: today, uebung: gymUebung.trim(), gewicht: parseFloat(gymGewicht), reps: parseInt(gymReps, 10), setNum: parseInt(gymSetNum, 10), user: activeUser };
+    const newItem: GymItem = { 
+      id: crypto.randomUUID(), datum: today, uebung: gymUebung.trim(), 
+      gewicht: parseFloat(gymGewicht), reps: parseInt(gymReps, 10), 
+      setnum: parseInt(gymSetNum, 10), username: activeUser 
+    };
+    
     setGymData(prev => [...prev, newItem]); 
     setGymSetNum((prev) => (parseInt(prev) + 1).toString());
     setGymGewicht(""); setGymReps("");
-    try {
-      await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Gym", values: [today, newItem.uebung, newItem.gewicht, newItem.reps, newItem.setNum, newItem.user] }) });
-      fetchData();
-    } catch (err) { fetchData(); }
+    
+    await supabase.from("gym").insert(newItem);
   };
 
+  // --- LEGACY GOOGLE SHEETS MUTATIONEN ---
   const markAufgabeErledigt = async (item: PutzItem) => {
     const today = new Date().toISOString().split("T")[0];
-    setAufgaben(aufgaben.map(a => a.rowIndex === item.rowIndex ? { ...a, letztDatum: today } : a));
+    setAufgaben(aufgaben.map(a => a.rowIndex === item.rowIndex ? { ...a, letztesDatum: today } : a));
     await fetch("/api/data", { method: "PUT", body: JSON.stringify({ sheetName: "Haushalt", rowIndex: item.rowIndex, values: [item.aufgabe, today, item.intervall, activeUser] }) });
-    fetchData();
+    fetchGoogleSheets();
   };
 
   const addCountdown = async () => {
@@ -237,7 +242,7 @@ export default function DashboardPage() {
     setCountdowns(prev => [...prev, newItem]);
     setNewCdTitle(""); setNewCdDate("");
     await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Countdowns", values: [newItem.title, newItem.date, newItem.icon] }) });
-    fetchData();
+    fetchGoogleSheets();
   };
 
   const addNote = async () => {
@@ -246,7 +251,7 @@ export default function DashboardPage() {
     setNotes(prev => [...prev, newItem]);
     setNewNoteTitle(""); setNewNoteContent(""); setShowNoteModal(false); setIsFabOpen(false);
     await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Notizen", values: [newItem.title, newItem.content, newItem.category, newItem.color] }) });
-    fetchData();
+    fetchGoogleSheets();
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -271,7 +276,7 @@ export default function DashboardPage() {
           const aiData = await res.json();
           if (aiData.artikel && aiData.mhd) {
             await fetch("/api/data", { method: "POST", body: JSON.stringify({ sheetName: "Vorrat", values: [aiData.artikel, aiData.mhd, ""] }) });
-            fetchData(); 
+            fetchGoogleSheets(); 
           } else { alert(aiData.error || "Konnte kein Produkt erkennen."); }
         } catch (err) { alert("Fehler bei der Bildanalyse."); }
         setIsScanning(false);
@@ -281,9 +286,9 @@ export default function DashboardPage() {
     reader.readAsDataURL(file);
   };
 
+  // --- HILFSFUNKTIONEN (KALENDER ETC) ---
   const calculateDaysLeft = (targetDateStr: string) => Math.ceil((new Date(targetDateStr).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-  const monthNames = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"];
-
+  
   const handlePrev = () => {
     const newDate = new Date(currentDate);
     if (calendarMode === "month") newDate.setMonth(newDate.getMonth() - 1);
@@ -296,7 +301,6 @@ export default function DashboardPage() {
     else newDate.setDate(newDate.getDate() + 7);
     setCurrentDate(newDate);
   };
-  const handleToday = () => setCurrentDate(new Date());
 
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -336,10 +340,8 @@ export default function DashboardPage() {
 
   const offeneEinkaeufe = einkauf.filter(e => e.status !== "Erledigt");
   const offeneTodos = todos.filter(t => t.status !== "Erledigt");
-  const erledigteTodos = todos.filter(t => t.status === "Erledigt");
 
   const filteredTodos = activeTodoFilter === "Alle" ? offeneTodos : offeneTodos.filter(t => t.kategorie === activeTodoFilter || t.zustaendig === activeTodoFilter);
-  
   const einkaufNachKategorien = EINKAUF_KATEGORIEN.reduce((acc, kat) => {
     const items = offeneEinkaeufe.filter(i => (i.kategorie || ermittleKategorie(i.artikel)) === kat);
     if (items.length > 0) acc[kat] = items;
@@ -349,7 +351,7 @@ export default function DashboardPage() {
   const noteCategories = ["Alle", ...Array.from(new Set(notes.map(n => n.category)))];
   const filteredNotes = activeNoteCategory === "Alle" ? notes : notes.filter(n => n.category === activeNoteCategory);
 
-  const userGymData = gymData.filter(g => g.user === activeUser);
+  const userGymData = gymData.filter(g => g.username === activeUser);
   const selectedExercise = gymUebung.trim().toLowerCase();
   
   const chartData = userGymData
@@ -431,7 +433,7 @@ export default function DashboardPage() {
 
         <div className="p-4 md:p-8 pb-32 md:pb-12 max-w-[1400px] mx-auto w-full space-y-8">
           
-          {/* TAB 1: ÜBERSICHT (Wiederhergestellt!) */}
+          {/* TAB 1: ÜBERSICHT */}
           {activeTab === "home" && (
             <div className="space-y-8">
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-[#E8E2D9] dark:border-white/[0.08]">
@@ -446,7 +448,7 @@ export default function DashboardPage() {
                       <span className={`text-base font-extrabold font-mono leading-none ${textTitle}`}>{weather}</span>
                       <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${badgeGreen}`}>München</span>
                     </div>
-                    <span className={`text-[11px] ${textSub} font-medium`}>Perfektes Wetter draußen</span>
+                    <span className={`text-[11px] ${textSub} font-medium`}>Wetter vor Ort</span>
                   </div>
                 </div>
               </div>
@@ -456,8 +458,7 @@ export default function DashboardPage() {
                   {countdowns.length > 0 && (
                     <div className="space-y-3">
                       <div className="flex justify-between items-center px-1">
-                        <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Anstehende Meilensteine</h3>
-                        <span className={`text-xs ${accentBlue} font-semibold cursor-pointer`} onClick={() => setActiveTab("kalender")}>Verwalten &gt;</span>
+                        <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Meilensteine</h3>
                       </div>
                       <div className="space-y-2.5">
                         {countdowns.map((cd, idx) => {
@@ -499,7 +500,6 @@ export default function DashboardPage() {
                 <div className="lg:col-span-5 space-y-6">
                   <div className="space-y-3">
                     <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub} px-1`}>Schnellübersicht</h3>
-                    
                     <div onClick={() => setActiveTab("todos")} className={`${bgCard} rounded-3xl p-5 border cursor-pointer hover:border-[#005377]/50 transition-all group`}>
                       <div className="flex justify-between items-center mb-3">
                         <div className="flex items-center gap-2"><ListTodo className={`h-4 w-4 ${accentBlue}`} /><span className={`text-xs font-bold ${textTitle}`}>To-Do Liste</span></div>
@@ -507,9 +507,8 @@ export default function DashboardPage() {
                       </div>
                       <div className="space-y-1.5 mb-3">
                         {offeneTodos.slice(0, 3).map((item, i) => (
-                          <div key={i} className={`text-xs ${textSub} flex items-center justify-between gap-2`}><div className="flex items-center gap-2 truncate"><span className="h-1 w-1 rounded-full bg-[#005377]" /><span className="truncate">{item.aufgabe}</span></div><span className="text-[10px] font-mono font-medium opacity-70 shrink-0">{item.zustaendig}</span></div>
+                          <div key={i} className={`text-xs ${textSub} flex items-center justify-between gap-2`}><div className="flex items-center gap-2 truncate"><span className="h-1 w-1 rounded-full bg-[#005377]" /><span className="truncate">{item.aufgabe}</span></div></div>
                         ))}
-                        {offeneTodos.length === 0 && <span className={`text-xs ${textSub}`}>Keine offenen To-Dos! 🎉</span>}
                       </div>
                     </div>
 
@@ -571,14 +570,19 @@ export default function DashboardPage() {
               </div>
               <div className={`${bgCard} rounded-2xl p-6 space-y-3`}>
                 {filteredTodos.map((todo) => (
-                  <div key={todo.rowIndex} className="relative rounded-xl overflow-hidden">
+                  <div key={todo.id} className="relative rounded-xl overflow-hidden">
                     <div className="absolute inset-0 flex justify-between items-center px-4 rounded-xl bg-gradient-to-r from-[#49111C] via-[#251A1E] to-[#5B8C5A] text-white">
                       <div className="flex items-center gap-1 text-xs font-bold text-rose-200"><Trash2 className="h-4 w-4" /> Löschen</div>
                       <div className="flex items-center gap-1 text-xs font-bold text-emerald-200">Erledigt <Check className="h-4 w-4" /></div>
                     </div>
                     <motion.div 
                       drag="x" dragConstraints={{ left: 0, right: 0 }} dragElastic={0.8} whileTap={tapGesture} layout transition={springConfig}
-                      onDragEnd={(_, info) => { if (info.offset.x > 80) deleteTodo(todo); else if (info.offset.x < -80) markTodoErledigt(todo, "Erledigt"); }}
+                      onDragEnd={(_, info) => { 
+                        const isSwipeRight = info.offset.x > 80 || info.velocity.x > 500;
+                        const isSwipeLeft = info.offset.x < -80 || info.velocity.x < -500;
+                        if (isSwipeRight) deleteTodo(todo); 
+                        else if (isSwipeLeft) markTodoErledigt(todo, "Erledigt"); 
+                      }}
                       className={`relative z-10 flex justify-between p-4 rounded-xl border ${bgItem} ${bgCard} shadow-sm cursor-grab`}
                     >
                       <div>
@@ -600,7 +604,6 @@ export default function DashboardPage() {
             <div className="space-y-6">
               <div className="flex justify-between items-center">
                 <div><h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>Einkaufsliste</h2><p className={`text-xs ${textSub}`}>Wischen: Links = Erledigen, Rechts = Löschen</p></div>
-                <span className={`text-xs px-3 py-1 rounded-full font-mono font-bold ${badgeBlue}`}>{offeneEinkaeufe.length} offen</span>
               </div>
               <div className={`${bgCard} rounded-2xl p-5 space-y-2`}>
                 <div className={`text-[11px] font-bold ${textSub}`}>Schnellwahl:</div>
@@ -619,14 +622,19 @@ export default function DashboardPage() {
                       <div className={`text-[10px] font-bold ${textSub} uppercase tracking-wider px-1`}>{kategorie}</div>
                       <div className="space-y-2">
                         {items.map((item) => (
-                          <div key={item.rowIndex} className="relative rounded-xl overflow-hidden">
+                          <div key={item.id} className="relative rounded-xl overflow-hidden">
                             <div className="absolute inset-0 flex justify-between items-center px-4 rounded-xl bg-gradient-to-r from-[#49111C] via-[#251A1E] to-[#5B8C5A] text-white">
                               <div className="flex items-center gap-1 text-xs font-bold text-rose-200"><Trash2 className="h-4 w-4" /> Löschen</div>
                               <div className="flex items-center gap-1 text-xs font-bold text-emerald-200">Erledigt <Check className="h-4 w-4" /></div>
                             </div>
                             <motion.div 
                               drag="x" dragConstraints={{ left: 0, right: 0 }} dragElastic={0.8} whileTap={tapGesture} layout transition={springConfig}
-                              onDragEnd={(_, info) => { if (info.offset.x > 80) deleteEinkauf(item); else if (info.offset.x < -80) markEinkaufErledigt(item, "Erledigt"); }}
+                              onDragEnd={(_, info) => { 
+                                const isSwipeRight = info.offset.x > 80 || info.velocity.x > 500;
+                                const isSwipeLeft = info.offset.x < -80 || info.velocity.x < -500;
+                                if (isSwipeRight) deleteEinkauf(item); 
+                                else if (isSwipeLeft) markEinkaufErledigt(item, "Erledigt"); 
+                              }}
                               className={`relative z-10 flex items-center justify-between p-3.5 rounded-xl border ${bgItem} ${bgCard} shadow-sm cursor-grab`}
                             >
                               <span className={`text-sm font-semibold ${textTitle}`}>{item.artikel}</span>
@@ -653,13 +661,6 @@ export default function DashboardPage() {
               </div>
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 <div className="lg:col-span-5 space-y-6">
-                  <div className={`${bgCard} rounded-3xl p-6 border space-y-4`}>
-                    <div className="flex justify-between items-center">
-                      <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub} flex items-center gap-2`}><Activity className="h-4 w-4 text-[#7DB47C]" /> Recovery Status</h3>
-                      <span className={`text-xl font-mono font-black ${recovery > 70 ? 'text-[#7DB47C]' : recovery > 40 ? 'text-yellow-500' : 'text-[#E27B88]'}`}>{recovery}%</span>
-                    </div>
-                    <input type="range" min="0" max="100" value={recovery} onChange={(e) => setRecovery(parseInt(e.target.value))} className={`w-full h-2 rounded-lg appearance-none cursor-pointer outline-none ${isDarkMode ? "bg-white/10" : "bg-black/10"} [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#005377] dark:[&::-webkit-slider-thumb]:bg-[#82CBEE]`} />
-                  </div>
                   <div className={`${bgCard} rounded-3xl p-6 border relative overflow-hidden group`}>
                     <div className="absolute top-0 right-0 p-4 opacity-10"><Flame className="h-24 w-24" /></div>
                     <h3 className={`text-sm font-bold ${textTitle} mb-4 relative z-10`}>Neuer Satz (Track)</h3>
@@ -700,8 +701,8 @@ export default function DashboardPage() {
                         <div className={`p-4 rounded-xl border border-dashed border-slate-500/20 text-center`}><p className={`text-xs ${textSub}`}>Noch keine Sätze heute absolviert. Let's go! 🚀</p></div>
                       ) : (
                         userGymData.filter(g => g.datum === new Date().toISOString().split("T")[0]).reverse().map((g) => (
-                          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={g.rowIndex} className={`flex items-center justify-between p-3.5 rounded-xl border ${bgItem}`}>
-                            <div className="flex flex-col"><span className={`text-sm font-bold ${textTitle}`}>{g.uebung}</span><span className={`text-[10px] font-bold ${textSub}`}>Satz {g.setNum}</span></div>
+                          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} key={g.id} className={`flex items-center justify-between p-3.5 rounded-xl border ${bgItem}`}>
+                            <div className="flex flex-col"><span className={`text-sm font-bold ${textTitle}`}>{g.uebung}</span><span className={`text-[10px] font-bold ${textSub}`}>Satz {g.setnum}</span></div>
                             <div className="flex items-center gap-3">
                               <div className="text-right"><span className={`text-sm font-mono font-bold ${textTitle}`}>{g.gewicht} kg</span><span className={`text-[10px] font-mono text-slate-500 block`}>× {g.reps} Reps</span></div>
                               {calculate1RM(g.gewicht, g.reps) > 100 && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-[#5B8C5A]/20 text-[#7DB47C]">PR 🏆</span>}
@@ -722,9 +723,9 @@ export default function DashboardPage() {
               <h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>Putzplan</h2>
               <div className={`${bgCard} rounded-2xl p-6 space-y-3`}>
                 {aufgaben.map((a, idx) => (
-                  <div key={idx} className={`flex justify-between p-4 rounded-xl border ${bgItem}`}>
+                  <div key={idx} className={`flex justify-between items-center p-4 rounded-xl border ${bgItem}`}>
                     <div><div className={`font-bold text-sm ${textTitle}`}>{a.aufgabe}</div><div className={`text-[11px] ${textSub}`}>Intervall: {a.intervall} Tage | Letztes Mal: {a.letztesDatum}</div></div>
-                    <motion.button whileTap={tapGesture} onClick={() => markAufgabeErledigt(a)} className={`px-4 text-xs font-bold rounded-lg border ${isDarkMode ? "bg-white/5" : "bg-[#FAF8F5]"}`}>Erledigt</motion.button>
+                    <motion.button whileTap={tapGesture} onClick={() => markAufgabeErledigt(a)} className={`h-8 px-4 text-xs font-bold rounded-lg border ${isDarkMode ? "bg-white/5" : "bg-[#FAF8F5]"} shadow-sm`}>Erledigt</motion.button>
                   </div>
                 ))}
               </div>
@@ -762,17 +763,30 @@ export default function DashboardPage() {
           {/* TAB 7: PINNWAND */}
           {activeTab === "notizen" && (
             <div className="space-y-6">
-              <div className="flex justify-between items-center"><h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>Pinnwand</h2><motion.button whileTap={tapGesture} onClick={() => setShowNoteModal(true)} className={`px-4 py-2 ${buttonPrimary} text-xs font-bold rounded-xl`}><Plus className="h-4 w-4 inline" /> Notiz</motion.button></div>
+              <div className="flex justify-between items-center">
+                <h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>Pinnwand</h2>
+                <motion.button whileTap={tapGesture} onClick={() => setShowNoteModal(true)} className={`px-4 py-2 ${buttonPrimary} text-xs font-bold rounded-xl`}><Plus className="h-4 w-4 inline" /> Notiz</motion.button>
+              </div>
+              
               {showNoteModal && (
                 <div className={`${bgCard} rounded-2xl p-6 border space-y-4`}>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <input type="text" placeholder="Titel..." value={newNoteTitle} onChange={e => setNewNoteTitle(e.target.value)} className={`sm:col-span-2 ${bgInput} border rounded-xl px-4 py-2 text-xs font-medium`} />
-                    <select value={newNoteCategory} onChange={e => setNewNoteCategory(e.target.value)} className={`${bgInput} border rounded-xl px-3 py-2 text-xs font-medium`}><option value="Allgemein">Allgemein</option><option value="WLAN & Haus">WLAN & Haus</option></select>
+                    <select value={newNoteCategory} onChange={e => setNewNoteCategory(e.target.value)} className={`${bgInput} border rounded-xl px-3 py-2 text-xs font-medium`}>
+                      <option value="Allgemein">Allgemein</option><option value="WLAN & Haus">WLAN & Haus</option><option value="Wichtig">Wichtig</option>
+                    </select>
                   </div>
                   <textarea placeholder="Inhalt..." value={newNoteContent} onChange={e => setNewNoteContent(e.target.value)} className={`w-full ${bgInput} border rounded-xl px-4 py-3 text-xs font-medium h-24`} />
                   <div className="flex justify-end gap-2"><button onClick={() => setShowNoteModal(false)} className={`px-4 py-2 text-xs font-bold ${textSub}`}>Abbrechen</button><button onClick={addNote} className={`px-6 py-2 ${buttonPrimary} text-xs font-bold rounded-xl`}>Speichern</button></div>
                 </div>
               )}
+
+              <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                  {noteCategories.map(cat => (
+                    <button key={cat} onClick={() => setActiveNoteCategory(cat)} className={`px-3 py-1 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${activeNoteCategory === cat ? `${badgeBlue} shadow-sm` : `${bgItem} ${textSub}`}`}>{cat}</button>
+                  ))}
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {filteredNotes.map((note) => (
                   <motion.div whileHover={{ scale: 1.02 }} transition={springConfig} key={note.rowIndex} className={`${bgCard} rounded-2xl p-5 border`}>
@@ -785,7 +799,7 @@ export default function DashboardPage() {
             </div>
           )}
           
-          {/* TAB 8: KALENDER (KOMPLETT) */}
+          {/* TAB 8: KALENDER */}
           {activeTab === "kalender" && (
             <div className="space-y-6">
               <h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>Kalender & Termine</h2>
@@ -850,7 +864,7 @@ export default function DashboardPage() {
         </div>
       </main>
 
-      {/* FAB ICON WIEDERHERGESTELLT */}
+      {/* FAB ICON */}
       <div className="fixed bottom-20 md:bottom-8 right-5 md:right-8 z-50">
         <AnimatePresence>
           {isFabOpen && (
@@ -872,6 +886,7 @@ export default function DashboardPage() {
         </button>
       </div>
 
+      {/* MOBILE NAV */}
       <nav className={`md:hidden fixed bottom-0 left-0 right-0 z-40 ${isDarkMode ? "bg-[#100A0B]/90 border-white/[0.08]" : "bg-[#FAF8F5]/90 border-[#E8E2D9]"} backdrop-blur-xl border-t px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.5rem)] flex justify-around items-center`}>
         {TABS.map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex flex-col items-center justify-center min-w-[42px] h-11 gap-0.5 rounded-lg relative ${activeTab === tab.id ? `${accentBlue} font-bold` : textSub}`}>

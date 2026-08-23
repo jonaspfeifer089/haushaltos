@@ -17,13 +17,15 @@ export async function GET() {
   try {
     const sheets = google.sheets({ version: "v4", auth: getAuth() });
 
-    const [haushaltRes, einkaufRes, vorratRes, countdownsRes, notizenRes] =
+    const [haushaltRes, einkaufRes, vorratRes, countdownsRes, notizenRes, todosRes, gymRes] =
       await Promise.all([
         sheets.spreadsheets.values.get({ spreadsheetId, range: "Haushalt!A:D" }).catch(() => ({ data: { values: [] } })),
         sheets.spreadsheets.values.get({ spreadsheetId, range: "Einkauf!A:B" }).catch(() => ({ data: { values: [] } })),
         sheets.spreadsheets.values.get({ spreadsheetId, range: "Vorrat!A:C" }).catch(() => ({ data: { values: [] } })),
         sheets.spreadsheets.values.get({ spreadsheetId, range: "Countdowns!A:C" }).catch(() => ({ data: { values: [] } })),
         sheets.spreadsheets.values.get({ spreadsheetId, range: "Notizen!A:D" }).catch(() => ({ data: { values: [] } })),
+        sheets.spreadsheets.values.get({ spreadsheetId, range: "Todos!A:D" }).catch(() => ({ data: { values: [] } })),
+        sheets.spreadsheets.values.get({ spreadsheetId, range: "Gym!A:F" }).catch(() => ({ data: { values: [] } })),
       ]);
 
     return NextResponse.json({
@@ -32,6 +34,8 @@ export async function GET() {
       vorrat: vorratRes.data.values || [],
       countdowns: countdownsRes.data.values || [],
       notizen: notizenRes.data.values || [],
+      todos: todosRes.data.values || [],
+      gym: gymRes.data.values || [],
     });
   } catch (error: any) {
     console.error("Sheets GET Error:", error);
@@ -39,7 +43,7 @@ export async function GET() {
   }
 }
 
-// 2. POST: Neuen Eintrag unten anfügen (Einkauf, Countdown, Vorrat, Notiz)
+// 2. POST: Neuen Eintrag unten anfügen
 export async function POST(request: Request) {
   try {
     const { sheetName, values } = await request.json();
@@ -47,7 +51,7 @@ export async function POST(request: Request) {
 
     await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: `${sheetName}!A:D`,
+      range: sheetName, // Dynamisch: Passt sich automatisch an die Spaltenanzahl an
       valueInputOption: "USER_ENTERED",
       requestBody: { values: [values] },
     });
@@ -65,8 +69,8 @@ export async function PUT(request: Request) {
     const { sheetName, rowIndex, values } = await request.json();
     const sheets = google.sheets({ version: "v4", auth: getAuth() });
 
-    // Schreibt exakt in die Zeile (z.B. Einkauf!A3:B3 oder Haushalt!A2:D2)
-    const endColumn = values.length === 2 ? "B" : values.length === 3 ? "C" : "D";
+    // Dynamische End-Spalte berechnen (1 Wert = A, 2 = B, 4 = D, 6 = F)
+    const endColumn = String.fromCharCode(64 + values.length);
 
     await sheets.spreadsheets.values.update({
       spreadsheetId,
