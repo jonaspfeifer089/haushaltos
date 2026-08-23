@@ -509,42 +509,12 @@ const PULL_ROUTINE = [
   const userGymData = gymData.filter(g => g.username === activeUser);
   const activeExerciseName = gymUebung.trim() || PUSH_ROUTINE[0];
 
-  // MCI Intelligence Analytics
-  const last7Days = new Date();
-  last7Days.setDate(last7Days.getDate() - 7);
-  
-  const recentSets = userGymData.filter(g => new Date(g.datum) >= last7Days);
-  const weeklyHardSets = recentSets.length;
-  
-  // Schätzung der Muskelgruppen-Reize (Sätze der letzten 7 Tage)
-  const chestSets = recentSets.filter(g => /bank|cross|brust/i.test(g.uebung)).length;
-  const backSets = recentSets.filter(g => /ruder|lat|zug|klimm/i.test(g.uebung)).length;
-  const shoulderSets = recentSets.filter(g => /schulter|presse|seitheben/i.test(g.uebung)).length;
-  const armSets = recentSets.filter(g => /curl|trizeps|preacher/i.test(g.uebung)).length;
-
-  // Progressive Overload Status für die aktive Übung
-  const getOverloadRecommendation = () => {
-    if (chartData.length < 2) return { status: "Basis aufbauen", desc: "Noch nicht genügend Daten für Empfehlung." };
-    const latest = chartData[chartData.length - 1];
-    const prev = chartData[chartData.length - 2];
-    
-    if (latest.oneRepMax > prev.oneRepMax) {
-      return { status: "🔥 Overload aktiv", desc: `+${latest.oneRepMax - prev.oneRepMax} kg 1RM Steigerung! Nächstes Mal Gewicht halten und Reps stabilisieren.` };
-    } else if (latest.oneRepMax === prev.oneRepMax) {
-      return { status: "⚡ Steigerung bereit", desc: "Arbeitsgewicht erreicht: Erhöhe im 1. Satz um +2.5 kg oder peile +1 Rep an." };
-    } else {
-      return { status: "🛡️ Ermüdung beachten", desc: "Leistungsabfall erkannt: Regeneration prüfen oder 1 Satz weniger ausführen." };
-    }
-  };
-
-  const overloadInfo = getOverloadRecommendation();
-
-  // Filtere alle Sätze der gewählten Übung, sortiert nach Datum (alt -> neu)
+  // 1. ZUERST: Sätze filtern und sortieren (alt -> neu)
   const exerciseSets = userGymData
     .filter(g => g.uebung.toLowerCase() === activeExerciseName.toLowerCase())
     .sort((a, b) => new Date(a.datum).getTime() - new Date(b.datum).getTime());
 
-  // Aggregiere Sätze pro Workout-Tag (Best 1RM & Gesamt-Volumen des Tages)
+  // 2. ZWEITENS: Sätze pro Workout-Tag aggregieren
   const sessionsByDate = exerciseSets.reduce((acc, curr) => {
     if (!acc[curr.datum]) {
       acc[curr.datum] = { datum: curr.datum, sets: [] };
@@ -553,6 +523,7 @@ const PULL_ROUTINE = [
     return acc;
   }, {} as Record<string, { datum: string; sets: GymItem[] }>);
 
+  // 3. DRITTENS: chartData erstellen
   const chartData = Object.values(sessionsByDate).map(session => {
     const bestSet = session.sets.reduce((prev, curr) => {
       return calculate1RM(curr.gewicht, curr.reps) > calculate1RM(prev.gewicht, prev.reps) ? curr : prev;
@@ -572,7 +543,33 @@ const PULL_ROUTINE = [
     };
   });
 
-  // KPIs berechnen
+  // 4. VIERTENS: Jetzt auf chartData zugreifen (nachdem es existiert)
+  const getOverloadRecommendation = () => {
+    if (chartData.length < 2) return { status: "Basis aufbauen", desc: "Noch nicht genügend Daten für Empfehlung." };
+    const latest = chartData[chartData.length - 1];
+    const prev = chartData[chartData.length - 2];
+    
+    if (latest.oneRepMax > prev.oneRepMax) {
+      return { status: "🔥 Overload aktiv", desc: `+${latest.oneRepMax - prev.oneRepMax} kg 1RM Steigerung! Nächstes Mal Gewicht halten und Reps stabilisieren.` };
+    } else if (latest.oneRepMax === prev.oneRepMax) {
+      return { status: "⚡ Steigerung bereit", desc: "Arbeitsgewicht erreicht: Erhöhe im 1. Satz um +2.5 kg oder peile +1 Rep an." };
+    } else {
+      return { status: "🛡️ Ermüdung beachten", desc: "Leistungsabfall erkannt: Regeneration prüfen oder 1 Satz weniger ausführen." };
+    }
+  };
+
+  const overloadInfo = getOverloadRecommendation();
+
+  // 5. FÜNFTENS: KPIs und Wochen-Volumen berechnen
+  const last7Days = new Date();
+  last7Days.setDate(last7Days.getDate() - 7);
+  
+  const recentSets = userGymData.filter(g => new Date(g.datum) >= last7Days);
+  const chestSets = recentSets.filter(g => /bank|cross|brust/i.test(g.uebung)).length;
+  const backSets = recentSets.filter(g => /ruder|lat|zug|klimm/i.test(g.uebung)).length;
+  const shoulderSets = recentSets.filter(g => /schulter|presse|seitheben/i.test(g.uebung)).length;
+  const armSets = recentSets.filter(g => /curl|trizeps|preacher/i.test(g.uebung)).length;
+
   const allTimePR = chartData.length > 0 ? Math.max(...chartData.map(c => c.oneRepMax)) : 0;
   const maxWeightLifted = exerciseSets.length > 0 ? Math.max(...exerciseSets.map(s => s.gewicht)) : 0;
   const totalVolumeLifetime = exerciseSets.reduce((sum, s) => sum + (s.gewicht * s.reps), 0);
