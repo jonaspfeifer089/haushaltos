@@ -236,17 +236,18 @@ const PULL_ROUTINE = [
   "Preacher Curl (Langhantel)"
 ];
 
+  const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
+  const [customExerciseName, setCustomExerciseName] = useState("");
+
   const startWorkout = (type: "push" | "pull" | "empty") => {
     setWorkoutDauer(0);
-    const exerciseNames = type === "push" ? PUSH_ROUTINE : type === "pull" ? PULL_ROUTINE : ["Freie Übung"];
+    const exerciseNames = type === "push" ? PUSH_ROUTINE : type === "pull" ? PULL_ROUTINE : ["Bankdrücken (Langhantel)"];
 
     const builtExercises = exerciseNames.map(name => {
-      // Suche die letzten Sätze dieser Übung aus deiner Gym-Historie
       const previousSets = gymData
         .filter(g => g.username === activeUser && g.uebung.toLowerCase() === name.toLowerCase())
         .sort((a, b) => new Date(b.datum).getTime() - new Date(a.datum).getTime());
 
-      // Erstelle standardmäßig 3 Sätze mit den letzten Werten als Placeholder
       const sets = [1, 2, 3].map(setNum => {
         const lastMatchingSet = previousSets.find(s => s.setnum === setNum) || previousSets[0];
         const prevText = lastMatchingSet ? `${lastMatchingSet.gewicht}kg x ${lastMatchingSet.reps}` : "-";
@@ -263,6 +264,7 @@ const PULL_ROUTINE = [
       return {
         id: crypto.randomUUID(),
         name,
+        targetRange: "8-12",
         sets
       };
     });
@@ -290,6 +292,47 @@ const PULL_ROUTINE = [
         ]
       };
     }));
+  };
+
+  const removeSetFromExercise = (exerciseId: string, setId: string) => {
+    setActiveExercises(prev => prev.map(ex => {
+      if (ex.id !== exerciseId) return ex;
+      const filtered = ex.sets.filter((s: any) => s.id !== setId);
+      // Satznummern 1, 2, 3 neu durchnummerieren
+      const renumbered = filtered.map((s: any, idx: number) => ({ ...s, set: idx + 1 }));
+      return { ...ex, sets: renumbered };
+    }));
+  };
+
+  const removeExercise = (exerciseId: string) => {
+    setActiveExercises(prev => prev.filter(ex => ex.id !== exerciseId));
+  };
+
+  const addExerciseToActiveWorkout = (name: string) => {
+    if (!name.trim()) return;
+    const previousSets = gymData
+      .filter(g => g.username === activeUser && g.uebung.toLowerCase() === name.toLowerCase())
+      .sort((a, b) => new Date(b.datum).getTime() - new Date(a.datum).getTime());
+
+    const sets = [1, 2, 3].map(setNum => {
+      const lastMatchingSet = previousSets.find(s => s.setnum === setNum) || previousSets[0];
+      return {
+        id: crypto.randomUUID(),
+        set: setNum,
+        prev: lastMatchingSet ? `${lastMatchingSet.gewicht}kg x ${lastMatchingSet.reps}` : "-",
+        kg: "",
+        reps: "",
+        done: false
+      };
+    });
+
+    setActiveExercises(prev => [...prev, { id: crypto.randomUUID(), name: name.trim(), targetRange: "8-12", sets }]);
+    setCustomExerciseName("");
+    setShowAddExerciseModal(false);
+  };
+
+  const updateTargetRange = (exerciseId: string, range: string) => {
+    setActiveExercises(prev => prev.map(ex => ex.id === exerciseId ? { ...ex, targetRange: range } : ex));
   };
 
   const updateSet = (exerciseId: string, setId: string, field: 'kg'|'reps', value: string) => {
@@ -321,6 +364,23 @@ const PULL_ROUTINE = [
           username: activeUser
         });
       });
+    });
+
+    if (completedSets.length === 0) {
+      setIsWorkoutActive(false);
+      return;
+    }
+
+    setGymData(prev => [...prev, ...completedSets]);
+    setIsWorkoutActive(false);
+
+    for (const set of completedSets) {
+      await supabase.from("gym").insert(set);
+    }
+    fetch("https://ntfy.sh/HaushaltLenaJonas", {
+      method: "POST",
+      body: `${activeUser} hat ein Workout beendet! (${completedSets.length} Sätze absolviert).`,
+      headers: { "Title": "Workout abgeschlossen", "Tags": "muscle" }
     });
 
     if (completedSets.length === 0) {
@@ -485,42 +545,179 @@ if (activeTab === "gym" && isWorkoutActive) {
     return (
       <div className="flex h-[100dvh] w-full bg-black text-white font-sans overflow-hidden">
         <main className="flex-1 flex flex-col h-full overflow-y-auto">
+          {/* Hevy Header */}
           <div className="sticky top-0 z-50 bg-[#0C0C0E] border-b border-[#2C2C2E] px-4 py-3 flex justify-between items-center">
-            <div className="flex items-center gap-4"><button onClick={() => setIsWorkoutActive(false)} className="h-8 w-8 rounded-full bg-[#1C1C1E] flex items-center justify-center text-white"><ChevronDown className="h-5 w-5" /></button><span className="font-semibold text-[15px]">Workout</span></div>
-            <div className="flex items-center gap-4"><Clock className="h-5 w-5 text-gray-300" /><button onClick={endWorkout} className="bg-[#0A84FF] text-white px-4 py-1.5 rounded-full text-sm font-semibold">Beenden</button></div>
+            <div className="flex items-center gap-4">
+              <button onClick={() => setIsWorkoutActive(false)} className="h-8 w-8 rounded-full bg-[#1C1C1E] flex items-center justify-center text-white"><ChevronDown className="h-5 w-5" /></button>
+              <span className="font-semibold text-[15px]">Workout</span>
+            </div>
+            <div className="flex items-center gap-3">
+              <button onClick={() => setShowAddExerciseModal(true)} className="bg-[#1C1C1E] hover:bg-[#2C2C2E] text-white px-3 py-1.5 rounded-full text-xs font-semibold flex items-center gap-1 border border-white/10">
+                <Plus className="h-3.5 w-3.5" /> Übung
+              </button>
+              <button onClick={endWorkout} className="bg-[#0A84FF] hover:bg-[#0070E0] text-white px-4 py-1.5 rounded-full text-sm font-semibold transition-all">
+                Beenden
+              </button>
+            </div>
           </div>
+          
+          {/* Stats Bar */}
           <div className="bg-[#000000] px-6 py-4 flex justify-between items-center border-b border-[#1C1C1E]">
-            <div className="flex flex-col"><span className="text-[10px] text-gray-400 font-medium mb-1">Dauer</span><span className="text-[#0A84FF] font-semibold text-[15px]">{formatDauer(workoutDauer)}</span></div>
-            <div className="flex flex-col items-center"><span className="text-[10px] text-gray-400 font-medium mb-1">Volumen</span><span className="font-semibold text-[15px]">{currentWorkoutVolume} kg</span></div>
-            <div className="flex flex-col items-center"><span className="text-[10px] text-gray-400 font-medium mb-1">Sätze</span><span className="font-semibold text-[15px]">{currentWorkoutSets}</span></div>
+            <div className="flex flex-col">
+              <span className="text-[10px] text-gray-400 font-medium mb-1">Dauer</span>
+              <span className="text-[#0A84FF] font-semibold text-[15px]">{formatDauer(workoutDauer)}</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <span className="text-[10px] text-gray-400 font-medium mb-1">Volumen</span>
+              <span className="font-semibold text-[15px]">{currentWorkoutVolume} kg</span>
+            </div>
+            <div className="flex flex-col items-center">
+              <span className="text-[10px] text-gray-400 font-medium mb-1">Sätze</span>
+              <span className="font-semibold text-[15px]">{currentWorkoutSets}</span>
+            </div>
             <div className="h-8 w-8 opacity-70"><Activity className="h-full w-full" /></div>
           </div>
-          <div className="p-2 space-y-4 pb-32">
+
+          {/* Exercises List */}
+          <div className="p-3 space-y-6 pb-36 max-w-2xl mx-auto w-full">
             {activeExercises.map(ex => (
-              <div key={ex.id} className="bg-black p-2">
+              <div key={ex.id} className="bg-[#121214] border border-[#232326] rounded-2xl p-4 shadow-lg">
                 <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-3"><div className="h-10 w-10 bg-white rounded-full flex items-center justify-center text-black font-bold"><Dumbbell className="h-5 w-5" /></div><span className="text-[#0A84FF] font-semibold text-[15px] tracking-wide leading-tight max-w-[240px]">{ex.name}</span></div><MoreVertical className="text-gray-400 h-5 w-5" />
+                  <div className="flex items-center gap-3">
+                    <div className="h-9 w-9 bg-white rounded-full flex items-center justify-center text-black font-bold shrink-0">
+                      <Dumbbell className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <span className="text-[#0A84FF] font-semibold text-[15px] block leading-tight">{ex.name}</span>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-[10px] text-gray-400 uppercase font-bold">Ziel:</span>
+                        <input 
+                          type="text" 
+                          value={ex.targetRange || "8-12"} 
+                          onChange={(e) => updateTargetRange(ex.id, e.target.value)}
+                          className="bg-[#1C1C1E] text-xs font-mono font-bold text-gray-200 px-2 py-0.5 rounded border border-white/10 w-16 text-center outline-none focus:border-[#0A84FF]"
+                        />
+                        <span className="text-[10px] text-gray-400 font-bold">WDH</span>
+                      </div>
+                    </div>
+                  </div>
+                  <button onClick={() => removeExercise(ex.id)} className="text-gray-500 hover:text-rose-400 p-1 transition-colors">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
                 </div>
-                <input type="text" placeholder="Notizen hier hinzufügen..." className="bg-transparent text-[13px] text-gray-400 w-full mb-3 outline-none" />
-                <div className="flex items-center gap-1 text-[#0A84FF] text-[13px] font-medium mb-4"><Clock className="h-4 w-4" /> <span>Pausentimer: AUS</span></div>
-                <div className="grid grid-cols-12 gap-2 mb-2 text-[10px] text-gray-500 font-bold tracking-wider text-center px-1"><div className="col-span-2 text-left">SET</div><div className="col-span-4 text-left">VORHERIGE</div><div className="col-span-2">KG</div><div className="col-span-2">WDH</div><div className="col-span-2 flex justify-center"><Check className="h-4 w-4" /></div></div>
+
+                <div className="grid grid-cols-12 gap-2 mb-2 text-[10px] text-gray-500 font-bold tracking-wider text-center px-1">
+                  <div className="col-span-1 text-left">SET</div>
+                  <div className="col-span-4 text-left">VORHERIGE</div>
+                  <div className="col-span-3">KG</div>
+                  <div className="col-span-2">WDH</div>
+                  <div className="col-span-2 flex justify-center"><Check className="h-4 w-4" /></div>
+                </div>
+
                 <div className="space-y-2">
-                  {ex.sets.map((s:any) => (
-                    <div key={s.id} className={`grid grid-cols-12 gap-2 items-center px-1 py-1 rounded-lg ${s.done ? "bg-[#1C1C1E]/50" : ""}`}>
-                      <div className="col-span-2 flex items-center"><div className="bg-[#1C1C1E] text-white w-7 h-7 flex items-center justify-center rounded-md font-semibold text-xs">{s.set}</div></div>
-                      <div className="col-span-4 text-gray-400 text-[13px] font-medium">{s.prev}</div>
-                      <div className="col-span-2"><input type="number" value={s.kg} onChange={e => updateSet(ex.id, s.id, 'kg', e.target.value)} className={`w-full h-8 bg-[#1C1C1E] border border-[#2C2C2E] rounded-md text-center text-white font-semibold text-xs outline-none focus:border-[#0A84FF] ${s.done ? "opacity-50" : ""}`} /></div>
-                      <div className="col-span-2"><input type="number" value={s.reps} onChange={e => updateSet(ex.id, s.id, 'reps', e.target.value)} className={`w-full h-8 bg-[#1C1C1E] border border-[#2C2C2E] rounded-md text-center text-white font-semibold text-xs outline-none focus:border-[#0A84FF] ${s.done ? "opacity-50" : ""}`} /></div>
-                      <div className="col-span-2 flex justify-center"><button onClick={() => toggleSetDone(ex.id, s.id)} className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors ${s.done ? "bg-[#32D74B] text-black" : "bg-[#1C1C1E] text-gray-500 hover:bg-[#2C2C2E]"}`}><Check className="h-5 w-5" /></button></div>
+                  {ex.sets.map((s: any) => (
+                    <div key={s.id} className={`grid grid-cols-12 gap-2 items-center px-1 py-1 rounded-lg transition-colors ${s.done ? "bg-[#1C1C1E]/80" : ""}`}>
+                      <div className="col-span-1 flex items-center">
+                        <div className="bg-[#1C1C1E] text-white w-6 h-6 flex items-center justify-center rounded font-semibold text-xs">{s.set}</div>
+                      </div>
+                      <div className="col-span-4 text-gray-400 text-[12px] font-medium truncate">{s.prev}</div>
+                      <div className="col-span-3">
+                        <input 
+                          type="number" 
+                          inputMode="decimal"
+                          placeholder="0"
+                          value={s.kg} 
+                          onChange={e => updateSet(ex.id, s.id, 'kg', e.target.value)} 
+                          className={`w-full h-8 bg-[#1C1C1E] border border-[#2C2C2E] rounded-md text-center text-white font-semibold text-xs outline-none focus:border-[#0A84FF] ${s.done ? "opacity-50" : ""}`} 
+                        />
+                      </div>
+                      <div className="col-span-2">
+                        <input 
+                          type="number" 
+                          inputMode="numeric"
+                          placeholder="0"
+                          value={s.reps} 
+                          onChange={e => updateSet(ex.id, s.id, 'reps', e.target.value)} 
+                          className={`w-full h-8 bg-[#1C1C1E] border border-[#2C2C2E] rounded-md text-center text-white font-semibold text-xs outline-none focus:border-[#0A84FF] ${s.done ? "opacity-50" : ""}`} 
+                        />
+                      </div>
+                      <div className="col-span-2 flex items-center justify-center gap-1.5">
+                        <button 
+                          onClick={() => toggleSetDone(ex.id, s.id)} 
+                          className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${s.done ? "bg-[#32D74B] text-black" : "bg-[#1C1C1E] text-gray-500 hover:bg-[#2C2C2E]"}`}
+                        >
+                          <Check className="h-4 w-4" />
+                        </button>
+                        {ex.sets.length > 1 && (
+                          <button onClick={() => removeSetFromExercise(ex.id, s.id)} className="text-gray-600 hover:text-rose-400 p-0.5">
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
-                <button onClick={() => addSetToExercise(ex.id)} className="w-full bg-[#1C1C1E] text-gray-300 hover:bg-[#2C2C2E] rounded-lg py-2 mt-3 text-sm font-semibold flex items-center justify-center gap-1 transition-colors">
-                  <Plus className="h-4 w-4" /> Satz hinzufügen
+                
+                <button 
+                  onClick={() => addSetToExercise(ex.id)} 
+                  className="w-full bg-[#1C1C1E] hover:bg-[#242428] text-gray-300 rounded-xl py-2 mt-3 text-xs font-semibold flex items-center justify-center gap-1 transition-colors border border-white/5"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Satz hinzufügen
                 </button>
               </div>
             ))}
+
+            <button 
+              onClick={() => setShowAddExerciseModal(true)} 
+              className="w-full py-3.5 bg-[#1C1C1E] hover:bg-[#28282D] text-[#0A84FF] font-bold rounded-2xl border border-dashed border-[#0A84FF]/40 flex items-center justify-center gap-2 text-sm transition-all"
+            >
+              <Plus className="h-4 w-4" /> Weitere Übung hinzufügen
+            </button>
           </div>
+
+          {/* Modal: Neue Übung auswählen/eingeben */}
+          {showAddExerciseModal && (
+            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-[#1C1C1E] border border-white/10 w-full max-w-md rounded-2xl p-5 space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-sm font-bold text-white">Übung zum Workout hinzufügen</h3>
+                  <button onClick={() => setShowAddExerciseModal(false)} className="text-gray-400 hover:text-white"><X className="h-4 w-4" /></button>
+                </div>
+
+                <div className="space-y-2">
+                  <input 
+                    type="text" 
+                    placeholder="Eigene Übung eingeben..." 
+                    value={customExerciseName}
+                    onChange={(e) => setCustomExerciseName(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && addExerciseToActiveWorkout(customExerciseName)}
+                    className="w-full bg-[#121214] border border-[#2C2C2E] rounded-xl px-4 py-2.5 text-xs text-white outline-none focus:border-[#0A84FF]"
+                  />
+                  <button 
+                    onClick={() => addExerciseToActiveWorkout(customExerciseName)}
+                    className="w-full bg-[#0A84FF] text-white py-2 rounded-xl text-xs font-bold"
+                  >
+                    Hinzufügen
+                  </button>
+                </div>
+
+                <div className="pt-2 border-t border-white/10">
+                  <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block mb-2">Schnellauswahl:</span>
+                  <div className="flex flex-wrap gap-1.5 max-h-48 overflow-y-auto pr-1">
+                    {[...PUSH_ROUTINE, ...PULL_ROUTINE].map((exName, idx) => (
+                      <button 
+                        key={idx} 
+                        onClick={() => addExerciseToActiveWorkout(exName)}
+                        className="text-[11px] bg-[#121214] hover:bg-[#28282D] text-gray-200 border border-white/5 px-2.5 py-1.5 rounded-lg text-left truncate"
+                      >
+                        + {exName}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
     );
