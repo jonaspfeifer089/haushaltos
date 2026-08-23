@@ -606,10 +606,6 @@ const PULL_ROUTINE = [
   const backSets = recentSets.filter(g => /ruder|lat|zug|klimm/i.test(g.uebung)).length;
   const shoulderSets = recentSets.filter(g => /schulter|presse|seitheben/i.test(g.uebung)).length;
   const armSets = recentSets.filter(g => /curl|trizeps|preacher/i.test(g.uebung)).length;
-
-  const allTimePR = chartData.length > 0 ? Math.max(...chartData.map(c => c.oneRepMax)) : 0;
-  const maxWeightLifted = exerciseSets.length > 0 ? Math.max(...exerciseSets.map(s => s.gewicht)) : 0;
-  const totalVolumeLifetime = exerciseSets.reduce((sum, s) => sum + (s.gewicht * s.reps), 0);
   
   // KPIs berechnen
   const allTimePR = chartData.length > 0 ? Math.max(...chartData.map(c => c.oneRepMax)) : 0;
