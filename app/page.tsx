@@ -229,11 +229,11 @@ export default function DashboardPage() {
 ];
 
 const PULL_ROUTINE = [
-  "Sitzendes Rudern am Kabelzug - V-Griff",
+  "Sitzendes Rudern am Kabelzug - V-Griff (Kabel)",
   "Latzug (Kabel)",
-  "Incline Curls sitzend (Kurzhantel)",
-  "Hammer Curls (Kurzhantel)",
-  "Preacher Curl (SZ-Stange)"
+  "Incline Curl sitzend (Kurzhantel)",
+  "Hammer Curl (Kurzhantel)",
+  "Preacher Curl (Langhantel)"
 ];
 
   const startWorkout = (type: "push" | "pull" | "empty") => {
