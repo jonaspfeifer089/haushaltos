@@ -218,23 +218,23 @@ export default function DashboardPage() {
   };
 
   const PUSH_ROUTINE = [
-    "Bankdrücken Langhantel",
-    "Schrägbankdrücken Kurzhantel",
-    "Tiefe Cable crossovers",
-    "Schulterpresse sitzend (Maschine)",
-    "Seitheben (Kurzhantel)",
-    "Trizepsdrücken mit dem Seil",
-    "Überkopf-Trizepsstrecken (Kabelzug)",
-    "Einarmiges Seitheben (Kabelzug)"
-  ];
+  "Bankdrücken (Langhantel)",
+  "Schrägbankdrücken (Kurzhantel)",
+  "Tiefe Cable crossovers",
+  "Schulterpresse sitzend (Maschine)",
+  "Seitheben (Kurzhantel)",
+  "Trizepsdrücken mit dem Seil",
+  "Überkopf-Trizepsstrecken (Kabelzug)",
+  "Einarmiges Seitheben (Kabelzug)"
+];
 
-  const PULL_ROUTINE = [
-    "Sitzendes Rudern am Kabelzug - V-Griff",
-    "Latzug (Kabel)",
-    "Incline Curls sitzend (Kurzhantel)",
-    "Hammer Curls (Kurzhantel)",
-    "Preacher Curl (SZ-Stange)"
-  ];
+const PULL_ROUTINE = [
+  "Sitzendes Rudern am Kabelzug - V-Griff",
+  "Latzug (Kabel)",
+  "Incline Curls sitzend (Kurzhantel)",
+  "Hammer Curls (Kurzhantel)",
+  "Preacher Curl (SZ-Stange)"
+];
 
   const startWorkout = (type: "push" | "pull" | "empty") => {
     setWorkoutDauer(0);
