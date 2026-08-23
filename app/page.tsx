@@ -68,6 +68,7 @@ export default function DashboardPage() {
   const [activeTodoFilter, setActiveTodoFilter] = useState<string>("Alle");
 
   const [gymUebung, setGymUebung] = useState("");
+  const [recovery, setRecovery] = useState<number>(80);
   const [newCdTitle, setNewCdTitle] = useState("");
   const [newCdDate, setNewCdDate] = useState("");
   const [activeNoteCategory, setActiveNoteCategory] = useState<string>("Alle");
