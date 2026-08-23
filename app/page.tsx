@@ -613,7 +613,44 @@ const PULL_ROUTINE = [
   
   const lastSession1RM = chartData.length > 0 ? chartData[chartData.length - 1].oneRepMax : 0;
   const prevSession1RM = chartData.length > 1 ? chartData[chartData.length - 2].oneRepMax : lastSession1RM;
-  const growthRate = prevSession1RM > 0 ? (((lastSession1RM - prevSession1RM) / prevSession1RM) * 100).toFixed(1) : "0.0";
+  // Workout-Historie pro Tag aggregieren & Typ (Push / Pull) erkennen
+  const allUserSessionsByDate = userGymData.reduce((acc, curr) => {
+    if (!acc[curr.datum]) {
+      acc[curr.datum] = { datum: curr.datum, sets: [] as GymItem[] };
+    }
+    acc[curr.datum].sets.push(curr);
+    return acc;
+  }, {} as Record<string, { datum: string; sets: GymItem[] }>);
+
+  const workoutHistory = Object.values(allUserSessionsByDate)
+    .sort((a, b) => new Date(b.datum).getTime() - new Date(a.datum).getTime())
+    .map(session => {
+      const uebungen = Array.from(new Set(session.sets.map(s => s.uebung)));
+      const totalVolume = session.sets.reduce((sum, s) => sum + (s.gewicht * s.reps), 0);
+      
+      const pushCount = session.sets.filter(s => PUSH_ROUTINE.some(p => p.toLowerCase() === s.uebung.toLowerCase())).length;
+      const pullCount = session.sets.filter(s => PULL_ROUTINE.some(p => p.toLowerCase() === s.uebung.toLowerCase())).length;
+      
+      let type: "PUSH" | "PULL" | "INDIVIDUELL" = "INDIVIDUELL";
+      if (pushCount > pullCount) type = "PUSH";
+      else if (pullCount > pushCount) type = "PULL";
+
+      const d = new Date(session.datum);
+      const weekday = d.toLocaleDateString("de-DE", { weekday: "short" });
+      const day = String(d.getDate()).padStart(2, "0");
+      const month = String(d.getMonth() + 1).padStart(2, "0");
+      const year = d.getFullYear();
+      const formattedDate = `${weekday} ${day}.${month}.${year}`;
+
+      return {
+        rawDate: session.datum,
+        formattedDate,
+        type,
+        totalVolume,
+        totalSets: session.sets.length,
+        uebungen
+      };
+    });
 
   let currentWorkoutVolume = 0; let currentWorkoutSets = 0;
   activeExercises.forEach(ex => { ex.sets.forEach((s:any) => { if (s.done && s.kg && s.reps) { currentWorkoutVolume += (parseFloat(s.kg) * parseInt(s.reps, 10)); currentWorkoutSets++; } }); });
@@ -1325,28 +1362,50 @@ if (activeTab === "gym" && isWorkoutActive) {
                   </div>
                 </div>
 
-                {/* Rechte Spalte: Letzte PRs & Workout-Log */}
+                {/* Rechte Spalte: Trainings-Historie (Workouts) */}
                 <div className="lg:col-span-4 space-y-6">
-                  <div className={`${bgCard} rounded-3xl p-6 border space-y-3`}>
+                  <div className={`${bgCard} rounded-3xl p-6 border space-y-4`}>
                     <div className="flex justify-between items-center">
-                      <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Satz-Historie: {activeExerciseName}</h3>
+                      <div>
+                        <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Trainings-Historie</h3>
+                        <p className={`text-xs font-semibold ${textTitle} mt-0.5`}>Absolvierte Sessions ({workoutHistory.length})</p>
+                      </div>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${badgeBlue}`}>Log</span>
                     </div>
-                    <div className="space-y-2.5 max-h-[480px] overflow-y-auto pr-1">
-                      {exerciseSets.length === 0 ? (
-                        <div className="p-4 text-center text-xs opacity-60">Keine absolvierten Sätze.</div>
+
+                    <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
+                      {workoutHistory.length === 0 ? (
+                        <div className={`p-6 text-center text-xs ${textSub}`}>Noch keine Workouts protokolliert.</div>
                       ) : (
-                        exerciseSets.slice().reverse().map((g) => (
-                          <div key={g.id} className={`p-3 rounded-xl border ${bgItem} flex items-center justify-between`}>
-                            <div>
-                              <span className={`text-xs font-bold ${textTitle} block`}>Satz {g.setnum}</span>
-                              <span className={`text-[10px] ${textSub}`}>{g.datum}</span>
+                        workoutHistory.map((w, idx) => (
+                          <div key={idx} className={`p-4 rounded-2xl border ${bgItem} space-y-2.5 transition-all hover:border-[#0A84FF]/40`}>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xs font-black font-mono px-2 py-0.5 rounded-lg ${
+                                  w.type === "PUSH" 
+                                    ? "bg-[#0A84FF]/20 text-[#0A84FF] border border-[#0A84FF]/30" 
+                                    : w.type === "PULL" 
+                                    ? "bg-[#32D74B]/20 text-[#32D74B] border border-[#32D74B]/30"
+                                    : badgeBlue
+                                }`}>
+                                  {w.type}
+                                </span>
+                                <span className={`text-xs font-bold ${textTitle}`}>{w.formattedDate}</span>
+                              </div>
+                              <span className={`text-xs font-mono font-bold ${accentBlue}`}>{w.totalVolume} kg</span>
                             </div>
-                            <div className="text-right flex items-center gap-2">
-                              <span className={`text-sm font-mono font-extrabold ${textTitle}`}>{g.gewicht} kg</span>
-                              <span className={`text-[11px] font-mono ${textSub}`}>× {g.reps}</span>
-                              {calculate1RM(g.gewicht, g.reps) === allTimePR && (
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-[#5B8C5A]/20 text-[#7DB47C]">PR</span>
-                              )}
+
+                            <div className="flex items-center justify-between text-[11px] text-slate-400 font-medium">
+                              <span>{w.totalSets} Sätze absolviert</span>
+                              <span>{w.uebungen.length} Übungen</span>
+                            </div>
+
+                            <div className="flex flex-wrap gap-1 pt-1 border-t border-black/5 dark:border-white/5">
+                              {w.uebungen.map((uebung, uIdx) => (
+                                <span key={uIdx} className="text-[10px] px-2 py-0.5 rounded-md bg-black/5 dark:bg-white/5 font-medium truncate max-w-[150px]">
+                                  {uebung}
+                                </span>
+                              ))}
                             </div>
                           </div>
                         ))
