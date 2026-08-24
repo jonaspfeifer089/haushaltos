@@ -10,8 +10,8 @@ import { supabase } from "../lib/supabaseClient";
 
 interface Departure { line: string; destination: string; time: string; }
 interface CalendarEvent { title: string; date: string; type?: "termin" | "putz"; }
-interface TodoItem { id: string; aufgabe: string; kategorie: string; status: string; zustaendig: string; }
-interface EinkaufItem { id: string; artikel: string; status: string; kategorie?: string; }
+interface TodoItem { id: string; aufgabe: string; kategorie: string; status: string; fuer: string; }
+interface EinkaufItem { id: string; artikel: string; status: string; kategorie?: string; fuer?: string; }
 interface GymItem { id: string; datum: string; uebung: string; gewicht: number; reps: number; setnum: number; username: string; }
 interface PutzItem { id: string; aufgabe: string; letztes_datum: string; intervall: string; username: string; }
 interface VorratItem { id: string; artikel: string; ablaufdatum: string; anbruch: string; }
@@ -45,8 +45,8 @@ export default function DashboardPage() {
   
   const [departures, setDepartures] = useState<Departure[]>([]);
   const [weather, setWeather] = useState<string>("Lädt...");
-const [weatherTip, setWeatherTip] = useState<string>("Guten Tag!");
-const [locationName, setLocationName] = useState<string>("Erfurt");
+  const [weatherTip, setWeatherTip] = useState<string>("Guten Tag!");
+  const [locationName, setLocationName] = useState<string>("Erfurt");
 
   // Proaktive Wetter-Hinweise ermitteln
   const getProactiveTip = (code: number, temp: number) => {
@@ -74,6 +74,7 @@ const [locationName, setLocationName] = useState<string>("Erfurt");
   const [activeExercises, setActiveExercises] = useState<any[]>([]);
 
   const [neuerArtikel, setNeuerArtikel] = useState("");
+  const [einkaufFuer, setEinkaufFuer] = useState<string>("Beide");
   const [neuesTodo, setNeuesTodo] = useState("");
   const [todoKategorie, setTodoKategorie] = useState<string>("Haushalt & Reparatur");
   const [todoZustaendig, setTodoZustaendig] = useState<string>("Beide");
@@ -235,12 +236,27 @@ const [locationName, setLocationName] = useState<string>("Erfurt");
   const addEinkauf = async (artikelName?: string) => {
     const text = (artikelName || neuerArtikel).trim();
     if (!text) return;
-    const newItem: EinkaufItem = { id: crypto.randomUUID(), artikel: text, status: "Offen", kategorie: ermittleKategorie(text) };
+    const targetUser = artikelName ? "Beide" : einkaufFuer;
+    const newItem: EinkaufItem = { 
+      id: crypto.randomUUID(), 
+      artikel: text, 
+      status: "Offen", 
+      kategorie: ermittleKategorie(text),
+      fuer: targetUser
+    };
     setEinkauf(prev => [...prev, newItem]); 
     if (!artikelName) setNeuerArtikel("");
     setIsFabOpen(false);
     await supabase.from("einkauf").insert(newItem);
-    fetch("https://ntfy.sh/HaushaltLenaJonas", { method: "POST", body: `${activeUser} hat "${text}" auf die Einkaufsliste gesetzt.`, headers: { "Title": "Neuer Einkauf", "Tags": "shopping_cart" }});
+
+    // Push nur senden, wenn es für Beide ist oder dem Partner zugewiesen wurde
+    if (targetUser !== activeUser) {
+      fetch("https://ntfy.sh/HaushaltLenaJonas", { 
+        method: "POST", 
+        body: `${activeUser} hat "${text}" auf die Einkaufsliste gesetzt (${targetUser}).`, 
+        headers: { "Title": "Neuer Einkauf", "Tags": "shopping_cart" }
+      });
+    }
   };
 
   const markEinkaufErledigt = async (item: EinkaufItem, status: "Erledigt" | "Offen") => {
@@ -261,17 +277,19 @@ const [locationName, setLocationName] = useState<string>("Erfurt");
     setIsFabOpen(false);
     await supabase.from("todos").insert(newItem);
     
-    // Ntfy mit Action-Buttons (Push-to-Run)
-    const appUrl = typeof window !== 'undefined' ? window.location.origin : 'https://haushaltos.vercel.app';
-    fetch("https://ntfy.sh/HaushaltLenaJonas", {
-      method: "POST",
-      body: `${activeUser} hat ein neues To-Do angelegt: "${text}"`,
-      headers: {
-        "Title": "Neues To-Do",
-        "Tags": "memo",
-        "Actions": `http, ✅ Erledigen, ${appUrl}/api/action, method=POST, body='{"type":"todo","id":"${newItem.id}","action":"erledigt"}', clear=true`
-      }
-    });
+    // Push nur senden, wenn es für Beide ist oder dem Partner zugewiesen wurde
+    if (todoZustaendig !== activeUser) {
+      const appUrl = typeof window !== 'undefined' ? window.location.origin : 'https://haushaltos.vercel.app';
+      fetch("https://ntfy.sh/HaushaltLenaJonas", {
+        method: "POST",
+        body: `${activeUser} hat ein neues To-Do angelegt: "${text}" (${todoZustaendig})`,
+        headers: {
+          "Title": "Neues To-Do",
+          "Tags": "memo",
+          "Actions": `http, ✅ Erledigen, ${appUrl}/api/action, method=POST, body='{"type":"todo","id":"${newItem.id}","action":"erledigt"}', clear=true`
+        }
+      });
+    }
   };
 
   const markTodoErledigt = async (item: TodoItem, status: "Erledigt" | "Offen") => {
@@ -1090,16 +1108,25 @@ if (activeTab === "gym" && isWorkoutActive) {
               </div>
 
               <div className={`${bgCard} rounded-2xl p-6`}>
-                <div className={`flex gap-3 mb-6 pb-6 border-b ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"}`}>
+                <div className={`grid grid-cols-1 sm:grid-cols-12 gap-3 mb-6 pb-6 border-b ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"}`}>
                   <input 
                     type="text" 
                     placeholder="Neuer Artikel..." 
                     value={neuerArtikel} 
                     onChange={(e) => setNeuerArtikel(e.target.value)} 
                     onKeyDown={(e) => e.key === 'Enter' && addEinkauf()} 
-                    className={`flex-1 ${bgInput} border rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none`} 
+                    className={`sm:col-span-8 w-full ${bgInput} border rounded-xl px-4 py-2.5 text-sm font-medium focus:outline-none`} 
                   />
-                  <motion.button whileTap={tapGesture} onClick={() => addEinkauf()} className={`px-6 py-2.5 ${buttonPrimary} text-xs font-bold rounded-xl`}>
+                  <select 
+                    value={einkaufFuer} 
+                    onChange={(e) => setEinkaufFuer(e.target.value)} 
+                    className={`sm:col-span-2 w-full ${bgInput} border rounded-xl px-3 py-2.5 text-xs font-semibold focus:outline-none`}
+                  >
+                    <option value="Beide">👥 Beide</option>
+                    <option value="Jonas">👤 Nur Jonas</option>
+                    <option value="Lena">👤 Nur Lena</option>
+                  </select>
+                  <motion.button whileTap={tapGesture} onClick={() => addEinkauf()} className={`sm:col-span-2 w-full px-4 py-2.5 ${buttonPrimary} text-xs font-bold rounded-xl flex items-center justify-center`}>
                     Hinzufügen
                   </motion.button>
                 </div>
@@ -1130,7 +1157,14 @@ if (activeTab === "gym" && isWorkoutActive) {
                               }} 
                               className={`relative z-10 flex items-center justify-between p-3.5 rounded-xl border ${bgItem} ${bgCard} shadow-sm cursor-grab`}
                             >
-                              <span className={`text-sm font-semibold ${textTitle}`}>{item.artikel}</span>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-sm font-semibold ${textTitle}`}>{item.artikel}</span>
+                                {item.fuer && item.fuer !== "Beide" && (
+                                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${badgeBlue}`}>
+                                    👤 {item.fuer}
+                                  </span>
+                                )}
+                              </div>
                               <button onClick={() => markEinkaufErledigt(item, "Erledigt")} className={`h-7 px-3 text-[11px] font-bold rounded-lg ${badgeGreen} hover:opacity-80 flex items-center gap-1`}>
                                 <Check className="h-3.5 w-3.5" /> Erledigt
                               </button>
@@ -1145,7 +1179,7 @@ if (activeTab === "gym" && isWorkoutActive) {
                   )}
                 </div>
               </div>
-            </div>
+              </div>
           )}
 
           {activeTab === "gym" && !isWorkoutActive && (
