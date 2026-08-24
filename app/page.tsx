@@ -10,7 +10,7 @@ import { supabase } from "../lib/supabaseClient";
 
 interface Departure { line: string; destination: string; time: string; }
 interface CalendarEvent { title: string; date: string; type?: "termin" | "putz"; }
-interface TodoItem { id: string; aufgabe: string; kategorie: string; status: string; fuer: string; }
+interface TodoItem { id: string; aufgabe: string; kategorie: string; status: string; zustaendig: string; }
 interface EinkaufItem { id: string; artikel: string; status: string; kategorie?: string; fuer?: string; }
 interface GymItem { id: string; datum: string; uebung: string; gewicht: number; reps: number; setnum: number; username: string; }
 interface PutzItem { id: string; aufgabe: string; letztes_datum: string; intervall: string; username: string; }
