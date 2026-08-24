@@ -605,21 +605,21 @@ const PULL_ROUTINE = [
   const userGymData = gymData.filter(g => g.username === activeUser);
   const activeExerciseName = gymUebung.trim() || PUSH_ROUTINE[0];
 
-  // 1. ZUERST: Sätze filtern und sortieren (alt -> neu)
+  // 1. ZUERST: Alle Sätze der aktiven Übung ab Tag 1 chronologisch sortieren (alt -> neu)
   const exerciseSets = userGymData
     .filter(g => g.uebung.toLowerCase() === activeExerciseName.toLowerCase())
     .sort((a, b) => new Date(a.datum).getTime() - new Date(b.datum).getTime());
 
-  // 2. ZWEITENS: Sätze pro Workout-Tag aggregieren
+  // 2. ZWEITENS: Sätze pro Workout-Tag aggregieren (All-Time Sessions)
   const sessionsByDate = exerciseSets.reduce((acc, curr) => {
     if (!acc[curr.datum]) {
-      acc[curr.datum] = { datum: curr.datum, sets: [] };
+      acc[curr.datum] = { datum: curr.datum, sets: [] as GymItem[] };
     }
     acc[curr.datum].sets.push(curr);
     return acc;
   }, {} as Record<string, { datum: string; sets: GymItem[] }>);
 
-  // 3. DRITTENS: chartData erstellen
+  // 3. DRITTENS: chartData ab dem ersten Training erstellen
   const chartData = Object.values(sessionsByDate).map(session => {
     const bestSet = session.sets.reduce((prev, curr) => {
       return calculate1RM(curr.gewicht, curr.reps) > calculate1RM(prev.gewicht, prev.reps) ? curr : prev;
@@ -628,8 +628,12 @@ const PULL_ROUTINE = [
     const sessionVolume = session.sets.reduce((sum, s) => sum + (s.gewicht * s.reps), 0);
     const max1RM = calculate1RM(bestSet.gewicht, bestSet.reps);
 
+    // Formatiertes Datum für die X-Achse (z.B. "24.08." oder "24.08.26")
+    const d = new Date(session.datum);
+    const displayDatum = d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+
     return {
-      datum: session.datum.substring(5, 10),
+      datum: displayDatum,
       rawDatum: session.datum,
       oneRepMax: max1RM,
       bestWeight: bestSet.gewicht,
