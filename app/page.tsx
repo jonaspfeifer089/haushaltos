@@ -722,6 +722,69 @@ const PULL_ROUTINE = [
   let currentWorkoutSets = 0;
   activeExercises.forEach(ex => { ex.sets.forEach((s:any) => { if (s.done && s.kg && s.reps) { currentWorkoutVolume += (parseFloat(s.kg) * parseInt(s.reps, 10)); currentWorkoutSets++; } }); });
 
+// -------------------------------------------------------------
+  // GLOBAL COMPOSITE STRENGTH & HYPERTROPHY ENGINE
+  // -------------------------------------------------------------
+  const CORE_COMPOUNDS = [
+    { name: "Bankdrücken (Langhantel)", group: "Brust" },
+    { name: "Schrägbankdrücken (Kurzhantel)", group: "Brust" },
+    { name: "Sitzendes Rudern am Kabelzug - V-Griff (Kabel)", group: "Rücken" },
+    { name: "Latzug (Kabel)", group: "Rücken" },
+    { name: "Schulterpresse sitzend (Maschine)", group: "Schulter" }
+  ];
+
+  // Alle Workouts chronologisch sortieren
+  const allUserDatesAsc = Array.from(new Set(userGymData.map(g => g.datum)))
+    .sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
+
+  // Globaler All-Time Kraftverlauf: Errechnet den Composite 1RM-Score für jeden Trainingstag
+  const globalStrengthHistory = allUserDatesAsc.map(currentDateStr => {
+    // Finde den aktuellsten PR jeder Compound-Übung bis zu diesem Datum
+    let totalComposite1RM = 0;
+    let exerciseCount = 0;
+
+    CORE_COMPOUNDS.forEach(comp => {
+      const pastSets = userGymData.filter(g => 
+        g.uebung.toLowerCase().includes(comp.name.toLowerCase().substring(0, 8)) &&
+        new Date(g.datum) <= new Date(currentDateStr)
+      );
+      if (pastSets.length > 0) {
+        const bestPastSet = pastSets.reduce((prev, curr) => 
+          calculate1RM(curr.gewicht, curr.reps) > calculate1RM(prev.gewicht, prev.reps) ? curr : prev, pastSets[0]
+        );
+        totalComposite1RM += calculate1RM(bestPastSet.gewicht, bestPastSet.reps);
+        exerciseCount++;
+      }
+    });
+
+    const d = new Date(currentDateStr);
+    const displayDate = d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+
+    return {
+      datum: displayDate,
+      rawDatum: currentDateStr,
+      compositeScore: totalComposite1RM,
+      trackedCompounds: exerciseCount
+    };
+  }).filter(item => item.compositeScore > 0);
+
+  // Aktueller Globaler Score vs. Start-Score
+  const baselineScore = globalStrengthHistory.length > 0 ? globalStrengthHistory[0].compositeScore : 0;
+  const currentCompositeScore = globalStrengthHistory.length > 0 ? globalStrengthHistory[globalStrengthHistory.length - 1].compositeScore : 0;
+  const totalCompositeGainKg = currentCompositeScore - baselineScore;
+  const totalCompositeGainPercent = baselineScore > 0 ? ((totalCompositeGainKg / baselineScore) * 100).toFixed(1) : "0.0";
+
+  // Muskel-Balance Score (Push vs. Pull vs. Schulter)
+  const getMuscleMax1RM = (keyword: string) => {
+    const sets = userGymData.filter(g => g.uebung.toLowerCase().includes(keyword.toLowerCase()));
+    if (sets.length === 0) return 0;
+    return Math.max(...sets.map(s => calculate1RM(s.gewicht, s.reps)));
+  };
+
+  const chest1RM = Math.max(getMuscleMax1RM("Bankdrücken"), getMuscleMax1RM("Schrägbank"));
+  const back1RM = Math.max(getMuscleMax1RM("Rudern"), getMuscleMax1RM("Latzug"));
+  const shoulder1RM = Math.max(getMuscleMax1RM("Schulter"), getMuscleMax1RM("Seitheben"));
+
   const TABS = [
     { id: "home", icon: Home, label: "Übersicht" },
     { id: "todos", icon: ListTodo, label: "To-Dos", count: offeneTodos.length },
@@ -1433,6 +1496,95 @@ if (activeTab === "gym" && isWorkoutActive) {
               {/* Analytics & Insights Suite */}
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 <div className="lg:col-span-8 space-y-6">
+                  {/* Global Composite Strength & Hypertrophy Index */}
+                  <div className={`${bgCard} rounded-3xl p-6 border space-y-5 bg-gradient-to-br ${isDarkMode ? "from-[#0A84FF]/10 via-transparent to-transparent" : "from-[#0A84FF]/5 via-transparent to-transparent"}`}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-black uppercase tracking-wider text-[#0A84FF]">MCI Total Strength Index</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${badgeGreen}`}>All-Time Entwicklung</span>
+                        </div>
+                        <h3 className={`text-lg font-extrabold ${textTitle} mt-0.5`}>Gesamtkraft & Hypertrophie-Level</h3>
+                        <p className={`text-xs ${textSub}`}>Kombinierter 1RM-Score über alle Hauptverbundübungen</p>
+                      </div>
+
+                      <div className="flex items-center gap-4 bg-black/5 dark:bg-white/5 p-3 rounded-2xl border border-black/5 dark:border-white/5 shrink-0">
+                        <div>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider ${textSub} block`}>Gesamt-Score</span>
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-2xl font-black font-mono text-[#0A84FF]">{currentCompositeScore}</span>
+                            <span className={`text-xs font-bold ${textSub}`}>kg</span>
+                          </div>
+                        </div>
+                        <div className="h-8 w-px bg-black/10 dark:bg-white/10" />
+                        <div>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider ${textSub} block`}>All-Time Zuwachs</span>
+                          <div className="flex items-baseline gap-1">
+                            <span className="text-2xl font-black font-mono text-emerald-500">+{totalCompositeGainKg}</span>
+                            <span className="text-xs font-bold text-emerald-500 font-mono">({totalCompositeGainPercent}%)</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Chart: Globaler Kraftanstieg */}
+                    <div className="h-[220px] w-full pt-1">
+                      {globalStrengthHistory.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={globalStrengthHistory} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="colorGlobalScore" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#32D74B" stopOpacity={0.4}/>
+                                <stop offset="95%" stopColor="#32D74B" stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={isDarkMode ? "#ffffff10" : "#00000010"} />
+                            <XAxis dataKey="datum" stroke={isDarkMode ? "#777" : "#aaa"} fontSize={11} tickLine={false} axisLine={false} />
+                            <YAxis domain={['dataMin - 10', 'dataMax + 10']} stroke={isDarkMode ? "#777" : "#aaa"} fontSize={11} tickLine={false} axisLine={false} />
+                            <Tooltip 
+                              content={({ active, payload }) => {
+                                if (active && payload && payload.length) {
+                                  const data = payload[0].payload;
+                                  return (
+                                    <div className={`${bgCard} p-3 rounded-xl border shadow-xl text-xs space-y-1`}>
+                                      <div className="font-bold text-slate-400">{data.rawDatum}</div>
+                                      <div className="font-extrabold text-sm text-emerald-500">Composite Score: {data.compositeScore} kg</div>
+                                      <div className="text-slate-400">Erfasste Hauptübungen: {data.trackedCompounds}</div>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              }} 
+                            />
+                            <Area type="monotone" dataKey="compositeScore" stroke="#32D74B" strokeWidth={3} fillOpacity={1} fill="url(#colorGlobalScore)" dot={{ r: 4, strokeWidth: 2, fill: isDarkMode ? "#100A0B" : "#FFFFFF" }} activeDot={{ r: 6 }} />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center border-2 border-dashed border-slate-500/20 rounded-xl">
+                          <span className={`text-xs ${textSub}`}>Noch nicht genügend Daten für Gesamtscore.</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Muskelgruppen-Kraftbalance Bar */}
+                    <div className="pt-2 border-t border-black/5 dark:border-white/5 space-y-2">
+                      <div className={`text-[10px] font-bold ${textSub} uppercase tracking-wider`}>Kraftbalance nach Muskelgruppen (1RM Peak)</div>
+                      <div className="grid grid-cols-3 gap-3 text-center">
+                        <div className={`p-2.5 rounded-xl border ${bgItem}`}>
+                          <span className="text-[10px] text-slate-400 block font-sans font-bold">Push (Brust)</span>
+                          <span className={`text-sm font-black font-mono ${textTitle}`}>{chest1RM} kg</span>
+                        </div>
+                        <div className={`p-2.5 rounded-xl border ${bgItem}`}>
+                          <span className="text-[10px] text-slate-400 block font-sans font-bold">Pull (Rücken)</span>
+                          <span className={`text-sm font-black font-mono ${textTitle}`}>{back1RM} kg</span>
+                        </div>
+                        <div className={`p-2.5 rounded-xl border ${bgItem}`}>
+                          <span className="text-[10px] text-slate-400 block font-sans font-bold">Schultern</span>
+                          <span className={`text-sm font-black font-mono ${textTitle}`}>{shoulder1RM} kg</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                   {/* Kraftentwicklung Selector & Area Chart */}
                   <div className={`${bgCard} rounded-3xl p-6 border space-y-4`}>
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
