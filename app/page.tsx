@@ -37,6 +37,37 @@ function ermittleKategorie(artikel: string): string {
 
 const calculate1RM = (weight: number, reps: number) => Math.round(weight * (1 + reps / 30));
 
+function getNextSetTarget(
+  exerciseName: string,
+  setNum: number,
+  previousSets: GymItem[],
+  targetMin = 8,
+  targetMax = 12
+) {
+  const lastSet = previousSets.find(s => s.setnum === setNum) || previousSets[0];
+  
+  if (!lastSet) {
+    return { targetKg: 20, targetReps: targetMin, label: "Startgewicht" };
+  }
+
+  const isCompound = /bank|rudern|drücken|lat|presse/i.test(exerciseName);
+  const step = isCompound ? 2.5 : 1.25;
+
+  if (lastSet.reps >= targetMax) {
+    return {
+      targetKg: lastSet.gewicht + step,
+      targetReps: targetMin,
+      label: `🔥 +${step}kg Overload!`
+    };
+  }
+
+  return {
+    targetKg: lastSet.gewicht,
+    targetReps: lastSet.reps + 1,
+    label: `⚡ +1 Rep (${lastSet.reps + 1} WDH)`
+  };
+}
+
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("home");
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -486,10 +517,20 @@ const PULL_ROUTINE = [
     for (const set of completedSets) {
       await supabase.from("gym").insert(set);
     }
+    const totalSetsCompleted = completedSets.length;
+    const totalVolume = completedSets.reduce((sum, s) => sum + (s.gewicht * s.reps), 0);
+    const appUrl = typeof window !== 'undefined' ? window.location.origin : 'https://haushaltos.vercel.app';
+
+    const bodyText = `🔥 Workout abgeschlossen!\n🏋️ ${totalSetsCompleted} Sätze | ${(totalVolume / 1000).toFixed(2)}t Tonnage\n🎯 Progressive Overload angewendet. Erholungsphase eingeleitet!`;
+
     fetch("https://ntfy.sh/HaushaltLenaJonas", {
       method: "POST",
-      body: `${activeUser} hat ein Workout beendet! (${completedSets.length} Sätze absolviert).`,
-      headers: { "Title": "Workout abgeschlossen", "Tags": "muscle" }
+      body: bodyText,
+      headers: { 
+        "Title": `Workout Beendet (${activeUser})`, 
+        "Tags": "muscle,trophy",
+        "Actions": `view, App oeffnen, ${appUrl}`
+      }
     });
   };
 
@@ -774,48 +815,78 @@ if (activeTab === "gym" && isWorkoutActive) {
                   <div className="col-span-2 flex justify-center"><Check className="h-4 w-4" /></div>
                 </div>
 
-                <div className="space-y-2">
-                  {ex.sets.map((s: any) => (
-                    <div key={s.id} className={`grid grid-cols-12 gap-2 items-center px-1 py-1 rounded-lg transition-colors ${s.done ? "bg-[#1C1C1E]/80" : ""}`}>
-                      <div className="col-span-1 flex items-center">
-                        <div className="bg-[#1C1C1E] text-white w-6 h-6 flex items-center justify-center rounded font-semibold text-xs">{s.set}</div>
+                <div className="space-y-2.5">
+                  {ex.sets.map((s: any) => {
+                    const targetInfo = getNextSetTarget(
+                      ex.name, 
+                      s.set, 
+                      gymData.filter(g => g.username === activeUser && g.uebung.toLowerCase() === ex.name.toLowerCase())
+                    );
+
+                    return (
+                      <div key={s.id} className={`p-2.5 rounded-xl border transition-all ${s.done ? "bg-[#1C1C1E]/80 border-emerald-500/40" : "bg-[#161618] border-white/5"}`}>
+                        <div className="flex justify-between items-center text-[10px] mb-1.5 px-1">
+                          <span className="text-slate-400 font-mono truncate max-w-[140px]">Vorher: {s.prev}</span>
+                          <span className="text-[#0A84FF] font-bold font-mono bg-[#0A84FF]/10 px-1.5 py-0.5 rounded">
+                            🎯 Ziel: {targetInfo.targetKg}kg × {targetInfo.targetReps}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-12 gap-2 items-center">
+                          <div className="col-span-1 text-center font-bold text-xs text-white">{s.set}</div>
+                          
+                          <div className="col-span-4">
+                            <input 
+                              type="number" 
+                              step="0.5" 
+                              inputMode="decimal"
+                              placeholder={`${targetInfo.targetKg}`}
+                              value={s.kg} 
+                              onChange={e => updateSet(ex.id, s.id, 'kg', e.target.value)}
+                              className="w-full h-8 bg-[#1C1C1E] border border-[#2C2C2E] rounded-md text-center text-white font-semibold text-xs outline-none focus:border-[#0A84FF]"
+                            />
+                          </div>
+
+                          <div className="col-span-3">
+                            <input 
+                              type="number" 
+                              inputMode="numeric"
+                              placeholder={`${targetInfo.targetReps}`}
+                              value={s.reps} 
+                              onChange={e => updateSet(ex.id, s.id, 'reps', e.target.value)}
+                              className="w-full h-8 bg-[#1C1C1E] border border-[#2C2C2E] rounded-md text-center text-white font-semibold text-xs outline-none focus:border-[#0A84FF]"
+                            />
+                          </div>
+
+                          <div className="col-span-4 flex items-center justify-end gap-1">
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                updateSet(ex.id, s.id, 'kg', String(targetInfo.targetKg));
+                                updateSet(ex.id, s.id, 'reps', String(targetInfo.targetReps));
+                              }}
+                              className="px-2 h-7 bg-white/5 hover:bg-white/10 text-[10px] font-bold rounded text-slate-300 transition-colors"
+                              title="Ziel übernehmen"
+                            >
+                              Auto
+                            </button>
+                            <button 
+                              type="button"
+                              onClick={() => toggleSetDone(ex.id, s.id)}
+                              className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${s.done ? "bg-[#32D74B] text-black" : "bg-[#1C1C1E] text-gray-500 hover:bg-[#2C2C2E]"}`}
+                            >
+                              <Check className="h-4 w-4" />
+                            </button>
+                            {ex.sets.length > 1 && (
+                              <button onClick={() => removeSetFromExercise(ex.id, s.id)} className="text-gray-600 hover:text-rose-400 p-0.5">
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                      <div className="col-span-4 text-gray-400 text-[12px] font-medium truncate">{s.prev}</div>
-                      <div className="col-span-3">
-                        <input 
-                          type="number" 
-                          inputMode="decimal"
-                          placeholder="0"
-                          value={s.kg} 
-                          onChange={e => updateSet(ex.id, s.id, 'kg', e.target.value)} 
-                          className={`w-full h-8 bg-[#1C1C1E] border border-[#2C2C2E] rounded-md text-center text-white font-semibold text-xs outline-none focus:border-[#0A84FF] ${s.done ? "opacity-50" : ""}`} 
-                        />
-                      </div>
-                      <div className="col-span-2">
-                        <input 
-                          type="number" 
-                          inputMode="numeric"
-                          placeholder="0"
-                          value={s.reps} 
-                          onChange={e => updateSet(ex.id, s.id, 'reps', e.target.value)} 
-                          className={`w-full h-8 bg-[#1C1C1E] border border-[#2C2C2E] rounded-md text-center text-white font-semibold text-xs outline-none focus:border-[#0A84FF] ${s.done ? "opacity-50" : ""}`} 
-                        />
-                      </div>
-                      <div className="col-span-2 flex items-center justify-center gap-1.5">
-                        <button 
-                          onClick={() => toggleSetDone(ex.id, s.id)} 
-                          className={`w-7 h-7 rounded-md flex items-center justify-center transition-colors ${s.done ? "bg-[#32D74B] text-black" : "bg-[#1C1C1E] text-gray-500 hover:bg-[#2C2C2E]"}`}
-                        >
-                          <Check className="h-4 w-4" />
-                        </button>
-                        {ex.sets.length > 1 && (
-                          <button onClick={() => removeSetFromExercise(ex.id, s.id)} className="text-gray-600 hover:text-rose-400 p-0.5">
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
                 
                 <button 
@@ -1307,6 +1378,51 @@ if (activeTab === "gym" && isWorkoutActive) {
                     <div className="text-center"><span className="text-[10px] text-slate-400 block font-sans">Schulter</span>{shoulderSets} Sätze</div>
                     <div className="text-center"><span className="text-[10px] text-slate-400 block font-sans">Arme</span>{armSets} Sätze</div>
                   </div>
+                </div>
+              </div>
+
+              {/* Hypertrophy Volume Landmarks Grid */}
+              <div className={`${bgCard} rounded-3xl p-6 border space-y-4`}>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className={`text-xs font-bold uppercase tracking-wider ${textSub}`}>Hypertrophie-Volumen (Woche)</h3>
+                    <p className={`text-xs font-semibold ${textTitle} mt-0.5`}>Optimaler Bereich: 10–20 harte Sätze / Muskelgruppe</p>
+                  </div>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${badgeGreen}`}>MAV Matrix</span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {[
+                    { name: "Brust", count: chestSets },
+                    { name: "Rücken", count: backSets },
+                    { name: "Schultern", count: shoulderSets },
+                    { name: "Arme", count: armSets }
+                  ].map((m, i) => {
+                    const isOptimal = m.count >= 10 && m.count <= 20;
+                    const isLow = m.count < 10;
+                    return (
+                      <div key={i} className={`p-3 rounded-2xl border ${bgItem} space-y-2`}>
+                        <div className="flex justify-between items-center text-xs font-bold">
+                          <span className={textTitle}>{m.name}</span>
+                          <span className={`text-[10px] px-1.5 py-0.2 rounded font-mono ${
+                            isOptimal ? badgeGreen : isLow ? badgeBlue : "bg-rose-500/20 text-rose-400"
+                          }`}>
+                            {isOptimal ? "Optimal" : isLow ? "Steigern" : "Deload"}
+                          </span>
+                        </div>
+                        <div className="flex items-baseline gap-1">
+                          <span className={`text-2xl font-black font-mono ${textTitle}`}>{m.count}</span>
+                          <span className={`text-[10px] font-bold ${textSub}`}>/ 16 Sätze</span>
+                        </div>
+                        <div className="w-full bg-black/10 dark:bg-white/10 h-1.5 rounded-full overflow-hidden">
+                          <div 
+                            className={`h-full transition-all duration-500 ${isOptimal ? "bg-[#5B8C5A]" : isLow ? "bg-[#005377]" : "bg-rose-500"}`} 
+                            style={{ width: `${Math.min(100, (m.count / 20) * 100)}%` }} 
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
