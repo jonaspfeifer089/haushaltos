@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
+import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Home,
@@ -129,6 +130,7 @@ export default function DashboardPage() {
   };
 
   // Helper Actions
+  // 1. Einkauf hinzufügen mit Toast-Bestätigung
   const addEinkauf = async (artikelName?: string, userFuer = "Beide") => {
     if (!artikelName?.trim()) return;
     const item: EinkaufItem = {
@@ -140,6 +142,12 @@ export default function DashboardPage() {
     };
     setEinkauf((p) => [...p, item]);
     setIsFabOpen(false);
+
+    // Toast Feedback
+    toast.success(`"${item.artikel}" hinzugefügt`, {
+      description: `Kategorie: ${item.kategorie} • Für: ${userFuer}`
+    });
+
     await supabase.from("einkauf").insert(item);
     if (userFuer !== activeUser)
       fetch("https://ntfy.sh/HaushaltLenaJonas", {
@@ -148,85 +156,36 @@ export default function DashboardPage() {
         headers: { Title: "Neuer Einkauf", Tags: "shopping_cart" }
       });
   };
-  const markEinkaufErledigt = async (item: EinkaufItem, status: "Erledigt" | "Offen") => {
-    setEinkauf((p) => p.map((e) => (e.id === item.id ? { ...e, status } : e)));
-    await supabase.from("einkauf").update({ status }).eq("id", item.id);
-  };
-  const deleteEinkauf = async (item: EinkaufItem) => {
-    setEinkauf((p) => p.filter((e) => e.id !== item.id));
-    await supabase.from("einkauf").delete().eq("id", item.id);
-  };
 
-  const addTodo = async (text: string, kat: string, zust: string) => {
-    const item: TodoItem = {
-      id: crypto.randomUUID(),
-      aufgabe: text,
-      kategorie: kat,
-      status: "Offen",
-      zustaendig: zust
-    };
-    setTodos((p) => [...p, item]);
-    setIsFabOpen(false);
-    await supabase.from("todos").insert(item);
-    if (zust !== activeUser) {
-      const appUrl =
-        typeof window !== "undefined" ? window.location.origin : "https://haushaltos.vercel.app";
-      fetch("https://ntfy.sh/HaushaltLenaJonas", {
-        method: "POST",
-        body: `${activeUser} hat ein neues To-Do angelegt: "${text}" (${zust})`,
-        headers: {
-          Title: "Neues To-Do",
-          Tags: "memo",
-          Actions: `http, ✅ Erledigen, ${appUrl}/api/action, method=POST, body='{"type":"todo","id":"${item.id}","action":"erledigt"}', clear=true`
-        }
-      });
-    }
-  };
+  // 2. To-Do abhaken mit Toast-Bestätigung
   const markTodoErledigt = async (item: TodoItem, status: "Erledigt" | "Offen") => {
     setTodos((p) => p.map((t) => (t.id === item.id ? { ...t, status } : t)));
-    await supabase.from("todos").update({ status }).eq("id", item.id);
-    if (status === "Erledigt")
+
+    if (status === "Erledigt") {
+      toast.success("To-Do erledigt! 🎉", {
+        description: item.aufgabe
+      });
       fetch("https://ntfy.sh/HaushaltLenaJonas", {
         method: "POST",
         body: `✅ ${activeUser} hat die Aufgabe "${item.aufgabe}" erledigt!`,
         headers: { Title: "To-Do erledigt", Tags: "white_check_mark" }
       });
-  };
-  const deleteTodo = async (item: TodoItem) => {
-    setTodos((p) => p.filter((t) => t.id !== item.id));
-    await supabase.from("todos").delete().eq("id", item.id);
+    } else {
+      toast.info("To-Do wieder geöffnet", {
+        description: item.aufgabe
+      });
+    }
+
+    await supabase.from("todos").update({ status }).eq("id", item.id);
   };
 
-  const markAufgabeErledigt = async (item: PutzItem) => {
-    const today = new Date().toISOString().split("T")[0];
-    setAufgaben((p) => p.map((a) => (a.id === item.id ? { ...a, letztes_datum: today } : a)));
-    await supabase.from("haushalt").update({ letztes_datum: today }).eq("id", item.id);
-  };
-  const addNote = async (title: string, content: string, category: string) => {
-    const item: NoteItem = { id: crypto.randomUUID(), title, content, category, color: "green" };
-    setNotes((p) => [...p, item]);
-    setIsFabOpen(false);
-    await supabase.from("notizen").insert(item);
-  };
-  const toggleCheckItem = async (note: NoteItem, lineIdx: number) => {
-    const lines = note.content
-      .split("\n")
-      .map((line, idx) =>
-        idx !== lineIdx
-          ? line
-          : line.includes("- [ ]")
-            ? line.replace("- [ ]", "- [x]")
-            : line.replace("- [x]", "- [ ]")
-      );
-    const newContent = lines.join("\n");
-    setNotes((p) => p.map((n) => (n.id === note.id ? { ...n, content: newContent } : n)));
-    await supabase.from("notizen").update({ content: newContent }).eq("id", note.id);
-  };
-
+  // 3. Vorrats-Scan mit Toasts statt alert()
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setIsScanning(true);
+    const toastId = toast.loading("Analysiere Produkt & MHD per KI...");
+
     const reader = new FileReader();
     reader.onload = (event) => {
       const img = new Image();
@@ -262,15 +221,94 @@ export default function DashboardPage() {
             };
             setVorrat((p) => [...p, item]);
             await supabase.from("vorrat").insert(item);
-          } else alert(data.error || "Konnte kein Produkt erkennen.");
+
+            toast.success("Produkt erkannt & gespeichert!", {
+              id: toastId,
+              description: `${data.artikel} (MHD: ${data.mhd})`
+            });
+          } else {
+            toast.error("Produkt nicht erkannt", {
+              id: toastId,
+              description: data.error || "Bitte bei besserem Licht wiederholen."
+            });
+          }
         } catch {
-          alert("Fehler bei der Bildanalyse.");
+          toast.error("Fehler bei der Bildanalyse", {
+            id: toastId,
+            description: "Netzwerkfehler oder Server nicht erreichbar."
+          });
         }
         setIsScanning(false);
       };
       img.src = event.target?.result as string;
     };
     reader.readAsDataURL(file);
+  };
+
+  const markEinkaufErledigt = async (item: EinkaufItem, status: "Erledigt" | "Offen") => {
+    setEinkauf((p) => p.map((e) => (e.id === item.id ? { ...e, status } : e)));
+    await supabase.from("einkauf").update({ status }).eq("id", item.id);
+  };
+  const deleteEinkauf = async (item: EinkaufItem) => {
+    setEinkauf((p) => p.filter((e) => e.id !== item.id));
+    await supabase.from("einkauf").delete().eq("id", item.id);
+  };
+
+  const addTodo = async (text: string, kat: string, zust: string) => {
+    const item: TodoItem = {
+      id: crypto.randomUUID(),
+      aufgabe: text,
+      kategorie: kat,
+      status: "Offen",
+      zustaendig: zust
+    };
+    setTodos((p) => [...p, item]);
+    setIsFabOpen(false);
+    await supabase.from("todos").insert(item);
+    if (zust !== activeUser) {
+      const appUrl =
+        typeof window !== "undefined" ? window.location.origin : "https://haushaltos.vercel.app";
+      fetch("https://ntfy.sh/HaushaltLenaJonas", {
+        method: "POST",
+        body: `${activeUser} hat ein neues To-Do angelegt: "${text}" (${zust})`,
+        headers: {
+          Title: "Neues To-Do",
+          Tags: "memo",
+          Actions: `http, ✅ Erledigen, ${appUrl}/api/action, method=POST, body='{"type":"todo","id":"${item.id}","action":"erledigt"}', clear=true`
+        }
+      });
+    }
+  };
+
+  const deleteTodo = async (item: TodoItem) => {
+    setTodos((p) => p.filter((t) => t.id !== item.id));
+    await supabase.from("todos").delete().eq("id", item.id);
+  };
+
+  const markAufgabeErledigt = async (item: PutzItem) => {
+    const today = new Date().toISOString().split("T")[0];
+    setAufgaben((p) => p.map((a) => (a.id === item.id ? { ...a, letztes_datum: today } : a)));
+    await supabase.from("haushalt").update({ letztes_datum: today }).eq("id", item.id);
+  };
+  const addNote = async (title: string, content: string, category: string) => {
+    const item: NoteItem = { id: crypto.randomUUID(), title, content, category, color: "green" };
+    setNotes((p) => [...p, item]);
+    setIsFabOpen(false);
+    await supabase.from("notizen").insert(item);
+  };
+  const toggleCheckItem = async (note: NoteItem, lineIdx: number) => {
+    const lines = note.content
+      .split("\n")
+      .map((line, idx) =>
+        idx !== lineIdx
+          ? line
+          : line.includes("- [ ]")
+            ? line.replace("- [ ]", "- [x]")
+            : line.replace("- [x]", "- [ ]")
+      );
+    const newContent = lines.join("\n");
+    setNotes((p) => p.map((n) => (n.id === note.id ? { ...n, content: newContent } : n)));
+    await supabase.from("notizen").update({ content: newContent }).eq("id", note.id);
   };
 
   const getEventsForDate = (dateObj: Date) => {
