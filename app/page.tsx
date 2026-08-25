@@ -79,14 +79,36 @@ export default function DashboardPage() {
   const [weatherTip, setWeatherTip] = useState<string>("Guten Tag!");
   const [locationName, setLocationName] = useState<string>("Erfurt");
 
-  // Proaktive Wetter-Hinweise ermitteln
-  const getProactiveTip = (code: number, temp: number) => {
-    if (code >= 51 && code <= 67) return "🌧️ Regen gemeldet: Fenster zu & Schirm mitnehmen!";
-    if (code >= 71 && code <= 77) return "❄️ Schneefall: Warm anziehen!";
-    if (code >= 95) return "⚡ Gewitter im Anmarsch: Stecker ziehen & Balkon sichern!";
-    if (temp >= 24 && code <= 3) return "☀️ Sonnig & warm: Perfekt zum Wäsche aufhängen!";
-    if (temp <= 5) return "🧣 Kalt draußen: Stoßlüften nicht vergessen!";
-    return "🌤️ Angenehmes Wetter heute!";
+  // Detaillierte Wetter- & Outfit-Hinweise ermitteln
+  const getDetailedWeatherAdvice = (
+    currentTemp: number,
+    minTemp: number,
+    maxTemp: number,
+    rainProb: number,
+    weatherCode: number
+  ) => {
+    const parts: string[] = [];
+
+    // 1. Niederschlag & Schirm
+    if (rainProb >= 50 || (weatherCode >= 51 && weatherCode <= 67)) {
+      parts.push(`🌧️ Regen gemeldet (${rainProb}% Risiko) – Schirm oder Regenjacke einpacken!`);
+    }
+
+    // 2. Temperaturunterschied & Outfit
+    const tempDiff = maxTemp - minTemp;
+    if (tempDiff >= 9 && maxTemp >= 20 && minTemp <= 13) {
+      parts.push(`🧥 Morgens frisch (${minTemp}°C), mittags warm (${maxTemp}°C) – Zwiebellook empfohlen!`);
+    } else if (maxTemp >= 25) {
+      parts.push(`☀️ Heute wird es heiß (bis ${maxTemp}°C) – T-Shirt & leichte Kleidung genügen.`);
+    } else if (maxTemp <= 8) {
+      parts.push(`🧣 Bleibt kalt (max. ${maxTemp}°C) – dicke Jacke & Schal mitnehmen.`);
+    } else if (maxTemp <= 15) {
+      parts.push(`🧥 Mäßig kühl (bis ${maxTemp}°C) – Übergangsjacke anziehen.`);
+    } else {
+      parts.push(`🌤️ Angenehm mild (bis ${maxTemp}°C).`);
+    }
+
+    return parts.join(" ");
   };
   const [calendarMode, setCalendarMode] = useState<"month" | "week">("month");
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -241,18 +263,21 @@ export default function DashboardPage() {
     const fetchWeatherForCoords = async (lat: number, lon: number, cityName?: string) => {
       try {
         const weatherRes = await fetch(
-          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code`
+          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto`
         );
         const data = await weatherRes.json();
-        const temp = Math.round(data?.current?.temperature_2m ?? 0);
+        const curr = Math.round(data?.current?.temperature_2m ?? 0);
         const code = data?.current?.weather_code ?? 0;
-        setWeather(`${temp}°C`);
-        setWeatherTip(getProactiveTip(code, temp));
+        const minT = Math.round(data?.daily?.temperature_2m_min?.[0] ?? curr);
+        const maxT = Math.round(data?.daily?.temperature_2m_max?.[0] ?? curr);
+        const rainP = data?.daily?.precipitation_probability_max?.[0] ?? 0;
+
+        setWeather(`${curr}°C`);
+        setWeatherTip(getDetailedWeatherAdvice(curr, minT, maxT, rainP, code));
 
         if (cityName) {
           setLocationName(cityName);
         } else {
-          // Stadtname via Reverse-Geocoding auflösen
           try {
             const geoRes = await fetch(
               `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=de`
@@ -1102,6 +1127,18 @@ if (isWorkoutActive && !isWorkoutMinimized) {
             <div className="space-y-8">
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 pb-2 border-b border-[#E8E2D9] dark:border-white/[0.08]">
                 <div><div className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${accentGreen} mb-1`}><Sparkle className="h-3.5 w-3.5 fill-current" /> {todayStr}</div><h1 className={`text-3xl md:text-4xl font-extrabold tracking-tight ${textTitle}`}>Guten Tag, {activeUser}!</h1></div>
+                {/* Wetter- & Outfit-Empfehlungs-Kachel */}
+              <div className={`p-4 rounded-2xl border ${bgCard} flex items-center gap-3`}>
+                <div className="text-2xl shrink-0">💡</div>
+                <div>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${textSub} block`}>
+                    Tages- & Outfit-Empfehlung ({locationName})
+                  </span>
+                  <p className={`text-xs font-semibold ${textTitle} mt-0.5`}>
+                    {weatherTip}
+                  </p>
+                </div>
+              </div>
                 <div className="flex items-center gap-2">
   <span className={`text-base font-extrabold font-mono leading-none ${textTitle}`}>{weather}</span>
   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${badgeGreen}`}>{locationName}</span>
