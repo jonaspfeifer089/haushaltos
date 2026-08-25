@@ -38,7 +38,7 @@ import { useWeather } from "../hooks/useWeather";
 import { useSupabaseData } from "../hooks/useSupabaseData";
 import { useWorkoutSession } from "../hooks/useWorkoutSession";
 
-import { HomeView } from "../components/homeview";
+import { HomeView } from "../components/HomeView";
 import { TodoView } from "../components/ToDoView";
 import { ShoppingView } from "../components/ShoppingView";
 import { ActiveWorkoutView, GymDashboardView } from "../components/GymViews";
@@ -105,15 +105,14 @@ export default function DashboardPage() {
       .then((d) => {
         if (Array.isArray(d))
           setDepartures(
-            d
-              .slice(0, 5)
-              .map((x: any) => ({
-                line: x.label || "U",
-                destination: x.destination || "Unbekannt",
-                time: new Date(
-                  x.realtimeDepartureTime || x.plannedDepartureTime
-                ).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
-              }))
+            d.slice(0, 5).map((x: any) => ({
+              line: x.label || "U",
+              destination: x.destination || "Unbekannt",
+              time: new Date(x.realtimeDepartureTime || x.plannedDepartureTime).toLocaleTimeString(
+                "de-DE",
+                { hour: "2-digit", minute: "2-digit" }
+              )
+            }))
           );
       })
       .catch(() => {});
