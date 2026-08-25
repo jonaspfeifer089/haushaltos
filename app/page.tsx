@@ -101,6 +101,7 @@ export default function DashboardPage() {
   const [notes, setNotes] = useState<NoteItem[]>([]);
 
   const [isWorkoutActive, setIsWorkoutActive] = useState(false);
+  const [isWorkoutMinimized, setIsWorkoutMinimized] = useState(false);
   const [workoutDauer, setWorkoutDauer] = useState(0);
   const [activeExercises, setActiveExercises] = useState<any[]>([]);
 
@@ -201,6 +202,36 @@ export default function DashboardPage() {
     if (isWorkoutActive) interval = setInterval(() => setWorkoutDauer(prev => prev + 1), 1000);
     return () => clearInterval(interval);
   }, [isWorkoutActive]);
+
+  // Workout-Zustand bei jeder Eingabe lokal sichern
+  useEffect(() => {
+    if (isWorkoutActive) {
+      localStorage.setItem("haushalt_active_workout", JSON.stringify({
+        activeExercises,
+        workoutDauer,
+        isWorkoutActive,
+        isWorkoutMinimized
+      }));
+    } else {
+      localStorage.removeItem("haushalt_active_workout");
+    }
+  }, [isWorkoutActive, isWorkoutMinimized, activeExercises, workoutDauer]);
+
+  // Laufendes Workout beim Öffnen/Neuladen wiederherstellen
+  useEffect(() => {
+    const saved = localStorage.getItem("haushalt_active_workout");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (parsed.isWorkoutActive && parsed.activeExercises?.length > 0) {
+          setActiveExercises(parsed.activeExercises);
+          setWorkoutDauer(parsed.workoutDauer || 0);
+          setIsWorkoutActive(true);
+          setIsWorkoutMinimized(parsed.isWorkoutMinimized ?? true);
+        }
+      } catch (e) {}
+    }
+  }, []);
 
   useEffect(() => {
     fetch("/api/calendar").then(res => res.json()).then(data => setTermine(data.events || [])).catch(() => {});
@@ -496,6 +527,8 @@ const PULL_ROUTINE = [
 
     setGymData(prev => [...prev, ...completedSets]);
     setIsWorkoutActive(false);
+    setIsWorkoutMinimized(false);
+    localStorage.removeItem("haushalt_active_workout");
 
     for (const set of completedSets) {
       await supabase.from("gym").insert(set);
@@ -809,14 +842,21 @@ const PULL_ROUTINE = [
   const badgeBlue = isDarkMode ? "bg-[#005377]/30 text-[#6BB9E0] border border-[#005377]/50" : "bg-[#005377]/10 text-[#005377] border border-[#005377]/25";
   const buttonPrimary = isDarkMode ? "bg-[#005377] hover:bg-[#006894] text-white" : "bg-[#005377] hover:bg-[#00415E] text-white shadow-sm";
 
-if (activeTab === "gym" && isWorkoutActive) {
+if (isWorkoutActive && !isWorkoutMinimized) {
     return (
       <div className="flex h-[100dvh] w-full bg-black text-white font-sans overflow-hidden">
         <main className="flex-1 flex flex-col h-full overflow-y-auto">
           {/* Hevy Header mit Safe-Area-Padding oben */}
           <div className="sticky top-0 z-50 bg-[#0C0C0E] border-b border-[#2C2C2E] px-4 pb-3 pt-[calc(env(safe-area-inset-top)+0.75rem)] flex justify-between items-center">
             <div className="flex items-center gap-4">
-              <button onClick={() => setIsWorkoutActive(false)} className="h-8 w-8 rounded-full bg-[#1C1C1E] flex items-center justify-center text-white"><ChevronDown className="h-5 w-5" /></button>
+              <button 
+  type="button"
+  onClick={() => setIsWorkoutMinimized(true)} 
+  className="h-8 w-8 rounded-full bg-[#1C1C1E] hover:bg-[#2C2C2E] flex items-center justify-center text-white transition-colors"
+  title="Workout minimieren"
+>
+  <ChevronDown className="h-5 w-5" />
+</button>
               <span className="font-semibold text-[15px]">Workout</span>
             </div>
             <div className="flex items-center gap-3">
@@ -1880,6 +1920,45 @@ if (activeTab === "gym" && isWorkoutActive) {
           )}
         </div>
       </main>
+
+      {/* Persistente Live-Workout Leiste bei minimiertem Training */}
+      <AnimatePresence>
+        {isWorkoutActive && isWorkoutMinimized && (
+          <motion.div 
+            initial={{ y: 80, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 80, opacity: 0 }}
+            transition={springConfig}
+            className="fixed bottom-[calc(env(safe-area-inset-bottom)+4.2rem)] md:bottom-6 left-3 right-3 md:left-72 md:right-8 z-40"
+          >
+            <div className="bg-[#121214] border border-[#0A84FF]/40 rounded-2xl p-3.5 shadow-2xl flex items-center justify-between text-white backdrop-blur-xl">
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 rounded-xl bg-[#0A84FF]/20 text-[#0A84FF] flex items-center justify-center">
+                  <Activity className="h-5 w-5 animate-pulse" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-black tracking-wide text-white uppercase">Laufendes Workout</span>
+                    <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
+                  </div>
+                  <p className="text-[11px] text-slate-400 font-mono">
+                    ⏱️ {formatDauer(workoutDauer)} • {currentWorkoutSets} Sätze • {currentWorkoutVolume} kg
+                  </p>
+                </div>
+              </div>
+
+              <button 
+                type="button"
+                onClick={() => setIsWorkoutMinimized(false)}
+                className="px-4 py-2 bg-[#0A84FF] hover:bg-[#0070E0] text-white text-xs font-bold rounded-xl transition-all shadow-md flex items-center gap-1.5"
+              >
+                <span>Fortsetzen</span>
+                <ChevronUp className="h-4 w-4" />
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+5rem)] md:bottom-8 right-5 md:right-8 z-50">
         <AnimatePresence>
