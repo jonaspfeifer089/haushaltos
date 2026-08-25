@@ -25,11 +25,12 @@
   }
 }
 
-html, body {
+html,
+body {
   height: 100%;
   min-height: 100vh;
   min-height: -webkit-fill-available;
-  background-color: #05070A;
+  background-color: #05070a;
   overscroll-behavior-y: none;
 }
 
@@ -47,27 +48,27 @@ html, body {
 
 :root {
   /* Polar Light Theme */
-  --bg-canvas: #F8FAFC;
-  --bg-surface: #FFFFFF;
-  --bg-surface-elevated: #F1F5F9;
-  --border-subtle: #E2E8F0;
-  --border-active: #CBD5E1;
-  --text-primary: #0F172A;
-  --text-secondary: #64748B;
-  --accent-primary: #4F46E5;
+  --bg-canvas: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-surface-elevated: #f1f5f9;
+  --border-subtle: #e2e8f0;
+  --border-active: #cbd5e1;
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --accent-primary: #4f46e5;
   --accent-glow: rgba(79, 70, 229, 0.15);
 }
 
 .dark {
   /* Obsidian Dark Theme */
-  --bg-canvas: #08090C;
+  --bg-canvas: #08090c;
   --bg-surface: rgba(255, 255, 255, 0.025);
   --bg-surface-elevated: rgba(255, 255, 255, 0.05);
   --border-subtle: rgba(255, 255, 255, 0.07);
   --border-active: rgba(255, 255, 255, 0.15);
-  --text-primary: #F8FAFC;
-  --text-secondary: #71717A;
-  --accent-primary: #6366F1;
+  --text-primary: #f8fafc;
+  --text-secondary: #71717a;
+  --accent-primary: #6366f1;
   --accent-glow: rgba(99, 102, 241, 0.25);
 }
 
@@ -78,7 +79,9 @@ html, body {
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
 }
 
 .obsidian-card:hover {

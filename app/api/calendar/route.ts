@@ -13,18 +13,24 @@ export async function GET() {
     const vevents = comp.getAllSubcomponents("vevent");
 
     const now = new Date();
-    const events = vevents.map(vevent => {
-      const event = new ICAL.Event(vevent);
-      return {
-        title: event.summary,
-        startDate: event.startDate.toJSDate(),
-        dateStr: event.startDate.toJSDate().toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })
-      };
-    })
-    .filter(e => e.startDate >= now)
-    .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
-    .slice(0, 5)
-    .map(e => ({ title: e.title, date: e.dateStr }));
+    const events = vevents
+      .map((vevent) => {
+        const event = new ICAL.Event(vevent);
+        return {
+          title: event.summary,
+          startDate: event.startDate.toJSDate(),
+          dateStr: event.startDate.toJSDate().toLocaleDateString("de-DE", {
+            day: "2-digit",
+            month: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit"
+          })
+        };
+      })
+      .filter((e) => e.startDate >= now)
+      .sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
+      .slice(0, 5)
+      .map((e) => ({ title: e.title, date: e.dateStr }));
 
     return NextResponse.json({ events });
   } catch (error) {

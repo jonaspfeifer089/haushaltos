@@ -7,8 +7,8 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Haushalt OS",
-  },
+    title: "Haushalt OS"
+  }
 };
 
 export const viewport: Viewport = {
@@ -16,22 +16,21 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  viewportFit: "cover", // Wichtig für Notch / Dynamic Island
+  viewportFit: "cover" // Wichtig für Notch / Dynamic Island
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="de" className="h-full bg-[#05070A]">
       <head>
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+        <meta
+          name="viewport"
+          content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no"
+        />
       </head>
-      <body className="h-full min-h-screen bg-[#05070A] antialiased select-none overscroll-none">
+      <body className="h-full min-h-screen overscroll-none bg-[#05070A] antialiased select-none">
         {children}
       </body>
     </html>

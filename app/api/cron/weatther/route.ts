@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
   // Sicherheitscheck (optional, via Vercel Cron Secret)
-  
+
   try {
     // 1. Wetter für München (OEZ) abrufen
-    const res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=48.1764&longitude=11.5311&daily=temperature_2m_min,temperature_2m_max,precipitation_sum&timezone=Europe%2FBerlin");
+    const res = await fetch(
+      "https://api.open-meteo.com/v1/forecast?latitude=48.1764&longitude=11.5311&daily=temperature_2m_min,temperature_2m_max,precipitation_sum&timezone=Europe%2FBerlin"
+    );
     const data = await res.json();
-    
+
     const minTemp = data.daily.temperature_2m_min[0];
     const precip = data.daily.precipitation_sum[0];
 
@@ -28,10 +30,10 @@ export async function GET(request: Request) {
       await fetch("https://ntfy.sh/HaushaltLenaJonas", {
         method: "POST",
         body: alertMsg,
-        headers: { 
-          "Title": "Haushalt OS - Wetter Alarm", 
-          "Tags": tags, 
-          "Priority": "high" 
+        headers: {
+          Title: "Haushalt OS - Wetter Alarm",
+          Tags: tags,
+          Priority: "high"
         }
       });
     }

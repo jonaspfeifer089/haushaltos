@@ -55,7 +55,7 @@ export async function GET(request: Request) {
   // 3. Daten aus Supabase abrufen (Putzplan, To-Dos, Einkauf, Meilensteine)
   let offeneTodosCount = 0;
   let offeneEinkaufCount = 0;
-  let faelligePutzaufgaben: string[] = [];
+  const faelligePutzaufgaben: string[] = [];
   let naechsterMeilenstein: { title: string; tage: number } | null = null;
 
   try {
@@ -114,7 +114,9 @@ export async function GET(request: Request) {
 
       heuteTermineCount = vevents.filter((vevent: any) => {
         try {
-          return new ICAL.Event(vevent).startDate.toJSDate().toISOString().split("T")[0] === todayStr;
+          return (
+            new ICAL.Event(vevent).startDate.toJSDate().toISOString().split("T")[0] === todayStr
+          );
         } catch {
           return false;
         }
@@ -125,9 +127,10 @@ export async function GET(request: Request) {
   }
 
   // 5. Texte zusammensetzen
-  const putzText = faelligePutzaufgaben.length > 0
-    ? `🧹 Putzen faellig: ${faelligePutzaufgaben.slice(0, 2).join(", ")}${faelligePutzaufgaben.length > 2 ? ` (+${faelligePutzaufgaben.length - 2})` : ""}`
-    : "🧹 Haushalt ist top in Schuss!";
+  const putzText =
+    faelligePutzaufgaben.length > 0
+      ? `🧹 Putzen faellig: ${faelligePutzaufgaben.slice(0, 2).join(", ")}${faelligePutzaufgaben.length > 2 ? ` (+${faelligePutzaufgaben.length - 2})` : ""}`
+      : "🧹 Haushalt ist top in Schuss!";
 
   const cdText = naechsterMeilenstein
     ? `\n⏳ Noch ${naechsterMeilenstein.tage} Tage bis "${naechsterMeilenstein.title}"`
@@ -146,20 +149,23 @@ export async function GET(request: Request) {
         method: "POST",
         body: createBodyJonas(),
         headers: {
-          "Title": "Guten Morgen Jonas",
-          "Tags": dayOfWeek === 2 || dayOfWeek === 3 || dayOfWeek === 6 || dayOfWeek === 0 ? "muscle,sunny" : "sunrise,coffee",
-          "Priority": "default",
-          "Actions": `view, App oeffnen, ${appUrl}`
+          Title: "Guten Morgen Jonas",
+          Tags:
+            dayOfWeek === 2 || dayOfWeek === 3 || dayOfWeek === 6 || dayOfWeek === 0
+              ? "muscle,sunny"
+              : "sunrise,coffee",
+          Priority: "default",
+          Actions: `view, App oeffnen, ${appUrl}`
         }
       }),
       fetch("https://ntfy.sh/HaushaltLena", {
         method: "POST",
         body: createBodyLena(),
         headers: {
-          "Title": "Guten Morgen Lena",
-          "Tags": "sparkles,coffee",
-          "Priority": "default",
-          "Actions": `view, App oeffnen, ${appUrl}`
+          Title: "Guten Morgen Lena",
+          Tags: "sparkles,coffee",
+          Priority: "default",
+          Actions: `view, App oeffnen, ${appUrl}`
         }
       })
     ]);
@@ -171,6 +177,9 @@ export async function GET(request: Request) {
       warnings: errors.length > 0 ? errors : undefined
     });
   } catch (e: any) {
-    return NextResponse.json({ error: "Fehler beim ntfy Senden", details: e.message }, { status: 500 });
+    return NextResponse.json(
+      { error: "Fehler beim ntfy Senden", details: e.message },
+      { status: 500 }
+    );
   }
 }

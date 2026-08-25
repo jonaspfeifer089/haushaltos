@@ -22,26 +22,32 @@ export async function POST(request: Request) {
         {
           inlineData: {
             mimeType: "image/jpeg",
-            data: imageBase64,
-          },
+            data: imageBase64
+          }
         },
-        "Analysiere dieses Bild eines Lebensmittelprodukts oder MHD-Aufklebers. Extrahiere den Namen des Artikels sowie das Mindesthaltbarkeitsdatum (MHD) im Format YYYY-MM-DD. Antworte AUSSCHLIESSLICH im JSON-Format ohne Markdown-Blöcke, exakt so: {\"artikel\": \"Name\", \"mhd\": \"YYYY-MM-DD\"}. Wenn du kein Datum findest, schätze ein realistisches Datum in der Zukunft ab.",
-      ],
+        'Analysiere dieses Bild eines Lebensmittelprodukts oder MHD-Aufklebers. Extrahiere den Namen des Artikels sowie das Mindesthaltbarkeitsdatum (MHD) im Format YYYY-MM-DD. Antworte AUSSCHLIESSLICH im JSON-Format ohne Markdown-Blöcke, exakt so: {"artikel": "Name", "mhd": "YYYY-MM-DD"}. Wenn du kein Datum findest, schätze ein realistisches Datum in der Zukunft ab.'
+      ]
     });
 
     const textResult = response.text ? response.text.trim() : "{}";
     console.log("Gemini Roh-Antwort:", textResult);
 
     // Sauberes Entfernen von eventuellen Markdown-Wrappern
-    const cleanJson = textResult.replace(/```json/g, "").replace(/```/g, "").trim();
+    const cleanJson = textResult
+      .replace(/```json/g, "")
+      .replace(/```/g, "")
+      .trim();
     const parsed = JSON.parse(cleanJson);
 
     return NextResponse.json({
       artikel: parsed.artikel || "Unbekannter Artikel",
-      mhd: parsed.mhd || new Date().toISOString().split("T")[0],
+      mhd: parsed.mhd || new Date().toISOString().split("T")[0]
     });
   } catch (error: any) {
     console.error("Vision Route Fehler:", error);
-    return NextResponse.json({ error: error.message || "Fehler bei der KI-Analyse" }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message || "Fehler bei der KI-Analyse" },
+      { status: 500 }
+    );
   }
 }
