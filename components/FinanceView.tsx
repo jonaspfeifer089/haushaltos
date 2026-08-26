@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from "react";
-import { Lock, ShieldCheck, Trash2, Check, Calendar } from "lucide-react";
+import {
+  Lock,
+  ShieldCheck,
+  Trash2,
+  Check,
+  Calendar,
+  ChevronDown,
+  ChevronRight,
+  Plus,
+  Globe
+} from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { toast } from "sonner";
 
@@ -14,6 +24,19 @@ interface BacklogItem {
   id: string;
   was: string;
   hoehe: number;
+}
+
+interface WishlistItem {
+  id: string;
+  category: string;
+  subcategory?: string;
+  title: string;
+  completed: boolean;
+  parent_id?: string | null;
+  embed_title?: string;
+  embed_desc?: string;
+  embed_url?: string;
+  embed_img?: string;
 }
 
 interface FinanceViewProps {
@@ -37,7 +60,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
     isDarkMode
   } = theme;
 
-  // Supabase Settings State
+  // Supabase Settings
   const [aktuellerSaldo, setAktuellerSaldo] = useState<number>(500.0);
   const [fixEinnahmen, setFixEinnahmen] = useState<number>(880.0);
   const [fixAusgaben, setFixAusgaben] = useState<number>(70.0);
@@ -56,8 +79,22 @@ export function FinanceView({ theme }: FinanceViewProps) {
   const [neuBWas, setNeuBWas] = useState("");
   const [neuBHoehe, setNeuBHoehe] = useState<string>("");
 
+  // Wishlist State
+  const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    "Produktivität/Home": true,
+    Lifestyle: true
+  });
+  const [newWishTitle, setNewWishTitle] = useState("");
+  const [newWishCat, setNewWishCat] = useState("Produktivität/Home");
+  const [newWishSubcat, setNewWishSubcat] = useState("");
+  const [newWishUrl, setNewWishUrl] = useState("");
+  const [newWishImg, setNewWishImg] = useState("");
+  const [newWishDesc, setNewWishDesc] = useState("");
+  const [showAddModal, setShowAddModal] = useState(false);
+
   // -------------------------------------------------------------
-  // SUPABASE DATA LOADING
+  // SUPABASE: LADEN
   // -------------------------------------------------------------
   const loadAllFinanceData = async () => {
     try {
@@ -80,7 +117,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
         .from("sonderausgaben")
         .select("*")
         .eq("status", "Offen");
-
       if (listRes) {
         const active: Sonderausgabe[] = [];
         const bLog: BacklogItem[] = [];
@@ -94,6 +130,88 @@ export function FinanceView({ theme }: FinanceViewProps) {
         active.sort((a, b) => new Date(a.wann).getTime() - new Date(b.wann).getTime());
         setSonderausgaben(active);
         setBacklog(bLog);
+      }
+
+      const { data: wishRes } = await supabase
+        .from("wishlist_items")
+        .select("*")
+        .order("created_at", { ascending: true });
+      if (wishRes && wishRes.length > 0) {
+        setWishlist(wishRes);
+      } else {
+        setWishlist([
+          { id: "w1", category: "Produktivität/Home", title: "Schreibtisch", completed: true },
+          {
+            id: "w2",
+            category: "Produktivität/Home",
+            title: "Ball für Schreibtisch",
+            completed: false
+          },
+          {
+            id: "w3",
+            category: "Lifestyle",
+            subcategory: "Oberteile",
+            title: "Creme Leinenhose lang",
+            completed: false,
+            embed_title: "Hose sand Slim Leg Tapered",
+            embed_desc: "Frühjahr/Sommer Leinen Baumwolle von Di Sondrio, Italien",
+            embed_url: "https://suitsupply.com/de-de/men/trousers/hose-sand-slim-leg-tapered",
+            embed_img: "https://images.unsplash.com/photo-1624378439575-d8705ad7ae80?w=500&q=80"
+          },
+          {
+            id: "w4",
+            category: "Lifestyle",
+            subcategory: "Oberteile",
+            title: "Navy Leinenhose lang",
+            completed: false
+          },
+          {
+            id: "w5",
+            category: "Lifestyle",
+            subcategory: "Oberteile",
+            title: "Grauer Hoodie",
+            completed: false
+          },
+          {
+            id: "w6",
+            category: "Lifestyle",
+            subcategory: "Oberteile",
+            title: "Navy Hoodie",
+            completed: false
+          },
+          {
+            id: "w7",
+            category: "Lifestyle",
+            subcategory: "Oberteile",
+            title: "Creme Sweatshirt",
+            completed: false
+          },
+          {
+            id: "w8",
+            category: "Lifestyle",
+            subcategory: "Oberteile",
+            title: "Gerippter Merino Rundhalspullover hellbraun",
+            completed: false,
+            embed_title: "Gerippter Merino Rundhalspullover hellbraun",
+            embed_desc: "Reine Schurwolle",
+            embed_url: "https://suitsupply.com/de-de/men/knitwear/gerippter-merino-rundhals",
+            embed_img: "https://images.unsplash.com/photo-1614975058789-41316d0e2e9c?w=500&q=80"
+          },
+          {
+            id: "w9",
+            category: "Lifestyle",
+            subcategory: "Hosen",
+            title: "Badehose",
+            completed: false
+          },
+          {
+            id: "w10",
+            category: "Lifestyle",
+            subcategory: "Hosen",
+            title: "Leinenhose (oder Leinen-Misch)",
+            completed: false
+          }
+        ]);
       }
     } catch (e) {
       console.error("Fehler beim Laden:", e);
@@ -178,13 +296,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
     simSaldo += fixEinnahmen;
   }
 
-  const fokusRow = prognoseListe.find(
-    (p) => p.monat === fokusMonat && p.jahr === (fokusMonat >= 8 ? 2026 : 2027)
-  );
-  const freiVerfuegbarFokus = fokusRow ? fokusRow.freiVerfuegbar : 0.0;
-  const sonderFokus = fokusRow ? fokusRow.extraMonat : 0.0;
-
-  // Handler
   const handleAddAusgabe = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!neuWas || !neuHoehe) return;
@@ -249,31 +360,74 @@ export function FinanceView({ theme }: FinanceViewProps) {
     await supabase.from("sonderausgaben").delete().eq("id", id);
   };
 
+  const toggleWishCheck = async (id: string, current: boolean) => {
+    setWishlist((prev) => prev.map((w) => (w.id === id ? { ...w, completed: !current } : w)));
+    await supabase.from("wishlist_items").update({ completed: !current }).eq("id", id);
+  };
+
+  const toggleSection = (sec: string) => {
+    setOpenSections((prev) => ({ ...prev, [sec]: !prev[sec] }));
+  };
+
+  const handleAddWishItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newWishTitle) return;
+    const newItem: WishlistItem = {
+      id: crypto.randomUUID(),
+      category: newWishCat,
+      subcategory: newWishSubcat || undefined,
+      title: newWishTitle,
+      completed: false,
+      embed_title: newWishTitle,
+      embed_desc: newWishDesc || undefined,
+      embed_url: newWishUrl || undefined,
+      embed_img: newWishImg || undefined
+    };
+    setWishlist((prev) => [...prev, newItem]);
+    setNewWishTitle("");
+    setNewWishUrl("");
+    setNewWishImg("");
+    setNewWishDesc("");
+    setShowAddModal(false);
+    toast.success("Wunsch hinzugefügt ✨");
+    await supabase.from("wishlist_items").insert(newItem);
+  };
+
+  const handleDeleteWish = async (id: string) => {
+    setWishlist((prev) => prev.filter((w) => w.id !== id));
+    await supabase.from("wishlist_items").delete().eq("id", id);
+  };
+
   // -------------------------------------------------------------
-  // CHART POSITIONIERUNG (Exakt im Box-Raster)
+  // 3 DIVERGENTE, KLARE FARBEN FÜR DAS DIAGRAMM
   // -------------------------------------------------------------
+  const colorEingang = isDarkMode ? "#2EC4B6" : "#028090"; // Sattes Petrol/Türkis (Inflows)
+  const colorAusgaben = isDarkMode ? "#E76F51" : "#3D405B"; // Warmes Schiefer-Anthrazit / Terracotta (Outflows)
+  const colorBudget = isDarkMode ? "#82CBEE" : "#003566"; // Tiefes Königs-Navy (Budget Linie)
+
+  // Chart Geometrie (Mit Sicherheitsabstand oben & rechts)
   const maxCashflow = 2200;
-  const maxBudget = 14000;
+  const maxBudget = 16000; // Erhöht auf 16k, damit die Linie oben niemals abgeschnitten wird
   const chartHeight = 220;
   const svgWidth = 800;
   const numPoints = prognoseListe.length;
-  const paddingX = 20;
-  const innerWidth = svgWidth - paddingX * 2;
+  const paddingLeft = 24;
+  const paddingRight = 32;
+  const innerWidth = svgWidth - paddingLeft - paddingRight;
   const slotWidth = innerWidth / (numPoints - 1);
 
   const points = prognoseListe.map((p, idx) => {
-    const x = paddingX + idx * slotWidth;
-    const y = chartHeight - (Math.max(0, p.freiVerfuegbar) / maxBudget) * chartHeight;
+    const x = paddingLeft + idx * slotWidth;
+    // Y-Koordinate mit 12px Top-Padding
+    const y = Math.max(
+      12,
+      chartHeight - (Math.max(0, p.freiVerfuegbar) / maxBudget) * (chartHeight - 20)
+    );
     return { x, y, val: p.freiVerfuegbar };
   });
 
   const linePoints = points.map((pt) => `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(" ");
 
-  // Farbdefinitionen
-  const colorIn = isDarkMode ? "#82CBEE" : "#005377"; // Helles / Primäres Petrol
-  const colorOut = isDarkMode ? "#3A6073" : "#0B2545"; // Dunkleres Blau statt Hellgrau!
-
-  // 🔒 PIN-SPERRE
   if (!isAuthenticated) {
     return (
       <div className="flex min-h-[500px] flex-col items-center justify-center space-y-4">
@@ -308,8 +462,8 @@ export function FinanceView({ theme }: FinanceViewProps) {
   }
 
   return (
-    <div className="space-y-8">
-      {/* Grid: Kontrollzentrum & Taktischer Ausblick */}
+    <div className="space-y-10">
+      {/* 1. TOP KONTROLLZENTRUM & TAKTISCHER AUSBLICK */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
         {/* LINKE SPALTE: KONTROLLZENTRUM */}
         <div className="space-y-6 lg:col-span-4">
@@ -402,7 +556,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
           </div>
         </div>
 
-        {/* RECHTE SPALTE: TAKTISCHER AUSBLICK & DIAGRAMM */}
+        {/* RECHTE SPALTE: TAKTISCHER AUSBLICK & 3-FARBIGES DIAGRAMM */}
         <div className="space-y-6 lg:col-span-8">
           <div>
             <h2 className={`text-lg font-bold ${textTitle}`}>Taktischer Ausblick (2026 - 2027)</h2>
@@ -518,7 +672,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
             </table>
           </div>
 
-          {/* Diagramm mit sauber eingebundener Linie & dunklerem Blau für Ausgaben */}
+          {/* DIAGRAMM MIT 3 KLAR ERKENNBAREN FARBEN & SAUBEREN RÄNDERN */}
           <div className={`${bgCard} space-y-3 rounded-2xl border p-5 shadow-sm`}>
             <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
               <h3 className={`text-xs font-bold tracking-wider uppercase ${textTitle}`}>
@@ -526,16 +680,27 @@ export function FinanceView({ theme }: FinanceViewProps) {
               </h3>
               <div className="flex items-center gap-4 text-[11px] font-semibold">
                 <div className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: colorIn }} />
+                  <span
+                    className="h-2.5 w-2.5 rounded-sm"
+                    style={{ backgroundColor: colorEingang }}
+                  />
                   <span className={textTitle}>Eingang</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: colorOut }} />
+                  <span
+                    className="h-2.5 w-2.5 rounded-sm"
+                    style={{ backgroundColor: colorAusgaben }}
+                  />
                   <span className={textTitle}>Ausgaben</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="h-1 w-3.5" style={{ backgroundColor: colorIn }} />
-                  <span style={{ color: colorIn }}>Freies Budget</span>
+                  <span
+                    className="h-1.5 w-4 rounded-full"
+                    style={{ backgroundColor: colorBudget }}
+                  />
+                  <span style={{ color: colorBudget }} className="font-bold">
+                    Freies Budget
+                  </span>
                 </div>
               </div>
             </div>
@@ -546,9 +711,9 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 <div
                   className={`flex h-48 flex-col justify-between pr-2 text-right font-mono text-[9px] font-bold ${textSub}`}
                 >
-                  <span>2k</span>
+                  <span>2.0k</span>
                   <span>1.5k</span>
-                  <span>1k</span>
+                  <span>1.0k</span>
                   <span>0.5k</span>
                   <span>0</span>
                 </div>
@@ -562,12 +727,12 @@ export function FinanceView({ theme }: FinanceViewProps) {
                     preserveAspectRatio="none"
                     className="h-full w-full"
                   >
-                    {/* Gitterlinien */}
+                    {/* Horizontale Hilfslinien */}
                     <line
                       x1="0"
-                      y1="0"
+                      y1="12"
                       x2={svgWidth}
-                      y2="0"
+                      y2="12"
                       stroke="currentColor"
                       className="opacity-10"
                       strokeDasharray="3 3"
@@ -600,39 +765,46 @@ export function FinanceView({ theme }: FinanceViewProps) {
                       strokeDasharray="3 3"
                     />
 
-                    {/* Balken */}
+                    {/* 1. Eingang & 2. Ausgaben Balken */}
                     {prognoseListe.map((p, idx) => {
-                      const xCenter = paddingX + idx * slotWidth;
+                      const xCenter = paddingLeft + idx * slotWidth;
                       const barW = 6;
-                      const hIn = (p.gehaltEnde / maxCashflow) * chartHeight;
+                      const hIn = (p.gehaltEnde / maxCashflow) * (chartHeight - 12);
                       const yIn = chartHeight - hIn;
-                      const hOut = (p.ausgabenGesamt / maxCashflow) * chartHeight;
+                      const hOut = (p.ausgabenGesamt / maxCashflow) * (chartHeight - 12);
                       const yOut = chartHeight - hOut;
 
                       return (
                         <g key={idx}>
+                          {/* Eingang (Farbe 1: Petrol/Türkis) */}
                           <rect
                             x={xCenter - barW - 1}
                             y={yIn}
                             width={barW}
                             height={hIn}
-                            fill={colorIn}
+                            fill={colorEingang}
                             rx={1}
                           />
+                          {/* Ausgaben (Farbe 2: Schiefer-Anthrazit) */}
                           <rect
                             x={xCenter + 1}
                             y={yOut}
                             width={barW}
                             height={hOut}
-                            fill={colorOut}
+                            fill={colorAusgaben}
                             rx={1}
                           />
                         </g>
                       );
                     })}
 
-                    {/* Exakt formatierte Linie innerhalb des Diagramms */}
-                    <polyline fill="none" stroke={colorIn} strokeWidth="2.5" points={linePoints} />
+                    {/* 3. Budget-Linie (Farbe 3: Königs-Navy) */}
+                    <polyline
+                      fill="none"
+                      stroke={colorBudget}
+                      strokeWidth="2.5"
+                      points={linePoints}
+                    />
 
                     {/* Datenpunkte */}
                     {points.map((pt, idx) => (
@@ -641,7 +813,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
                         cx={pt.x}
                         cy={pt.y}
                         r="3.5"
-                        fill={colorIn}
+                        fill={colorBudget}
                         stroke={isDarkMode ? "#140C0E" : "#FFFFFF"}
                         strokeWidth="1.5"
                       />
@@ -651,19 +823,20 @@ export function FinanceView({ theme }: FinanceViewProps) {
 
                 {/* Y-Achse Rechts */}
                 <div
-                  className={`flex h-48 flex-col justify-between pl-2 text-left font-mono text-[9px] font-bold ${accentBlue}`}
+                  className="flex h-48 flex-col justify-between pl-2 text-left font-mono text-[9px] font-bold"
+                  style={{ color: colorBudget }}
                 >
-                  <span>14k</span>
-                  <span>10k</span>
-                  <span>7k</span>
-                  <span>3k</span>
+                  <span>16k</span>
+                  <span>12k</span>
+                  <span>8k</span>
+                  <span>4k</span>
                   <span>0</span>
                 </div>
               </div>
 
               {/* X-Achse Monate */}
               <div
-                className={`mt-2 flex justify-between pr-6 pl-6 font-mono text-[9px] font-bold ${textSub}`}
+                className={`mt-2 flex justify-between pr-8 pl-6 font-mono text-[9px] font-bold ${textSub}`}
               >
                 {prognoseListe
                   .filter((_, i) => i % 2 === 0)
@@ -676,11 +849,8 @@ export function FinanceView({ theme }: FinanceViewProps) {
         </div>
       </div>
 
-      {/* ========================================================= */}
-      {/* SONDERAUSGABEN & BACKLOG */}
-      {/* ========================================================= */}
+      {/* 2. SONDERAUSGABEN & BACKLOG */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-        {/* Sonderbudgets */}
         <div className={`${bgCard} space-y-4 rounded-2xl border p-5 shadow-sm`}>
           <div className="flex items-center justify-between">
             <h3 className={`text-xs font-bold tracking-wider uppercase ${textTitle}`}>
@@ -726,15 +896,12 @@ export function FinanceView({ theme }: FinanceViewProps) {
           </div>
         </div>
 
-        {/* Backlog */}
         <div className={`${bgCard} space-y-4 rounded-2xl border p-5 shadow-sm`}>
           <div>
             <h3 className={`text-xs font-bold tracking-wider uppercase ${textTitle}`}>
               BACKLOG (WUNSCHLISTE)
             </h3>
-            <p className={`text-[11px] ${textSub}`}>
-              Wünsche notieren und bei Bedarf mit Kaufdatum einplanen.
-            </p>
+            <p className={`text-[11px] ${textSub}`}>Wünsche notieren und bei Bedarf einplanen.</p>
           </div>
 
           <form onSubmit={handleAddBacklog} className="grid grid-cols-12 gap-2">
@@ -794,11 +961,317 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 </div>
               </div>
             ))}
-            {backlog.length === 0 && (
-              <p className={`p-4 text-center text-xs ${textSub}`}>Backlog ist leer.</p>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. NOTION-STYLE WISHLIST */}
+      <div className="space-y-6 border-t border-[#E8E2D9] pt-6 dark:border-white/[0.08]">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>
+              Must Needs & Lifestyle Wishlist
+            </h2>
+            <p className={`text-xs ${textSub}`}>
+              Gliedere deine Vorhaben nach Kategorien mit Checklisten und visuellen Web-Bookmarks.
+            </p>
+          </div>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className={`flex h-8 items-center gap-1.5 rounded-xl px-3 text-xs font-bold ${buttonPrimary}`}
+          >
+            <Plus className="h-3.5 w-3.5" /> Neuer Eintrag
+          </button>
+        </div>
+
+        <div className="space-y-4">
+          {/* Produktivität/Home */}
+          <div className={`${bgCard} space-y-3 rounded-2xl border p-5 shadow-sm`}>
+            <div
+              onClick={() => toggleSection("Produktivität/Home")}
+              className="flex cursor-pointer items-center justify-between select-none"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-base">⚙️</span>
+                <h3 className={`text-sm font-bold ${textTitle}`}>Produktivität/Home:</h3>
+              </div>
+              {openSections["Produktivität/Home"] ? (
+                <ChevronDown className={`h-4 w-4 ${textSub}`} />
+              ) : (
+                <ChevronRight className={`h-4 w-4 ${textSub}`} />
+              )}
+            </div>
+
+            {openSections["Produktivität/Home"] && (
+              <div className="space-y-2 pt-1 pl-6">
+                {wishlist
+                  .filter((w) => w.category === "Produktivität/Home")
+                  .map((item) => (
+                    <div key={item.id} className="group flex items-center justify-between">
+                      <label className="flex cursor-pointer items-center gap-2.5 text-xs font-medium">
+                        <input
+                          type="checkbox"
+                          checked={item.completed}
+                          onChange={() => toggleWishCheck(item.id, item.completed)}
+                          className="h-4 w-4 cursor-pointer rounded border-slate-300 text-[#005377] focus:ring-0"
+                        />
+                        <span className={item.completed ? "line-through opacity-50" : textTitle}>
+                          {item.title}
+                        </span>
+                      </label>
+                      <button
+                        onClick={() => handleDeleteWish(item.id)}
+                        className="text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-rose-500"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+
+          {/* Lifestyle */}
+          <div className={`${bgCard} space-y-4 rounded-2xl border p-5 shadow-sm`}>
+            <div
+              onClick={() => toggleSection("Lifestyle")}
+              className="flex cursor-pointer items-center justify-between select-none"
+            >
+              <div className="flex items-center gap-2">
+                <span className="text-base">🚤</span>
+                <h3 className={`text-sm font-bold ${textTitle}`}>Lifestyle:</h3>
+              </div>
+              {openSections["Lifestyle"] ? (
+                <ChevronDown className={`h-4 w-4 ${textSub}`} />
+              ) : (
+                <ChevronRight className={`h-4 w-4 ${textSub}`} />
+              )}
+            </div>
+
+            {openSections["Lifestyle"] && (
+              <div className="space-y-5 pt-1 pl-4">
+                {/* Oberteile */}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">🎽</span>
+                    <h4 className={`text-xs font-bold ${textTitle}`}>Oberteile:</h4>
+                  </div>
+
+                  <div className="space-y-3 pl-4">
+                    {wishlist
+                      .filter(
+                        (w) =>
+                          w.category === "Lifestyle" &&
+                          (w.subcategory === "Oberteile" || !w.subcategory)
+                      )
+                      .map((item) => (
+                        <div key={item.id} className="space-y-2">
+                          <div className="group flex items-center justify-between">
+                            <label className="flex cursor-pointer items-center gap-2.5 text-xs font-medium">
+                              <input
+                                type="checkbox"
+                                checked={item.completed}
+                                onChange={() => toggleWishCheck(item.id, item.completed)}
+                                className="h-4 w-4 cursor-pointer rounded border-slate-300 text-[#005377] focus:ring-0"
+                              />
+                              <span
+                                className={item.completed ? "line-through opacity-50" : textTitle}
+                              >
+                                {item.title}
+                              </span>
+                            </label>
+                            <button
+                              onClick={() => handleDeleteWish(item.id)}
+                              className="text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-rose-500"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+
+                          {/* Embed Card */}
+                          {item.embed_url && (
+                            <a
+                              href={item.embed_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`ml-6 flex items-stretch justify-between overflow-hidden rounded-xl border transition-all hover:border-[#005377]/50 ${
+                                isDarkMode
+                                  ? "border-white/[0.08] bg-black/20"
+                                  : "border-[#E8E2D9] bg-[#FAF8F5]"
+                              }`}
+                            >
+                              <div className="flex flex-1 flex-col justify-between space-y-1 p-3.5">
+                                <div>
+                                  <h5 className={`line-clamp-1 text-xs font-bold ${textTitle}`}>
+                                    {item.embed_title || item.title}
+                                  </h5>
+                                  {item.embed_desc && (
+                                    <p className={`mt-0.5 line-clamp-1 text-[11px] ${textSub}`}>
+                                      {item.embed_desc}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1.5 pt-1 text-[10px] text-slate-400">
+                                  <Globe className="h-3 w-3" />
+                                  <span className="line-clamp-1 font-mono">{item.embed_url}</span>
+                                </div>
+                              </div>
+
+                              {item.embed_img && (
+                                <div className="h-24 w-36 shrink-0 overflow-hidden bg-slate-200 dark:bg-slate-800">
+                                  <img
+                                    src={item.embed_img}
+                                    alt={item.title}
+                                    className="h-full w-full object-cover"
+                                  />
+                                </div>
+                              )}
+                            </a>
+                          )}
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
+                {/* Hosen */}
+                <div className="space-y-2 pt-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">👖</span>
+                    <h4 className={`text-xs font-bold ${textTitle}`}>Hosen:</h4>
+                  </div>
+
+                  <div className="space-y-2 pl-4">
+                    {wishlist
+                      .filter((w) => w.category === "Lifestyle" && w.subcategory === "Hosen")
+                      .map((item) => (
+                        <div key={item.id} className="group flex items-center justify-between">
+                          <label className="flex cursor-pointer items-center gap-2.5 text-xs font-medium">
+                            <input
+                              type="checkbox"
+                              checked={item.completed}
+                              onChange={() => toggleWishCheck(item.id, item.completed)}
+                              className="h-4 w-4 cursor-pointer rounded border-slate-300 text-[#005377] focus:ring-0"
+                            />
+                            <span
+                              className={item.completed ? "line-through opacity-50" : textTitle}
+                            >
+                              {item.title}
+                            </span>
+                          </label>
+                          <button
+                            onClick={() => handleDeleteWish(item.id)}
+                            className="text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-rose-500"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              </div>
             )}
           </div>
         </div>
+
+        {/* Modal */}
+        {showAddModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
+            <div
+              className={`w-full max-w-md space-y-4 rounded-2xl border p-6 shadow-2xl ${bgCard}`}
+            >
+              <h3 className={`text-sm font-bold tracking-wider uppercase ${textTitle}`}>
+                Neuen Wunsch / Bookmark hinzufügen
+              </h3>
+
+              <form onSubmit={handleAddWishItem} className="space-y-3 text-xs">
+                <div>
+                  <label className={textSub}>Titel / Posten *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="z. B. Hose sand Slim Leg Tapered"
+                    value={newWishTitle}
+                    onChange={(e) => setNewWishTitle(e.target.value)}
+                    className={`mt-1 w-full rounded-xl border p-2 ${bgInput}`}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className={textSub}>Kategorie</label>
+                    <select
+                      value={newWishCat}
+                      onChange={(e) => setNewWishCat(e.target.value)}
+                      className={`mt-1 w-full rounded-xl border p-2 ${bgInput}`}
+                    >
+                      <option value="Produktivität/Home">⚙️ Produktivität/Home</option>
+                      <option value="Lifestyle">🚤 Lifestyle</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className={textSub}>Unterkategorie</label>
+                    <input
+                      type="text"
+                      placeholder="z. B. Oberteile, Hosen"
+                      value={newWishSubcat}
+                      onChange={(e) => setNewWishSubcat(e.target.value)}
+                      className={`mt-1 w-full rounded-xl border p-2 ${bgInput}`}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className={textSub}>Beschreibung / Material (Optional)</label>
+                  <input
+                    type="text"
+                    placeholder="z. B. 100% Leinen / Di Sondrio"
+                    value={newWishDesc}
+                    onChange={(e) => setNewWishDesc(e.target.value)}
+                    className={`mt-1 w-full rounded-xl border p-2 ${bgInput}`}
+                  />
+                </div>
+
+                <div>
+                  <label className={textSub}>Produkt-Link / URL (Optional)</label>
+                  <input
+                    type="url"
+                    placeholder="https://suitsupply.com/..."
+                    value={newWishUrl}
+                    onChange={(e) => setNewWishUrl(e.target.value)}
+                    className={`mt-1 w-full rounded-xl border p-2 ${bgInput}`}
+                  />
+                </div>
+
+                <div>
+                  <label className={textSub}>Bild-URL (Thumbnail)</label>
+                  <input
+                    type="url"
+                    placeholder="https://..."
+                    value={newWishImg}
+                    onChange={(e) => setNewWishImg(e.target.value)}
+                    className={`mt-1 w-full rounded-xl border p-2 ${bgInput}`}
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowAddModal(false)}
+                    className={`rounded-xl border px-3 py-2 text-xs font-semibold ${bgItem}`}
+                  >
+                    Abbrechen
+                  </button>
+                  <button
+                    type="submit"
+                    className={`rounded-xl px-4 py-2 text-xs font-bold ${buttonPrimary}`}
+                  >
+                    Speichern
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
