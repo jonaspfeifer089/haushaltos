@@ -1,5 +1,7 @@
-import React, { useState } from "react";
-import { Lock, ShieldCheck, Trash2, Check, Calendar } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Lock, ShieldCheck, Trash2, Check, Calendar, Loader2 } from "lucide-react";
+import { supabase } from "../lib/supabaseClient";
+import { toast } from "sonner";
 
 interface Sonderausgabe {
   id: string;
@@ -21,7 +23,8 @@ interface FinanceViewProps {
 export function FinanceView({ theme }: FinanceViewProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinInput, setPinInput] = useState("");
-  const SECRET_PIN = "1234";
+  const [loading, setLoading] = useState(false);
+  const SECRET_PIN = "07570";
 
   const {
     bgCard,
@@ -35,29 +38,17 @@ export function FinanceView({ theme }: FinanceViewProps) {
     isDarkMode
   } = theme;
 
-  // Basis-Daten
+  // Basis-Daten (Live aus Supabase)
   const [aktuellerSaldo, setAktuellerSaldo] = useState<number>(500.0);
   const fixEinnahmen = 880.0;
   const fixAusgaben = 70.0;
   const [fokusMonat, setFokusMonat] = useState<number>(8);
   const [zielDatum, setZielDatum] = useState<string>("2026-08-31");
 
-  // Sonderausgaben
-  const [sonderausgaben, setSonderausgaben] = useState<Sonderausgabe[]>([
-    { id: "1", was: "Miete", hoehe: 380.0, wann: "2026-09-01" },
-    { id: "2", was: "Geburtstagsgeschenk Lena", hoehe: 200.0, wann: "2026-09-05" },
-    { id: "3", was: "Urlaub Restzahlung", hoehe: 300.0, wann: "2026-09-15" },
-    { id: "4", was: "Versicherung KFZ", hoehe: 250.0, wann: "2027-02-15" },
-    { id: "5", was: "Sonderanschaffung", hoehe: 2000.0, wann: "2027-03-01" }
-  ]);
-
-  // Backlog
-  const [backlog, setBacklog] = useState<BacklogItem[]>([
-    { id: "b1", was: "Braun Series 9 Pro", hoehe: 250.0 }
-  ]);
-  const [backlogDates, setBacklogDates] = useState<Record<string, string>>({
-    b1: "2026-08-26"
-  });
+  // Sonderausgaben & Backlog (Live aus Supabase)
+  const [sonderausgaben, setSonderausgaben] = useState<Sonderausgabe[]>([]);
+  const [backlog, setBacklog] = useState<BacklogItem[]>([]);
+  const [backlogDates, setBacklogDates] = useState<Record<string, string>>({});
 
   // Inputs
   const [neuWas, setNeuWas] = useState("");
@@ -66,6 +57,58 @@ export function FinanceView({ theme }: FinanceViewProps) {
   const [neuBWas, setNeuBWas] = useState("");
   const [neuBHoehe, setNeuBHoehe] = useState<string>("");
 
+  // -------------------------------------------------------------
+  // SUPABASE: DATEN LADEN
+  // -------------------------------------------------------------
+  const loadSupabaseData = async () => {
+    setLoading(true);
+    try {
+      // 1. Saldo laden
+      const { data: setRes } = await supabase
+        .from("finanz_settings")
+        .select("value")
+        .eq("key", "saldo")
+        .single();
+      if (setRes) setAktuellerSaldo(parseFloat(setRes.value));
+
+      // 2. Sonderausgaben & Backlog laden
+      const { data: listRes } = await supabase
+        .from("sonderausgaben")
+        .select("*")
+        .eq("status", "Offen");
+
+      if (listRes) {
+        const active: Sonderausgabe[] = [];
+        const bLog: BacklogItem[] = [];
+        listRes.forEach((row: any) => {
+          if (row.wann && row.wann.trim() !== "") {
+            active.push({ id: row.id, was: row.was, hoehe: parseFloat(row.hoehe), wann: row.wann });
+          } else {
+            bLog.push({ id: row.id, was: row.was, hoehe: parseFloat(row.hoehe) });
+          }
+        });
+        setSonderausgaben(active);
+        setBacklog(bLog);
+      }
+    } catch (e) {
+      console.error("Fehler beim Laden der Finanzdaten:", e);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadSupabaseData();
+    }
+  }, [isAuthenticated]);
+
+  // Saldo in Supabase speichern
+  const handleSaldoChange = async (val: number) => {
+    setAktuellerSaldo(val);
+    await supabase.from("finanz_settings").upsert({ key: "saldo", value: val });
+  };
+
+  // Bonus-Berechnung
   const getBonus = (m: number): number => {
     const boni: Record<number, number> = {
       2: 0.7 * 1452 * 0.8,
@@ -87,6 +130,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
     }
   };
 
+  // Simulationsberechnung
   const simulationsMonate: { jahr: number; monat: number }[] = [
     ...[8, 9, 10, 11, 12].map((m) => ({ jahr: 2026, monat: m })),
     ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => ({ jahr: 2027, monat: m }))
@@ -140,47 +184,74 @@ export function FinanceView({ theme }: FinanceViewProps) {
   const freiVerfuegbarFokus = fokusRow ? fokusRow.freiVerfuegbar : 0.0;
   const sonderFokus = fokusRow ? fokusRow.extraMonat : 0.0;
 
-  const handleAddAusgabe = (e: React.FormEvent) => {
+  // -------------------------------------------------------------
+  // SUPABASE: SONDERAUSGABEN HANDLER
+  // -------------------------------------------------------------
+  const handleAddAusgabe = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!neuWas || !neuHoehe) return;
-    setSonderausgaben((p) => [
-      ...p,
-      { id: crypto.randomUUID(), was: neuWas, hoehe: parseFloat(neuHoehe), wann: neuWann }
-    ]);
+    const item: Sonderausgabe = {
+      id: crypto.randomUUID(),
+      was: neuWas,
+      hoehe: parseFloat(neuHoehe),
+      wann: neuWann
+    };
+    setSonderausgaben((p) => [...p, item]);
     setNeuWas("");
     setNeuHoehe("");
+    toast.success("Ausgabe gespeichert");
+    await supabase
+      .from("sonderausgaben")
+      .insert({ id: item.id, was: item.was, hoehe: item.hoehe, wann: item.wann, status: "Offen" });
   };
 
-  const handleDeleteAusgabe = (id: string) => {
+  const handleDeleteAusgabe = async (id: string, asDone = false) => {
     setSonderausgaben((p) => p.filter((x) => x.id !== id));
+    if (asDone) {
+      toast.success("Als erledigt verbucht 💸");
+      await supabase.from("sonderausgaben").update({ status: "Erledigt" }).eq("id", id);
+    } else {
+      toast.info("Ausgabe gelöscht 🗑️");
+      await supabase.from("sonderausgaben").delete().eq("id", id);
+    }
   };
 
-  const handleAddBacklog = (e: React.FormEvent) => {
+  // -------------------------------------------------------------
+  // SUPABASE: BACKLOG HANDLER
+  // -------------------------------------------------------------
+  const handleAddBacklog = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!neuBWas || !neuBHoehe) return;
     const newId = crypto.randomUUID();
-    setBacklog((p) => [...p, { id: newId, was: neuBWas, hoehe: parseFloat(neuBHoehe) }]);
+    const item: BacklogItem = { id: newId, was: neuBWas, hoehe: parseFloat(neuBHoehe) };
+    setBacklog((p) => [...p, item]);
     setBacklogDates((p) => ({ ...p, [newId]: "2026-08-26" }));
     setNeuBWas("");
     setNeuBHoehe("");
+    toast.success("Auf die Wunschliste gesetzt 📝");
+    await supabase
+      .from("sonderausgaben")
+      .insert({ id: item.id, was: item.was, hoehe: item.hoehe, wann: null, status: "Offen" });
   };
 
-  const handlePlanBacklog = (item: BacklogItem) => {
+  const handlePlanBacklog = async (item: BacklogItem) => {
     const planDate = backlogDates[item.id] || "2026-08-26";
     setSonderausgaben((p) => [
       ...p,
-      { id: crypto.randomUUID(), was: item.was, hoehe: item.hoehe, wann: planDate }
+      { id: item.id, was: item.was, hoehe: item.hoehe, wann: planDate }
     ]);
     setBacklog((p) => p.filter((x) => x.id !== item.id));
+    toast.success("In Sonderausgaben eingeplant ⬆️");
+    await supabase.from("sonderausgaben").update({ wann: planDate }).eq("id", item.id);
   };
 
-  const handleDeleteBacklog = (id: string) => {
+  const handleDeleteBacklog = async (id: string) => {
     setBacklog((p) => p.filter((x) => x.id !== id));
+    toast.info("Wunsch gelöscht 🗑️");
+    await supabase.from("sonderausgaben").delete().eq("id", id);
   };
 
-  // -------------------------------------------------------------
-  // HIGH CONTRAST SVG CHART ENGINE
-  // -------------------------------------------------------------
+  // Chart Setup
   const maxCashflow = 2200;
   const maxBudget = 14000;
   const chartHeight = 220;
@@ -188,13 +259,11 @@ export function FinanceView({ theme }: FinanceViewProps) {
   const numPoints = prognoseListe.length;
   const slotWidth = svgWidth / numPoints;
 
-  // Koordinaten für die durchgezogene Budgetlinie
   const points = prognoseListe.map((p, idx) => {
     const x = idx * slotWidth + slotWidth / 2;
     const y = chartHeight - (Math.max(0, p.freiVerfuegbar) / maxBudget) * chartHeight;
     return { x, y, val: p.freiVerfuegbar };
   });
-
   const linePoints = points.map((pt) => `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(" ");
 
   // 🔒 PIN-SPERRE
@@ -243,11 +312,11 @@ export function FinanceView({ theme }: FinanceViewProps) {
             <span
               className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${badgeBlue}`}
             >
-              <ShieldCheck className="h-3.5 w-3.5" /> Aktiv
+              <ShieldCheck className="h-3.5 w-3.5" /> Supabase Live
             </span>
           </div>
           <p className="mt-0.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
-            Echtzeit-Übersicht für Kontostand, Monatsbudgets und geplante Sonderausgaben
+            Echtzeit-Synchronisation mit deiner Cloud-Datenbank
           </p>
         </div>
 
@@ -317,7 +386,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 type="number"
                 step="10"
                 value={aktuellerSaldo}
-                onChange={(e) => setAktuellerSaldo(parseFloat(e.target.value) || 0)}
+                onChange={(e) => handleSaldoChange(parseFloat(e.target.value) || 0)}
                 className={`w-full rounded-xl border ${bgInput} p-2 font-mono text-sm font-black focus:outline-none`}
               />
             </div>
@@ -342,7 +411,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 <select
                   value={fokusMonat}
                   onChange={(e) => setFokusMonat(parseInt(e.target.value, 10))}
-                  className={`mt-1 w-full rounded-xl border ${bgInput} p-2 font-mono text-xs font-bold`}
+                  className={`mt-1 w-full rounded-xl border ${bgInput} p-2 text-xs font-bold`}
                 >
                   {Array.from({ length: 12 }).map((_, i) => (
                     <option key={i + 1} value={i + 1}>
@@ -375,14 +444,14 @@ export function FinanceView({ theme }: FinanceViewProps) {
                   type="date"
                   value={neuWann}
                   onChange={(e) => setNeuWann(e.target.value)}
-                  className={`w-full rounded-xl border ${bgInput} p-2 font-mono text-xs font-bold`}
+                  className={`w-full rounded-xl border ${bgInput} p-2 text-xs font-bold`}
                 />
               </div>
               <button
                 type="submit"
                 className={`w-full rounded-xl py-2.5 text-xs font-bold ${buttonPrimary}`}
               >
-                Speichern
+                Dauerhaft in DB speichern
               </button>
             </form>
           </div>
@@ -509,9 +578,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
             </table>
           </div>
 
-          {/* ========================================================= */}
-          {/* ECHTER HIGH-CONTRAST SVG CHART */}
-          {/* ========================================================= */}
+          {/* Satter Chart */}
           <div className={`${bgCard} space-y-4 rounded-2xl border p-5 shadow-sm`}>
             <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
               <h3 className={`text-xs font-black tracking-wider uppercase ${textTitle}`}>
@@ -535,7 +602,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
 
             <div className="relative pt-2">
               <div className="flex">
-                {/* Y-Achse Links (Kräftiges Schwarz/Dunkelgrau) */}
                 <div className="flex h-56 flex-col justify-between pr-3 text-right font-mono text-[11px] font-black text-slate-900 dark:text-slate-100">
                   <span>2.0k</span>
                   <span>1.5k</span>
@@ -544,7 +610,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
                   <span>0</span>
                 </div>
 
-                {/* Plot Area */}
                 <div
                   className={`relative h-56 flex-1 border-b-2 border-l-2 ${isDarkMode ? "border-white/30" : "border-slate-800"}`}
                 >
@@ -553,7 +618,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
                     preserveAspectRatio="none"
                     className="h-full w-full overflow-visible"
                   >
-                    {/* Horizontale Gitterlinien */}
                     <line
                       x1="0"
                       y1="0"
@@ -591,20 +655,16 @@ export function FinanceView({ theme }: FinanceViewProps) {
                       strokeDasharray="3 3"
                     />
 
-                    {/* Kräftige SVG-Balken */}
                     {prognoseListe.map((p, idx) => {
                       const xCenter = idx * slotWidth + slotWidth / 2;
                       const barW = 8;
-
                       const hIn = (p.gehaltEnde / maxCashflow) * chartHeight;
                       const yIn = chartHeight - hIn;
-
                       const hOut = (p.ausgabenGesamt / maxCashflow) * chartHeight;
                       const yOut = chartHeight - hOut;
 
                       return (
                         <g key={idx}>
-                          {/* Eingang (Deep Petrol) */}
                           <rect
                             x={xCenter - barW - 1}
                             y={yIn}
@@ -613,7 +673,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
                             fill={isDarkMode ? "#82CBEE" : "#005377"}
                             rx={2}
                           />
-                          {/* Ausgaben (Deep Slate) */}
                           <rect
                             x={xCenter + 1}
                             y={yOut}
@@ -626,15 +685,12 @@ export function FinanceView({ theme }: FinanceViewProps) {
                       );
                     })}
 
-                    {/* Fette Budget-Linie */}
                     <polyline
                       fill="none"
                       stroke={isDarkMode ? "#82CBEE" : "#005377"}
                       strokeWidth="3.5"
                       points={linePoints}
                     />
-
-                    {/* Daten-Punkte */}
                     {points.map((pt, idx) => (
                       <circle
                         key={idx}
@@ -649,7 +705,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
                   </svg>
                 </div>
 
-                {/* Y-Achse Rechts */}
                 <div className="flex h-56 flex-col justify-between pl-3 text-left font-mono text-[11px] font-black text-[#005377] dark:text-[#82CBEE]">
                   <span>14k</span>
                   <span>10k</span>
@@ -659,7 +714,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 </div>
               </div>
 
-              {/* X-Achsen-Monate (Gestochen scharf) */}
               <div className="mt-3 flex justify-between pr-10 pl-10 font-mono text-[11px] font-black text-slate-900 dark:text-slate-100">
                 {prognoseListe
                   .filter((_, i) => i % 2 === 0)
@@ -672,9 +726,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
         </div>
       </div>
 
-      {/* ========================================================= */}
-      {/* SONDERAUSGABEN (MIT DEUTLICHEM DATUM) & BACKLOG */}
-      {/* ========================================================= */}
+      {/* Sonderausgaben & Backlog */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         {/* Sonderbudgets */}
         <div className={`${bgCard} space-y-4 rounded-2xl border p-5 shadow-sm`}>
@@ -695,7 +747,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
               >
                 <div>
                   <span className={`text-sm font-bold ${textTitle} block`}>{item.was}</span>
-                  {/* Gestochen scharfes Datum */}
                   <span className="mt-0.5 flex items-center gap-1.5 font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
                     <Calendar className="h-3.5 w-3.5 text-[#005377] dark:text-[#82CBEE]" />
                     {item.wann}
@@ -706,13 +757,13 @@ export function FinanceView({ theme }: FinanceViewProps) {
                     {item.hoehe.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
                   </span>
                   <button
-                    onClick={() => handleDeleteAusgabe(item.id)}
+                    onClick={() => handleDeleteAusgabe(item.id, true)}
                     className="flex h-8 items-center gap-1 rounded-lg border border-slate-400 bg-white/50 px-2.5 text-xs font-bold text-emerald-700 shadow-xs hover:bg-emerald-500/15 dark:border-white/20 dark:bg-black/40 dark:text-emerald-300"
                   >
-                    <Check className="h-3.5 w-3.5" /> Erledigt
+                    <Check className="h-3.5 w-3.5" /> Erledigt 💸
                   </button>
                   <button
-                    onClick={() => handleDeleteAusgabe(item.id)}
+                    onClick={() => handleDeleteAusgabe(item.id, false)}
                     className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 transition-all hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400"
                   >
                     <Trash2 className="h-4 w-4" />
@@ -783,7 +834,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
                     onClick={() => handlePlanBacklog(item)}
                     className={`flex h-8 items-center gap-1 rounded-lg px-3 text-xs font-bold ${buttonPrimary}`}
                   >
-                    Planen
+                    Planen ⬆️
                   </button>
                   <button
                     onClick={() => handleDeleteBacklog(item.id)}
