@@ -577,15 +577,7 @@ export default function DashboardPage() {
           )}
           {activeTab === "kalender" && (
             <KalenderView
-              calendarMode={calendarMode}
-              setCalendarMode={setCalendarMode}
               currentDate={currentDate}
-              handlePrev={() =>
-                setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1)))
-              }
-              handleNext={() =>
-                setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)))
-              }
               getEventsForDate={getEventsForDate}
               theme={themeProps}
             />

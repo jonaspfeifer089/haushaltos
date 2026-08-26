@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Check, Trash2 } from "lucide-react";
+import { Check, Trash2, Mic } from "lucide-react";
 import { TodoItem, TODO_KATEGORIEN } from "../types";
+import { toast } from "sonner";
 
 interface TodoViewProps {
   todos: TodoItem[];
@@ -28,6 +29,7 @@ export function TodoView({
   const [todoKategorie, setTodoKategorie] = useState<string>("Haushalt & Reparatur");
   const [todoZustaendig, setTodoZustaendig] = useState<string>("Beide");
   const [activeTodoFilter, setActiveTodoFilter] = useState<string>("Alle");
+  const [isListening, setIsListening] = useState(false);
 
   const { bgCard, bgItem, bgInput, textTitle, textSub, badgeBlue, badgeGreen, buttonPrimary } =
     theme;
@@ -39,6 +41,56 @@ export function TodoView({
       : offeneTodos.filter(
           (t) => t.kategorie === activeTodoFilter || t.zustaendig === activeTodoFilter
         );
+
+  const startVoiceInput = () => {
+    if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
+      toast.error("Spracherkennung im Browser nicht verfügbar");
+      return;
+    }
+
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.lang = "de-DE";
+    recognition.continuous = false;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      toast.info("Ich höre zu...", { id: "voice-toast" });
+    };
+
+    recognition.onresult = async (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      toast.loading("Verarbeite Spracheingabe...", { id: "voice-toast" });
+
+      try {
+        const res = await fetch("/api/parse-task", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ input: transcript, defaultUser: activeUser })
+        });
+        const parsed = await res.json();
+
+        if (parsed.aufgabe) {
+          await addTodo(parsed.aufgabe, parsed.kategorie, parsed.zustaendig);
+          toast.success(`Aufgabe angelegt für ${parsed.zustaendig}!`, {
+            id: "voice-toast",
+            description: parsed.aufgabe
+          });
+        }
+      } catch {
+        toast.error("Fehler beim Verarbeiten", { id: "voice-toast" });
+      }
+      setIsListening(false);
+    };
+
+    recognition.onerror = () => {
+      setIsListening(false);
+      toast.error("Spracheingabe abgebrochen", { id: "voice-toast" });
+    };
+
+    recognition.start();
+  };
 
   const handleAdd = async () => {
     if (!neuesTodo.trim()) return;
@@ -60,14 +112,28 @@ export function TodoView({
 
       <div className={`${bgCard} space-y-4 rounded-2xl p-6`}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-12">
-          <input
-            type="text"
-            placeholder="Neue Aufgabe..."
-            value={neuesTodo}
-            onChange={(e) => setNeuesTodo(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-            className={`w-full sm:col-span-6 ${bgInput} rounded-xl border px-4 py-2.5 text-sm font-medium focus:outline-none`}
-          />
+          {/* Eingabefeld mit integriertem Voice-Mic Button */}
+          <div className="relative w-full sm:col-span-5">
+            <input
+              type="text"
+              placeholder="Neue Aufgabe..."
+              value={neuesTodo}
+              onChange={(e) => setNeuesTodo(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleAdd()}
+              className={`w-full ${bgInput} rounded-xl border py-2.5 pr-10 pl-4 text-sm font-medium focus:outline-none`}
+            />
+            <button
+              type="button"
+              onClick={startVoiceInput}
+              title="Per Sprache eingeben"
+              className={`absolute top-1/2 right-2.5 -translate-y-1/2 p-1 text-slate-400 transition-colors hover:text-[#005377] ${
+                isListening ? "animate-pulse text-rose-500" : ""
+              }`}
+            >
+              <Mic className="h-4 w-4" />
+            </button>
+          </div>
+
           <select
             value={todoKategorie}
             onChange={(e) => setTodoKategorie(e.target.value)}
@@ -79,19 +145,21 @@ export function TodoView({
               </option>
             ))}
           </select>
+
           <select
             value={todoZustaendig}
             onChange={(e) => setTodoZustaendig(e.target.value)}
-            className={`sm:col-span-1.5 w-full ${bgInput} rounded-xl border px-3 py-2.5 text-xs font-semibold focus:outline-none`}
+            className={`w-full sm:col-span-2 ${bgInput} rounded-xl border px-3 py-2.5 text-xs font-semibold focus:outline-none`}
           >
             <option value="Beide">Beide</option>
             <option value="Jonas">Jonas</option>
             <option value="Lena">Lena</option>
           </select>
+
           <motion.button
             whileTap={tapGesture}
             onClick={handleAdd}
-            className={`sm:col-span-1.5 w-full px-4 py-2.5 ${buttonPrimary} flex items-center justify-center rounded-xl text-xs font-bold`}
+            className={`w-full px-4 py-2.5 sm:col-span-2 ${buttonPrimary} flex items-center justify-center rounded-xl text-xs font-bold`}
           >
             Hinzufügen
           </motion.button>
@@ -102,7 +170,9 @@ export function TodoView({
             <button
               key={filter}
               onClick={() => setActiveTodoFilter(filter)}
-              className={`rounded-xl px-3 py-1 text-xs font-bold whitespace-nowrap transition-all ${activeTodoFilter === filter ? `${badgeBlue} shadow-sm` : `${bgItem} ${textSub}`}`}
+              className={`rounded-xl px-3 py-1 text-xs font-bold whitespace-nowrap transition-all ${
+                activeTodoFilter === filter ? `${badgeBlue} shadow-sm` : `${bgItem} ${textSub}`
+              }`}
             >
               {filter}
             </button>
@@ -148,7 +218,7 @@ export function TodoView({
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => markTodoErledigt(todo, "Erledigt")}
-                  className={`h-7 rounded-lg px-3 text-[11px] font-bold ${badgeGreen} flex items-center gap-1 hover:opacity-80`}
+                  className={`flex h-7 items-center gap-1 rounded-lg px-3 text-[11px] font-bold ${badgeGreen} hover:opacity-80`}
                 >
                   <Check className="h-3.5 w-3.5" /> <span>Erledigen</span>
                 </button>

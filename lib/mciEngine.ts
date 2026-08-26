@@ -58,3 +58,31 @@ export const formatDauer = (seconds: number) => {
 
 export const calculateDaysLeft = (targetDateStr: string) =>
   Math.ceil((new Date(targetDateStr).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+
+// -------------------------------------------------------------
+// SUPERMARKT AISLE ROUTER (Einkaufsstraßen-Logik)
+// -------------------------------------------------------------
+
+export const AISLE_ORDER: Record<string, number> = {
+  "Obst & Gemüse": 1,
+  "Bäckerei & Brot": 2,
+  "Vorrat & Nudeln": 3,
+  "Gewürze & Saucen": 4,
+  "Kühlregal & Milch": 5,
+  "Fleisch & Fisch": 6,
+  Tiefkühl: 7,
+  Getränke: 8,
+  "Drogerie & Haushalt": 9,
+  Sonstiges: 10
+};
+
+export function sortShoppingListByAisle<T extends { kategorie?: string; artikel: string }>(
+  items: T[]
+): T[] {
+  return [...items].sort((a, b) => {
+    const orderA = AISLE_ORDER[a.kategorie || "Sonstiges"] ?? 99;
+    const orderB = AISLE_ORDER[b.kategorie || "Sonstiges"] ?? 99;
+    if (orderA !== orderB) return orderA - orderB;
+    return a.artikel.localeCompare(b.artikel, "de");
+  });
+}
