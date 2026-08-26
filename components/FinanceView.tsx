@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Lock, ShieldCheck, Trash2, Check, Calendar, Loader2 } from "lucide-react";
+import { Lock, ShieldCheck, Trash2, Check, Calendar } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { toast } from "sonner";
 
@@ -23,8 +23,7 @@ interface FinanceViewProps {
 export function FinanceView({ theme }: FinanceViewProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinInput, setPinInput] = useState("");
-  const [loading, setLoading] = useState(false);
-  const SECRET_PIN = "07570";
+  const SECRET_PIN = "1234";
 
   const {
     bgCard,
@@ -38,14 +37,14 @@ export function FinanceView({ theme }: FinanceViewProps) {
     isDarkMode
   } = theme;
 
-  // Basis-Daten (Live aus Supabase)
+  // Supabase Settings State
   const [aktuellerSaldo, setAktuellerSaldo] = useState<number>(500.0);
-  const fixEinnahmen = 880.0;
-  const fixAusgaben = 70.0;
+  const [fixEinnahmen, setFixEinnahmen] = useState<number>(880.0);
+  const [fixAusgaben, setFixAusgaben] = useState<number>(70.0);
   const [fokusMonat, setFokusMonat] = useState<number>(8);
   const [zielDatum, setZielDatum] = useState<string>("2026-08-31");
 
-  // Sonderausgaben & Backlog (Live aus Supabase)
+  // Sonderausgaben & Backlog
   const [sonderausgaben, setSonderausgaben] = useState<Sonderausgabe[]>([]);
   const [backlog, setBacklog] = useState<BacklogItem[]>([]);
   const [backlogDates, setBacklogDates] = useState<Record<string, string>>({});
@@ -58,20 +57,25 @@ export function FinanceView({ theme }: FinanceViewProps) {
   const [neuBHoehe, setNeuBHoehe] = useState<string>("");
 
   // -------------------------------------------------------------
-  // SUPABASE: DATEN LADEN
+  // SUPABASE DATA LOADING
   // -------------------------------------------------------------
-  const loadSupabaseData = async () => {
-    setLoading(true);
+  const loadAllFinanceData = async () => {
     try {
-      // 1. Saldo laden
-      const { data: setRes } = await supabase
-        .from("finanz_settings")
-        .select("value")
-        .eq("key", "saldo")
-        .single();
-      if (setRes) setAktuellerSaldo(parseFloat(setRes.value));
+      const { data: setRes } = await supabase.from("finanz_settings").select("key, value");
+      if (setRes && setRes.length > 0) {
+        const map: Record<string, string> = {};
+        setRes.forEach((row: any) => {
+          map[row.key] = row.value;
+        });
 
-      // 2. Sonderausgaben & Backlog laden
+        if (map["saldo"] !== undefined) setAktuellerSaldo(parseFloat(map["saldo"]) || 0);
+        if (map["fix_einnahmen"] !== undefined)
+          setFixEinnahmen(parseFloat(map["fix_einnahmen"]) || 0);
+        if (map["fix_ausgaben"] !== undefined) setFixAusgaben(parseFloat(map["fix_ausgaben"]) || 0);
+        if (map["fokus_monat"] !== undefined) setFokusMonat(parseInt(map["fokus_monat"], 10) || 8);
+        if (map["ziel_datum"] !== undefined) setZielDatum(map["ziel_datum"]);
+      }
+
       const { data: listRes } = await supabase
         .from("sonderausgaben")
         .select("*")
@@ -87,37 +91,23 @@ export function FinanceView({ theme }: FinanceViewProps) {
             bLog.push({ id: row.id, was: row.was, hoehe: parseFloat(row.hoehe) });
           }
         });
+        active.sort((a, b) => new Date(a.wann).getTime() - new Date(b.wann).getTime());
         setSonderausgaben(active);
         setBacklog(bLog);
       }
     } catch (e) {
-      console.error("Fehler beim Laden der Finanzdaten:", e);
+      console.error("Fehler beim Laden:", e);
     }
-    setLoading(false);
   };
 
   useEffect(() => {
     if (isAuthenticated) {
-      loadSupabaseData();
+      loadAllFinanceData();
     }
   }, [isAuthenticated]);
 
-  // Saldo in Supabase speichern
-  const handleSaldoChange = async (val: number) => {
-    setAktuellerSaldo(val);
-    await supabase.from("finanz_settings").upsert({ key: "saldo", value: val });
-  };
-
-  // Bonus-Berechnung
-  const getBonus = (m: number): number => {
-    const boni: Record<number, number> = {
-      2: 0.7 * 1452 * 0.8,
-      6: 0.85 * 1452 * 0.8 * 0.5,
-      7: 227.0,
-      9: 0.275 * 1452 * 0.8,
-      11: 1452 * 0.5 * 0.8
-    };
-    return boni[m] || 0.0;
+  const updateSetting = async (key: string, val: string | number) => {
+    await supabase.from("finanz_settings").upsert({ key, value: String(val) });
   };
 
   const handleLogin = (e: React.FormEvent) => {
@@ -130,7 +120,17 @@ export function FinanceView({ theme }: FinanceViewProps) {
     }
   };
 
-  // Simulationsberechnung
+  const getBonus = (m: number): number => {
+    const boni: Record<number, number> = {
+      2: 0.7 * 1452 * 0.8,
+      6: 0.85 * 1452 * 0.8 * 0.5,
+      7: 227.0,
+      9: 0.275 * 1452 * 0.8,
+      11: 1452 * 0.5 * 0.8
+    };
+    return boni[m] || 0.0;
+  };
+
   const simulationsMonate: { jahr: number; monat: number }[] = [
     ...[8, 9, 10, 11, 12].map((m) => ({ jahr: 2026, monat: m })),
     ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => ({ jahr: 2027, monat: m }))
@@ -184,9 +184,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
   const freiVerfuegbarFokus = fokusRow ? fokusRow.freiVerfuegbar : 0.0;
   const sonderFokus = fokusRow ? fokusRow.extraMonat : 0.0;
 
-  // -------------------------------------------------------------
-  // SUPABASE: SONDERAUSGABEN HANDLER
-  // -------------------------------------------------------------
+  // Handler
   const handleAddAusgabe = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!neuWas || !neuHoehe) return;
@@ -196,7 +194,9 @@ export function FinanceView({ theme }: FinanceViewProps) {
       hoehe: parseFloat(neuHoehe),
       wann: neuWann
     };
-    setSonderausgaben((p) => [...p, item]);
+    setSonderausgaben((p) =>
+      [...p, item].sort((a, b) => new Date(a.wann).getTime() - new Date(b.wann).getTime())
+    );
     setNeuWas("");
     setNeuHoehe("");
     toast.success("Ausgabe gespeichert");
@@ -216,9 +216,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
     }
   };
 
-  // -------------------------------------------------------------
-  // SUPABASE: BACKLOG HANDLER
-  // -------------------------------------------------------------
   const handleAddBacklog = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!neuBWas || !neuBHoehe) return;
@@ -236,10 +233,11 @@ export function FinanceView({ theme }: FinanceViewProps) {
 
   const handlePlanBacklog = async (item: BacklogItem) => {
     const planDate = backlogDates[item.id] || "2026-08-26";
-    setSonderausgaben((p) => [
-      ...p,
-      { id: item.id, was: item.was, hoehe: item.hoehe, wann: planDate }
-    ]);
+    setSonderausgaben((p) =>
+      [...p, { id: item.id, was: item.was, hoehe: item.hoehe, wann: planDate }].sort(
+        (a, b) => new Date(a.wann).getTime() - new Date(b.wann).getTime()
+      )
+    );
     setBacklog((p) => p.filter((x) => x.id !== item.id));
     toast.success("In Sonderausgaben eingeplant ⬆️");
     await supabase.from("sonderausgaben").update({ wann: planDate }).eq("id", item.id);
@@ -251,20 +249,29 @@ export function FinanceView({ theme }: FinanceViewProps) {
     await supabase.from("sonderausgaben").delete().eq("id", id);
   };
 
-  // Chart Setup
+  // -------------------------------------------------------------
+  // CHART POSITIONIERUNG (Exakt im Box-Raster)
+  // -------------------------------------------------------------
   const maxCashflow = 2200;
   const maxBudget = 14000;
   const chartHeight = 220;
   const svgWidth = 800;
   const numPoints = prognoseListe.length;
-  const slotWidth = svgWidth / numPoints;
+  const paddingX = 20;
+  const innerWidth = svgWidth - paddingX * 2;
+  const slotWidth = innerWidth / (numPoints - 1);
 
   const points = prognoseListe.map((p, idx) => {
-    const x = idx * slotWidth + slotWidth / 2;
+    const x = paddingX + idx * slotWidth;
     const y = chartHeight - (Math.max(0, p.freiVerfuegbar) / maxBudget) * chartHeight;
     return { x, y, val: p.freiVerfuegbar };
   });
+
   const linePoints = points.map((pt) => `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(" ");
+
+  // Farbdefinitionen
+  const colorIn = isDarkMode ? "#82CBEE" : "#005377"; // Helles / Primäres Petrol
+  const colorOut = isDarkMode ? "#3A6073" : "#0B2545"; // Dunkleres Blau statt Hellgrau!
 
   // 🔒 PIN-SPERRE
   if (!isAuthenticated) {
@@ -302,116 +309,54 @@ export function FinanceView({ theme }: FinanceViewProps) {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div className="flex flex-col justify-between gap-4 border-b border-[#E8E2D9] pb-4 sm:flex-row sm:items-center dark:border-white/[0.08]">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className={`text-2xl font-black tracking-tight md:text-3xl ${textTitle}`}>
-              Finanzen & Liquidität
-            </h1>
-            <span
-              className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${badgeBlue}`}
-            >
-              <ShieldCheck className="h-3.5 w-3.5" /> Supabase Live
-            </span>
-          </div>
-          <p className="mt-0.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
-            Echtzeit-Synchronisation mit deiner Cloud-Datenbank
-          </p>
-        </div>
-
-        <button
-          onClick={() => setIsAuthenticated(false)}
-          className={`flex h-8 items-center gap-1.5 self-start rounded-xl border px-3.5 text-xs font-bold transition-all sm:self-auto ${bgItem} ${textTitle}`}
-        >
-          <Lock className="h-3.5 w-3.5" /> Sperren
-        </button>
-      </div>
-
-      {/* 4 Übersichtskarten */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <div className={`${bgCard} rounded-2xl border p-4.5 shadow-sm`}>
-          <span className="text-[11px] font-black tracking-wide text-slate-700 uppercase dark:text-slate-300">
-            Liquidität (Aktuell)
-          </span>
-          <div className={`mt-1 font-mono text-2xl font-black md:text-3xl ${textTitle}`}>
-            {aktuellerSaldo.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
-          </div>
-        </div>
-
-        <div className={`${bgCard} rounded-2xl border p-4.5 shadow-sm`}>
-          <span className="text-[11px] font-black tracking-wide text-slate-700 uppercase dark:text-slate-300">
-            Prognose zum {zielDatum}
-          </span>
-          <div className={`mt-1 font-mono text-2xl font-black md:text-3xl ${textTitle}`}>
-            {simSaldo.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
-          </div>
-        </div>
-
-        <div
-          className={`${bgCard} rounded-2xl border border-l-4 border-l-[#005377] p-4.5 shadow-sm dark:border-l-[#82CBEE]`}
-        >
-          <span className="text-[11px] font-black tracking-wide text-[#005377] uppercase dark:text-[#82CBEE]">
-            Frei verfügbar (Monat {fokusMonat})
-          </span>
-          <div className={`mt-1 font-mono text-2xl font-black md:text-3xl ${accentBlue}`}>
-            {freiVerfuegbarFokus.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
-          </div>
-        </div>
-
-        <div className={`${bgCard} rounded-2xl border p-4.5 shadow-sm`}>
-          <span className="text-[11px] font-black tracking-wide text-slate-700 uppercase dark:text-slate-300">
-            Sonderausgaben (Monat {fokusMonat})
-          </span>
-          <div className={`mt-1 font-mono text-2xl font-black md:text-3xl ${textTitle}`}>
-            {sonderFokus.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
-          </div>
-        </div>
-      </div>
-
       {/* Grid: Kontrollzentrum & Taktischer Ausblick */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-        {/* Kontrollzentrum */}
+        {/* LINKE SPALTE: KONTROLLZENTRUM */}
         <div className="space-y-6 lg:col-span-4">
           <div className={`${bgCard} space-y-4 rounded-2xl border p-5 shadow-sm`}>
-            <h3 className={`text-xs font-black tracking-wider uppercase ${textTitle}`}>
-              Kontrollzentrum
+            <h3 className={`text-xs font-bold tracking-wider uppercase ${textTitle}`}>
+              KONTROLLZENTRUM
             </h3>
 
             <div className="space-y-1.5 border-b border-[#E8E2D9] pb-4 dark:border-white/[0.08]">
-              <label className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                Aktueller Kontostand (€)
-              </label>
+              <label className={`text-xs font-medium ${textSub}`}>Aktueller Kontostand (€)</label>
               <input
                 type="number"
                 step="10"
                 value={aktuellerSaldo}
-                onChange={(e) => handleSaldoChange(parseFloat(e.target.value) || 0)}
-                className={`w-full rounded-xl border ${bgInput} p-2 font-mono text-sm font-black focus:outline-none`}
+                onChange={(e) => {
+                  const val = parseFloat(e.target.value) || 0;
+                  setAktuellerSaldo(val);
+                  updateSetting("saldo", val);
+                }}
+                className={`w-full rounded-xl border ${bgInput} p-2 font-mono text-sm font-semibold focus:outline-none`}
               />
             </div>
 
             <div className="space-y-3 border-b border-[#E8E2D9] pb-4 dark:border-white/[0.08]">
-              <h4 className={`text-xs font-bold ${textTitle}`}>Target-Prognose</h4>
+              <h4 className={`text-xs font-semibold ${textTitle}`}>Target-Prognose</h4>
               <div>
-                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                  Wunschdatum für Check
-                </label>
+                <label className={`text-[11px] ${textSub}`}>Wunschdatum für Check</label>
                 <input
                   type="date"
                   value={zielDatum}
-                  onChange={(e) => setZielDatum(e.target.value)}
-                  className={`mt-1 w-full rounded-xl border ${bgInput} p-2 font-mono text-xs font-bold`}
+                  onChange={(e) => {
+                    setZielDatum(e.target.value);
+                    updateSetting("ziel_datum", e.target.value);
+                  }}
+                  className={`mt-1 w-full rounded-xl border ${bgInput} p-2 text-xs font-medium`}
                 />
               </div>
               <div>
-                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
-                  Fokus-Monat
-                </label>
+                <label className={`text-[11px] ${textSub}`}>Fokus-Monat</label>
                 <select
                   value={fokusMonat}
-                  onChange={(e) => setFokusMonat(parseInt(e.target.value, 10))}
-                  className={`mt-1 w-full rounded-xl border ${bgInput} p-2 text-xs font-bold`}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    setFokusMonat(val);
+                    updateSetting("fokus_monat", val);
+                  }}
+                  className={`mt-1 w-full rounded-xl border ${bgInput} p-2 text-xs font-medium`}
                 >
                   {Array.from({ length: 12 }).map((_, i) => (
                     <option key={i + 1} value={i + 1}>
@@ -423,13 +368,13 @@ export function FinanceView({ theme }: FinanceViewProps) {
             </div>
 
             <form onSubmit={handleAddAusgabe} className="space-y-3">
-              <h4 className={`text-xs font-bold ${textTitle}`}>Sonderausgabe planen</h4>
+              <h4 className={`text-xs font-semibold ${textTitle}`}>Sonderausgabe planen</h4>
               <input
                 type="text"
                 placeholder="Zweck..."
                 value={neuWas}
                 onChange={(e) => setNeuWas(e.target.value)}
-                className={`w-full rounded-xl border ${bgInput} p-2 text-xs font-semibold focus:outline-none`}
+                className={`w-full rounded-xl border ${bgInput} p-2 text-xs font-medium focus:outline-none`}
               />
               <div className="grid grid-cols-2 gap-2">
                 <input
@@ -438,73 +383,68 @@ export function FinanceView({ theme }: FinanceViewProps) {
                   placeholder="Betrag (€)"
                   value={neuHoehe}
                   onChange={(e) => setNeuHoehe(e.target.value)}
-                  className={`w-full rounded-xl border ${bgInput} p-2 font-mono text-xs font-bold focus:outline-none`}
+                  className={`w-full rounded-xl border ${bgInput} p-2 text-xs font-semibold focus:outline-none`}
                 />
                 <input
                   type="date"
                   value={neuWann}
                   onChange={(e) => setNeuWann(e.target.value)}
-                  className={`w-full rounded-xl border ${bgInput} p-2 text-xs font-bold`}
+                  className={`w-full rounded-xl border ${bgInput} p-2 text-xs font-medium`}
                 />
               </div>
               <button
                 type="submit"
-                className={`w-full rounded-xl py-2.5 text-xs font-bold ${buttonPrimary}`}
+                className={`w-full rounded-xl py-2 text-xs font-bold ${buttonPrimary}`}
               >
-                Dauerhaft in DB speichern
+                Ausgabe speichern
               </button>
             </form>
           </div>
         </div>
 
-        {/* Taktischer Ausblick & Satte Visuals */}
+        {/* RECHTE SPALTE: TAKTISCHER AUSBLICK & DIAGRAMM */}
         <div className="space-y-6 lg:col-span-8">
           <div>
-            <h2 className={`text-lg font-black tracking-tight ${textTitle}`}>
-              Taktischer Ausblick (2026 - 2027)
-            </h2>
-            <p className="mt-0.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <h2 className={`text-lg font-bold ${textTitle}`}>Taktischer Ausblick (2026 - 2027)</h2>
+            <p className={`mt-0.5 text-xs ${textSub}`}>
               {`Frei verfügbares Budget nach allen Abzügen bis zum nächsten Gehaltseingang.`}
             </p>
           </div>
 
-          {/* Matrix-Tabelle */}
+          {/* Einheitliche Matrix-Tabelle */}
           <div
             className={`overflow-x-auto rounded-2xl border ${isDarkMode ? "border-white/[0.08] bg-[#140C0E]" : "border-[#E8E2D9] bg-[#FFFFFF]"} shadow-xs`}
           >
             <table className="w-full border-collapse font-mono text-xs">
               <thead>
                 <tr
-                  className={`border-b ${isDarkMode ? "border-white/[0.08] bg-white/[0.04]" : "border-[#E8E2D9] bg-[#FAF8F5]"} text-xs font-black`}
+                  className={`border-b ${isDarkMode ? "border-white/[0.08] bg-white/[0.02]" : "border-[#E8E2D9] bg-[#FAF8F5]"} text-xs font-bold`}
                 >
                   <th
                     className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left`}
                   />
                   <th
                     colSpan={5}
-                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center text-xs font-black text-slate-800 dark:text-slate-200`}
+                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center text-xs font-bold ${textTitle}`}
                   >
                     2026
                   </th>
-                  <th
-                    colSpan={12}
-                    className="p-2 text-center text-xs font-black text-slate-800 dark:text-slate-200"
-                  >
+                  <th colSpan={12} className={`p-2 text-center text-xs font-bold ${textTitle}`}>
                     2027
                   </th>
                 </tr>
                 <tr
-                  className={`border-b ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} font-black text-slate-700 dark:text-slate-300`}
+                  className={`border-b ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} ${textTitle}`}
                 >
                   <th
-                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left font-black`}
+                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left font-medium`}
                   >
                     Kategorie
                   </th>
                   {prognoseListe.map((p, i) => (
                     <th
                       key={i}
-                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-black last:border-r-0`}
+                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-medium last:border-r-0`}
                     >
                       {p.monat}
                     </th>
@@ -512,18 +452,18 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 </tr>
               </thead>
               <tbody
-                className={`divide-y ${isDarkMode ? "divide-white/[0.05]" : "divide-[#E8E2D9]"}`}
+                className={`divide-y ${isDarkMode ? "divide-white/[0.05]" : "divide-[#E8E2D9]"} ${textTitle}`}
               >
                 <tr>
                   <td
-                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left font-bold text-slate-700 dark:text-slate-300`}
+                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left font-medium`}
                   >
                     Gehalt (Ende)
                   </td>
                   {prognoseListe.map((p, i) => (
                     <td
                       key={i}
-                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-bold text-slate-900 last:border-r-0 dark:text-slate-100`}
+                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-medium last:border-r-0`}
                     >
                       {p.gehaltEnde.toFixed(0)}
                     </td>
@@ -531,14 +471,14 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 </tr>
                 <tr>
                   <td
-                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left font-bold text-slate-700 dark:text-slate-300`}
+                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left font-medium`}
                   >
                     Fixkosten
                   </td>
                   {prognoseListe.map((p, i) => (
                     <td
                       key={i}
-                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-bold text-slate-600 last:border-r-0 dark:text-slate-400`}
+                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-medium last:border-r-0`}
                     >
                       {p.fixMonat.toFixed(0)}
                     </td>
@@ -546,20 +486,20 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 </tr>
                 <tr>
                   <td
-                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left font-bold text-slate-700 dark:text-slate-300`}
+                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left font-medium`}
                   >
                     Sonderbudgets
                   </td>
                   {prognoseListe.map((p, i) => (
                     <td
                       key={i}
-                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-black ${p.extraMonat > 0 ? textTitle : "text-slate-400"} last:border-r-0`}
+                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-medium last:border-r-0`}
                     >
                       {p.extraMonat.toFixed(0)}
                     </td>
                   ))}
                 </tr>
-                <tr className={`${isDarkMode ? "bg-white/[0.04]" : "bg-black/[0.03]"} font-black`}>
+                <tr className={`${isDarkMode ? "bg-white/[0.03]" : "bg-black/[0.02]"} font-bold`}>
                   <td
                     className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left ${textTitle}`}
                   >
@@ -568,7 +508,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
                   {prognoseListe.map((p, i) => (
                     <td
                       key={i}
-                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-black ${accentBlue} last:border-r-0`}
+                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center ${accentBlue} last:border-r-0`}
                     >
                       {p.freiVerfuegbar.toFixed(0)}
                     </td>
@@ -578,53 +518,58 @@ export function FinanceView({ theme }: FinanceViewProps) {
             </table>
           </div>
 
-          {/* Satter Chart */}
-          <div className={`${bgCard} space-y-4 rounded-2xl border p-5 shadow-sm`}>
+          {/* Diagramm mit sauber eingebundener Linie & dunklerem Blau für Ausgaben */}
+          <div className={`${bgCard} space-y-3 rounded-2xl border p-5 shadow-sm`}>
             <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
-              <h3 className={`text-xs font-black tracking-wider uppercase ${textTitle}`}>
-                Verlauf & Liquiditäts-Kurve
+              <h3 className={`text-xs font-bold tracking-wider uppercase ${textTitle}`}>
+                VERLAUF & LIQUIDITÄTS-KURVE
               </h3>
-              <div className="flex items-center gap-5 text-xs font-black">
-                <div className="flex items-center gap-2">
-                  <span className="h-3 w-3 rounded-xs bg-[#005377] dark:bg-[#82CBEE]" />
+              <div className="flex items-center gap-4 text-[11px] font-semibold">
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: colorIn }} />
                   <span className={textTitle}>Eingang</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="h-3 w-3 rounded-xs bg-[#475569] dark:bg-[#94A3B8]" />
+                <div className="flex items-center gap-1.5">
+                  <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: colorOut }} />
                   <span className={textTitle}>Ausgaben</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="h-1.5 w-4 bg-[#005377] dark:bg-[#82CBEE]" />
-                  <span className="text-[#005377] dark:text-[#82CBEE]">Freies Budget</span>
+                <div className="flex items-center gap-1.5">
+                  <span className="h-1 w-3.5" style={{ backgroundColor: colorIn }} />
+                  <span style={{ color: colorIn }}>Freies Budget</span>
                 </div>
               </div>
             </div>
 
             <div className="relative pt-2">
               <div className="flex">
-                <div className="flex h-56 flex-col justify-between pr-3 text-right font-mono text-[11px] font-black text-slate-900 dark:text-slate-100">
-                  <span>2.0k</span>
+                {/* Y-Achse Links */}
+                <div
+                  className={`flex h-48 flex-col justify-between pr-2 text-right font-mono text-[9px] font-bold ${textSub}`}
+                >
+                  <span>2k</span>
                   <span>1.5k</span>
-                  <span>1.0k</span>
+                  <span>1k</span>
                   <span>0.5k</span>
                   <span>0</span>
                 </div>
 
+                {/* Plot Area */}
                 <div
-                  className={`relative h-56 flex-1 border-b-2 border-l-2 ${isDarkMode ? "border-white/30" : "border-slate-800"}`}
+                  className={`relative h-48 flex-1 border-b border-l ${isDarkMode ? "border-white/[0.08]" : "border-black/[0.08]"} overflow-hidden`}
                 >
                   <svg
                     viewBox={`0 0 ${svgWidth} ${chartHeight}`}
                     preserveAspectRatio="none"
-                    className="h-full w-full overflow-visible"
+                    className="h-full w-full"
                   >
+                    {/* Gitterlinien */}
                     <line
                       x1="0"
                       y1="0"
                       x2={svgWidth}
                       y2="0"
                       stroke="currentColor"
-                      className="text-slate-300 dark:text-slate-700"
+                      className="opacity-10"
                       strokeDasharray="3 3"
                     />
                     <line
@@ -633,7 +578,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
                       x2={svgWidth}
                       y2={chartHeight * 0.25}
                       stroke="currentColor"
-                      className="text-slate-300 dark:text-slate-700"
+                      className="opacity-10"
                       strokeDasharray="3 3"
                     />
                     <line
@@ -642,7 +587,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
                       x2={svgWidth}
                       y2={chartHeight * 0.5}
                       stroke="currentColor"
-                      className="text-slate-300 dark:text-slate-700"
+                      className="opacity-10"
                       strokeDasharray="3 3"
                     />
                     <line
@@ -651,13 +596,14 @@ export function FinanceView({ theme }: FinanceViewProps) {
                       x2={svgWidth}
                       y2={chartHeight * 0.75}
                       stroke="currentColor"
-                      className="text-slate-300 dark:text-slate-700"
+                      className="opacity-10"
                       strokeDasharray="3 3"
                     />
 
+                    {/* Balken */}
                     {prognoseListe.map((p, idx) => {
-                      const xCenter = idx * slotWidth + slotWidth / 2;
-                      const barW = 8;
+                      const xCenter = paddingX + idx * slotWidth;
+                      const barW = 6;
                       const hIn = (p.gehaltEnde / maxCashflow) * chartHeight;
                       const yIn = chartHeight - hIn;
                       const hOut = (p.ausgabenGesamt / maxCashflow) * chartHeight;
@@ -670,42 +616,43 @@ export function FinanceView({ theme }: FinanceViewProps) {
                             y={yIn}
                             width={barW}
                             height={hIn}
-                            fill={isDarkMode ? "#82CBEE" : "#005377"}
-                            rx={2}
+                            fill={colorIn}
+                            rx={1}
                           />
                           <rect
                             x={xCenter + 1}
                             y={yOut}
                             width={barW}
                             height={hOut}
-                            fill={isDarkMode ? "#94A3B8" : "#475569"}
-                            rx={2}
+                            fill={colorOut}
+                            rx={1}
                           />
                         </g>
                       );
                     })}
 
-                    <polyline
-                      fill="none"
-                      stroke={isDarkMode ? "#82CBEE" : "#005377"}
-                      strokeWidth="3.5"
-                      points={linePoints}
-                    />
+                    {/* Exakt formatierte Linie innerhalb des Diagramms */}
+                    <polyline fill="none" stroke={colorIn} strokeWidth="2.5" points={linePoints} />
+
+                    {/* Datenpunkte */}
                     {points.map((pt, idx) => (
                       <circle
                         key={idx}
                         cx={pt.x}
                         cy={pt.y}
-                        r="4.5"
-                        fill={isDarkMode ? "#82CBEE" : "#005377"}
+                        r="3.5"
+                        fill={colorIn}
                         stroke={isDarkMode ? "#140C0E" : "#FFFFFF"}
-                        strokeWidth="2"
+                        strokeWidth="1.5"
                       />
                     ))}
                   </svg>
                 </div>
 
-                <div className="flex h-56 flex-col justify-between pl-3 text-left font-mono text-[11px] font-black text-[#005377] dark:text-[#82CBEE]">
+                {/* Y-Achse Rechts */}
+                <div
+                  className={`flex h-48 flex-col justify-between pl-2 text-left font-mono text-[9px] font-bold ${accentBlue}`}
+                >
                   <span>14k</span>
                   <span>10k</span>
                   <span>7k</span>
@@ -714,7 +661,10 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 </div>
               </div>
 
-              <div className="mt-3 flex justify-between pr-10 pl-10 font-mono text-[11px] font-black text-slate-900 dark:text-slate-100">
+              {/* X-Achse Monate */}
+              <div
+                className={`mt-2 flex justify-between pr-6 pl-6 font-mono text-[9px] font-bold ${textSub}`}
+              >
                 {prognoseListe
                   .filter((_, i) => i % 2 === 0)
                   .map((p, i) => (
@@ -726,47 +676,46 @@ export function FinanceView({ theme }: FinanceViewProps) {
         </div>
       </div>
 
-      {/* Sonderausgaben & Backlog */}
+      {/* ========================================================= */}
+      {/* SONDERAUSGABEN & BACKLOG */}
+      {/* ========================================================= */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         {/* Sonderbudgets */}
         <div className={`${bgCard} space-y-4 rounded-2xl border p-5 shadow-sm`}>
           <div className="flex items-center justify-between">
-            <h3 className={`text-xs font-black tracking-wider uppercase ${textTitle}`}>
-              Geplante Sonderbudgets
+            <h3 className={`text-xs font-bold tracking-wider uppercase ${textTitle}`}>
+              GEPLANTE SONDERBUDGETS
             </h3>
             <span className={`font-mono text-xs font-bold ${badgeBlue} rounded-full px-2.5 py-0.5`}>
               {sonderausgaben.length} Posten
             </span>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {sonderausgaben.map((item) => (
               <div
                 key={item.id}
-                className={`flex items-center justify-between rounded-xl border p-4 transition-all hover:border-[#005377]/50 ${bgItem}`}
+                className={`flex items-center justify-between rounded-xl border p-3.5 ${bgItem}`}
               >
                 <div>
-                  <span className={`text-sm font-bold ${textTitle} block`}>{item.was}</span>
-                  <span className="mt-0.5 flex items-center gap-1.5 font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
-                    <Calendar className="h-3.5 w-3.5 text-[#005377] dark:text-[#82CBEE]" />
-                    {item.wann}
-                  </span>
+                  <span className={`text-xs font-semibold ${textTitle} block`}>{item.was}</span>
+                  <span className={`text-[10px] font-medium ${textSub}`}>{item.wann}</span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={`font-mono text-sm font-black ${textTitle}`}>
+                  <span className={`font-mono text-xs font-bold ${textTitle}`}>
                     {item.hoehe.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
                   </span>
                   <button
                     onClick={() => handleDeleteAusgabe(item.id, true)}
-                    className="flex h-8 items-center gap-1 rounded-lg border border-slate-400 bg-white/50 px-2.5 text-xs font-bold text-emerald-700 shadow-xs hover:bg-emerald-500/15 dark:border-white/20 dark:bg-black/40 dark:text-emerald-300"
+                    className="flex h-7 items-center gap-1 rounded-lg border border-black/10 px-2 text-[11px] font-semibold opacity-80 hover:opacity-100 dark:border-white/10"
                   >
-                    <Check className="h-3.5 w-3.5" /> Erledigt 💸
+                    <Check className="h-3 w-3" /> Erledigt
                   </button>
                   <button
                     onClick={() => handleDeleteAusgabe(item.id, false)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 transition-all hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-rose-500 opacity-60 hover:opacity-100"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </div>
@@ -780,10 +729,10 @@ export function FinanceView({ theme }: FinanceViewProps) {
         {/* Backlog */}
         <div className={`${bgCard} space-y-4 rounded-2xl border p-5 shadow-sm`}>
           <div>
-            <h3 className={`text-xs font-black tracking-wider uppercase ${textTitle}`}>
-              Backlog (Wunschliste)
+            <h3 className={`text-xs font-bold tracking-wider uppercase ${textTitle}`}>
+              BACKLOG (WUNSCHLISTE)
             </h3>
-            <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
+            <p className={`text-[11px] ${textSub}`}>
               Wünsche notieren und bei Bedarf mit Kaufdatum einplanen.
             </p>
           </div>
@@ -794,14 +743,14 @@ export function FinanceView({ theme }: FinanceViewProps) {
               placeholder="Wunsch..."
               value={neuBWas}
               onChange={(e) => setNeuBWas(e.target.value)}
-              className={`col-span-6 rounded-xl border ${bgInput} p-2 text-xs font-semibold focus:outline-none`}
+              className={`col-span-6 rounded-xl border ${bgInput} p-2 text-xs font-medium focus:outline-none`}
             />
             <input
               type="number"
               placeholder="€"
               value={neuBHoehe}
               onChange={(e) => setNeuBHoehe(e.target.value)}
-              className={`col-span-3 rounded-xl border ${bgInput} p-2 font-mono text-xs font-bold focus:outline-none`}
+              className={`col-span-3 rounded-xl border ${bgInput} p-2 text-xs font-semibold focus:outline-none`}
             />
             <button
               type="submit"
@@ -811,15 +760,15 @@ export function FinanceView({ theme }: FinanceViewProps) {
             </button>
           </form>
 
-          <div className="space-y-3 pt-1">
+          <div className="space-y-2.5 pt-1">
             {backlog.map((item) => (
               <div
                 key={item.id}
-                className={`flex flex-col justify-between gap-2 rounded-xl border p-4 transition-all hover:border-[#005377]/50 sm:flex-row sm:items-center ${bgItem}`}
+                className={`flex flex-col justify-between gap-2 rounded-xl border p-3 sm:flex-row sm:items-center ${bgItem}`}
               >
                 <div>
-                  <span className={`text-sm font-bold ${textTitle} block`}>{item.was}</span>
-                  <span className={`font-mono text-xs font-black ${accentBlue}`}>
+                  <span className={`text-xs font-semibold ${textTitle} block`}>{item.was}</span>
+                  <span className={`font-mono text-xs font-bold ${accentBlue}`}>
                     {item.hoehe.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
                   </span>
                 </div>
@@ -828,19 +777,19 @@ export function FinanceView({ theme }: FinanceViewProps) {
                     type="date"
                     value={backlogDates[item.id] || "2026-08-26"}
                     onChange={(e) => setBacklogDates((p) => ({ ...p, [item.id]: e.target.value }))}
-                    className={`rounded-lg border ${bgInput} p-1.5 font-mono text-xs font-bold text-slate-900 dark:text-slate-100`}
+                    className={`rounded-lg border ${bgInput} p-1 text-[10px] font-medium`}
                   />
                   <button
                     onClick={() => handlePlanBacklog(item)}
-                    className={`flex h-8 items-center gap-1 rounded-lg px-3 text-xs font-bold ${buttonPrimary}`}
+                    className={`flex h-7 items-center gap-1 rounded-lg px-2 text-[11px] font-bold ${buttonPrimary}`}
                   >
-                    Planen ⬆️
+                    Planen
                   </button>
                   <button
                     onClick={() => handleDeleteBacklog(item.id)}
-                    className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 transition-all hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-rose-500 opacity-60 hover:opacity-100"
                   >
-                    <Trash2 className="h-4 w-4" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </div>
