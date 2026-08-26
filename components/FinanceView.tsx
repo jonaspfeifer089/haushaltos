@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Lock, ShieldCheck, Trash2, Check } from "lucide-react";
+import { Lock, ShieldCheck, Trash2, Check, Calendar } from "lucide-react";
 
 interface Sonderausgabe {
   id: string;
@@ -178,27 +178,31 @@ export function FinanceView({ theme }: FinanceViewProps) {
     setBacklog((p) => p.filter((x) => x.id !== id));
   };
 
-  // High Contrast Chart Konfiguration
+  // -------------------------------------------------------------
+  // HIGH CONTRAST SVG CHART ENGINE
+  // -------------------------------------------------------------
   const maxCashflow = 2200;
   const maxBudget = 14000;
-  const chartHeight = 200;
-  const chartWidth = 720;
-  const stepX = chartWidth / (prognoseListe.length - 1);
+  const chartHeight = 220;
+  const svgWidth = 800;
+  const numPoints = prognoseListe.length;
+  const slotWidth = svgWidth / numPoints;
 
-  const linePoints = prognoseListe
-    .map((p, idx) => {
-      const x = idx * stepX;
-      const y = chartHeight - (Math.max(0, p.freiVerfuegbar) / maxBudget) * chartHeight;
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
-    .join(" ");
+  // Koordinaten für die durchgezogene Budgetlinie
+  const points = prognoseListe.map((p, idx) => {
+    const x = idx * slotWidth + slotWidth / 2;
+    const y = chartHeight - (Math.max(0, p.freiVerfuegbar) / maxBudget) * chartHeight;
+    return { x, y, val: p.freiVerfuegbar };
+  });
+
+  const linePoints = points.map((pt) => `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(" ");
 
   // 🔒 PIN-SPERRE
   if (!isAuthenticated) {
     return (
       <div className="flex min-h-[500px] flex-col items-center justify-center space-y-4">
         <div
-          className={`w-full max-w-sm space-y-4 rounded-3xl border p-8 text-center shadow-lg transition-all ${bgCard}`}
+          className={`w-full max-w-sm space-y-4 rounded-3xl border p-8 text-center shadow-lg ${bgCard}`}
         >
           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#005377]/10 text-[#005377] dark:text-[#82CBEE]">
             <Lock className="h-5 w-5" />
@@ -217,7 +221,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
             />
             <button
               type="submit"
-              className={`w-full rounded-xl py-2.5 text-xs font-bold ${buttonPrimary} transition-transform active:scale-95`}
+              className={`w-full rounded-xl py-2.5 text-xs font-bold ${buttonPrimary}`}
             >
               Entsperren
             </button>
@@ -233,23 +237,23 @@ export function FinanceView({ theme }: FinanceViewProps) {
       <div className="flex flex-col justify-between gap-4 border-b border-[#E8E2D9] pb-4 sm:flex-row sm:items-center dark:border-white/[0.08]">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className={`text-2xl font-bold tracking-tight md:text-3xl ${textTitle}`}>
+            <h1 className={`text-2xl font-black tracking-tight md:text-3xl ${textTitle}`}>
               Finanzen & Liquidität
             </h1>
             <span
               className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${badgeBlue}`}
             >
-              <ShieldCheck className="h-3.5 w-3.5" /> Entsperrt
+              <ShieldCheck className="h-3.5 w-3.5" /> Aktiv
             </span>
           </div>
-          <p className={`mt-0.5 text-xs ${textSub}`}>
+          <p className="mt-0.5 text-xs font-semibold text-slate-600 dark:text-slate-300">
             Echtzeit-Übersicht für Kontostand, Monatsbudgets und geplante Sonderausgaben
           </p>
         </div>
 
         <button
           onClick={() => setIsAuthenticated(false)}
-          className={`flex h-8 items-center gap-1.5 self-start rounded-xl border px-3 text-xs font-bold transition-all hover:opacity-80 active:scale-95 sm:self-auto ${bgItem} ${textTitle}`}
+          className={`flex h-8 items-center gap-1.5 self-start rounded-xl border px-3.5 text-xs font-bold transition-all sm:self-auto ${bgItem} ${textTitle}`}
         >
           <Lock className="h-3.5 w-3.5" /> Sperren
         </button>
@@ -257,8 +261,8 @@ export function FinanceView({ theme }: FinanceViewProps) {
 
       {/* 4 Übersichtskarten */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <div className={`${bgCard} rounded-2xl border p-4.5 shadow-sm transition-all`}>
-          <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+        <div className={`${bgCard} rounded-2xl border p-4.5 shadow-sm`}>
+          <span className="text-[11px] font-black tracking-wide text-slate-700 uppercase dark:text-slate-300">
             Liquidität (Aktuell)
           </span>
           <div className={`mt-1 font-mono text-2xl font-black md:text-3xl ${textTitle}`}>
@@ -266,8 +270,8 @@ export function FinanceView({ theme }: FinanceViewProps) {
           </div>
         </div>
 
-        <div className={`${bgCard} rounded-2xl border p-4.5 shadow-sm transition-all`}>
-          <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+        <div className={`${bgCard} rounded-2xl border p-4.5 shadow-sm`}>
+          <span className="text-[11px] font-black tracking-wide text-slate-700 uppercase dark:text-slate-300">
             Prognose zum {zielDatum}
           </span>
           <div className={`mt-1 font-mono text-2xl font-black md:text-3xl ${textTitle}`}>
@@ -276,9 +280,9 @@ export function FinanceView({ theme }: FinanceViewProps) {
         </div>
 
         <div
-          className={`${bgCard} rounded-2xl border border-l-4 border-l-[#005377] p-4.5 shadow-sm transition-all dark:border-l-[#82CBEE]`}
+          className={`${bgCard} rounded-2xl border border-l-4 border-l-[#005377] p-4.5 shadow-sm dark:border-l-[#82CBEE]`}
         >
-          <span className="text-[11px] font-bold text-[#005377] dark:text-[#82CBEE]">
+          <span className="text-[11px] font-black tracking-wide text-[#005377] uppercase dark:text-[#82CBEE]">
             Frei verfügbar (Monat {fokusMonat})
           </span>
           <div className={`mt-1 font-mono text-2xl font-black md:text-3xl ${accentBlue}`}>
@@ -286,8 +290,8 @@ export function FinanceView({ theme }: FinanceViewProps) {
           </div>
         </div>
 
-        <div className={`${bgCard} rounded-2xl border p-4.5 shadow-sm transition-all`}>
-          <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+        <div className={`${bgCard} rounded-2xl border p-4.5 shadow-sm`}>
+          <span className="text-[11px] font-black tracking-wide text-slate-700 uppercase dark:text-slate-300">
             Sonderausgaben (Monat {fokusMonat})
           </span>
           <div className={`mt-1 font-mono text-2xl font-black md:text-3xl ${textTitle}`}>
@@ -301,12 +305,12 @@ export function FinanceView({ theme }: FinanceViewProps) {
         {/* Kontrollzentrum */}
         <div className="space-y-6 lg:col-span-4">
           <div className={`${bgCard} space-y-4 rounded-2xl border p-5 shadow-sm`}>
-            <h3 className={`text-xs font-bold tracking-wider uppercase ${textTitle}`}>
+            <h3 className={`text-xs font-black tracking-wider uppercase ${textTitle}`}>
               Kontrollzentrum
             </h3>
 
             <div className="space-y-1.5 border-b border-[#E8E2D9] pb-4 dark:border-white/[0.08]">
-              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              <label className="text-xs font-bold text-slate-800 dark:text-slate-200">
                 Aktueller Kontostand (€)
               </label>
               <input
@@ -321,24 +325,24 @@ export function FinanceView({ theme }: FinanceViewProps) {
             <div className="space-y-3 border-b border-[#E8E2D9] pb-4 dark:border-white/[0.08]">
               <h4 className={`text-xs font-bold ${textTitle}`}>Target-Prognose</h4>
               <div>
-                <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
                   Wunschdatum für Check
                 </label>
                 <input
                   type="date"
                   value={zielDatum}
                   onChange={(e) => setZielDatum(e.target.value)}
-                  className={`mt-1 w-full rounded-xl border ${bgInput} p-2 text-xs font-bold`}
+                  className={`mt-1 w-full rounded-xl border ${bgInput} p-2 font-mono text-xs font-bold`}
                 />
               </div>
               <div>
-                <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                <label className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
                   Fokus-Monat
                 </label>
                 <select
                   value={fokusMonat}
                   onChange={(e) => setFokusMonat(parseInt(e.target.value, 10))}
-                  className={`mt-1 w-full rounded-xl border ${bgInput} p-2 text-xs font-bold`}
+                  className={`mt-1 w-full rounded-xl border ${bgInput} p-2 font-mono text-xs font-bold`}
                 >
                   {Array.from({ length: 12 }).map((_, i) => (
                     <option key={i + 1} value={i + 1}>
@@ -356,7 +360,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 placeholder="Zweck..."
                 value={neuWas}
                 onChange={(e) => setNeuWas(e.target.value)}
-                className={`w-full rounded-xl border ${bgInput} p-2 text-xs font-medium focus:outline-none`}
+                className={`w-full rounded-xl border ${bgInput} p-2 text-xs font-semibold focus:outline-none`}
               />
               <div className="grid grid-cols-2 gap-2">
                 <input
@@ -365,18 +369,18 @@ export function FinanceView({ theme }: FinanceViewProps) {
                   placeholder="Betrag (€)"
                   value={neuHoehe}
                   onChange={(e) => setNeuHoehe(e.target.value)}
-                  className={`w-full rounded-xl border ${bgInput} p-2 text-xs font-bold focus:outline-none`}
+                  className={`w-full rounded-xl border ${bgInput} p-2 font-mono text-xs font-bold focus:outline-none`}
                 />
                 <input
                   type="date"
                   value={neuWann}
                   onChange={(e) => setNeuWann(e.target.value)}
-                  className={`w-full rounded-xl border ${bgInput} p-2 text-xs font-bold`}
+                  className={`w-full rounded-xl border ${bgInput} p-2 font-mono text-xs font-bold`}
                 />
               </div>
               <button
                 type="submit"
-                className={`w-full rounded-xl py-2.5 text-xs font-bold ${buttonPrimary} transition-transform active:scale-95`}
+                className={`w-full rounded-xl py-2.5 text-xs font-bold ${buttonPrimary}`}
               >
                 Speichern
               </button>
@@ -384,11 +388,13 @@ export function FinanceView({ theme }: FinanceViewProps) {
           </div>
         </div>
 
-        {/* Taktischer Ausblick & Satter Chart */}
+        {/* Taktischer Ausblick & Satte Visuals */}
         <div className="space-y-6 lg:col-span-8">
           <div>
-            <h2 className={`text-lg font-bold ${textTitle}`}>Taktischer Ausblick (2026 - 2027)</h2>
-            <p className="mt-0.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+            <h2 className={`text-lg font-black tracking-tight ${textTitle}`}>
+              Taktischer Ausblick (2026 - 2027)
+            </h2>
+            <p className="mt-0.5 text-xs font-semibold text-slate-700 dark:text-slate-300">
               {`Frei verfügbares Budget nach allen Abzügen bis zum nächsten Gehaltseingang.`}
             </p>
           </div>
@@ -400,36 +406,36 @@ export function FinanceView({ theme }: FinanceViewProps) {
             <table className="w-full border-collapse font-mono text-xs">
               <thead>
                 <tr
-                  className={`border-b ${isDarkMode ? "border-white/[0.08] bg-white/[0.04]" : "border-[#E8E2D9] bg-[#FAF8F5]"} text-xs font-bold`}
+                  className={`border-b ${isDarkMode ? "border-white/[0.08] bg-white/[0.04]" : "border-[#E8E2D9] bg-[#FAF8F5]"} text-xs font-black`}
                 >
                   <th
                     className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left`}
                   />
                   <th
                     colSpan={5}
-                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center text-xs font-bold text-slate-700 dark:text-slate-300`}
+                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center text-xs font-black text-slate-800 dark:text-slate-200`}
                   >
                     2026
                   </th>
                   <th
                     colSpan={12}
-                    className="p-2 text-center text-xs font-bold text-slate-700 dark:text-slate-300"
+                    className="p-2 text-center text-xs font-black text-slate-800 dark:text-slate-200"
                   >
                     2027
                   </th>
                 </tr>
                 <tr
-                  className={`border-b ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} font-bold text-slate-600 dark:text-slate-300`}
+                  className={`border-b ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} font-black text-slate-700 dark:text-slate-300`}
                 >
                   <th
-                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left font-bold`}
+                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left font-black`}
                   >
                     Kategorie
                   </th>
                   {prognoseListe.map((p, i) => (
                     <th
                       key={i}
-                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-bold last:border-r-0`}
+                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-black last:border-r-0`}
                     >
                       {p.monat}
                     </th>
@@ -441,14 +447,14 @@ export function FinanceView({ theme }: FinanceViewProps) {
               >
                 <tr>
                   <td
-                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left font-bold text-slate-600 dark:text-slate-400`}
+                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left font-bold text-slate-700 dark:text-slate-300`}
                   >
                     Gehalt (Ende)
                   </td>
                   {prognoseListe.map((p, i) => (
                     <td
                       key={i}
-                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-semibold text-slate-800 last:border-r-0 dark:text-slate-200`}
+                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-bold text-slate-900 last:border-r-0 dark:text-slate-100`}
                     >
                       {p.gehaltEnde.toFixed(0)}
                     </td>
@@ -456,14 +462,14 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 </tr>
                 <tr>
                   <td
-                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left font-bold text-slate-600 dark:text-slate-400`}
+                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left font-bold text-slate-700 dark:text-slate-300`}
                   >
                     Fixkosten
                   </td>
                   {prognoseListe.map((p, i) => (
                     <td
                       key={i}
-                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center text-slate-600 last:border-r-0 dark:text-slate-400`}
+                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-bold text-slate-600 last:border-r-0 dark:text-slate-400`}
                     >
                       {p.fixMonat.toFixed(0)}
                     </td>
@@ -471,14 +477,14 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 </tr>
                 <tr>
                   <td
-                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left font-bold text-slate-600 dark:text-slate-400`}
+                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left font-bold text-slate-700 dark:text-slate-300`}
                   >
                     Sonderbudgets
                   </td>
                   {prognoseListe.map((p, i) => (
                     <td
                       key={i}
-                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-bold ${p.extraMonat > 0 ? textTitle : "text-slate-400"} last:border-r-0`}
+                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-black ${p.extraMonat > 0 ? textTitle : "text-slate-400"} last:border-r-0`}
                     >
                       {p.extraMonat.toFixed(0)}
                     </td>
@@ -493,7 +499,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
                   {prognoseListe.map((p, i) => (
                     <td
                       key={i}
-                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center ${accentBlue} last:border-r-0`}
+                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-black ${accentBlue} last:border-r-0`}
                     >
                       {p.freiVerfuegbar.toFixed(0)}
                     </td>
@@ -503,23 +509,25 @@ export function FinanceView({ theme }: FinanceViewProps) {
             </table>
           </div>
 
-          {/* Satter, perfekt lesbarer Chart */}
-          <div className={`${bgCard} space-y-3 rounded-2xl border p-5 shadow-sm`}>
+          {/* ========================================================= */}
+          {/* ECHTER HIGH-CONTRAST SVG CHART */}
+          {/* ========================================================= */}
+          <div className={`${bgCard} space-y-4 rounded-2xl border p-5 shadow-sm`}>
             <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
-              <h3 className={`text-xs font-bold tracking-wider uppercase ${textTitle}`}>
+              <h3 className={`text-xs font-black tracking-wider uppercase ${textTitle}`}>
                 Verlauf & Liquiditäts-Kurve
               </h3>
-              <div className="flex items-center gap-4 text-[11px] font-bold">
-                <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-5 text-xs font-black">
+                <div className="flex items-center gap-2">
                   <span className="h-3 w-3 rounded-xs bg-[#005377] dark:bg-[#82CBEE]" />
                   <span className={textTitle}>Eingang</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="h-3 w-3 rounded-xs bg-[#334155] dark:bg-[#94A3B8]" />
+                <div className="flex items-center gap-2">
+                  <span className="h-3 w-3 rounded-xs bg-[#475569] dark:bg-[#94A3B8]" />
                   <span className={textTitle}>Ausgaben</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="h-1 w-4 bg-[#005377] dark:bg-[#82CBEE]" />
+                <div className="flex items-center gap-2">
+                  <span className="h-1.5 w-4 bg-[#005377] dark:bg-[#82CBEE]" />
                   <span className="text-[#005377] dark:text-[#82CBEE]">Freies Budget</span>
                 </div>
               </div>
@@ -527,8 +535,8 @@ export function FinanceView({ theme }: FinanceViewProps) {
 
             <div className="relative pt-2">
               <div className="flex">
-                {/* Y-Achse Links */}
-                <div className="flex h-52 flex-col justify-between pr-2.5 text-right font-mono text-[10px] font-bold text-slate-700 dark:text-slate-300">
+                {/* Y-Achse Links (Kräftiges Schwarz/Dunkelgrau) */}
+                <div className="flex h-56 flex-col justify-between pr-3 text-right font-mono text-[11px] font-black text-slate-900 dark:text-slate-100">
                   <span>2.0k</span>
                   <span>1.5k</span>
                   <span>1.0k</span>
@@ -536,74 +544,113 @@ export function FinanceView({ theme }: FinanceViewProps) {
                   <span>0</span>
                 </div>
 
+                {/* Plot Area */}
                 <div
-                  className={`relative h-52 flex-1 border-b-2 border-l-2 ${isDarkMode ? "border-white/20" : "border-black/20"}`}
+                  className={`relative h-56 flex-1 border-b-2 border-l-2 ${isDarkMode ? "border-white/30" : "border-slate-800"}`}
                 >
-                  {/* Gitterlinien */}
-                  <div className="pointer-events-none absolute inset-0 flex flex-col justify-between opacity-25">
-                    <div className="border-b border-dashed border-slate-400" />
-                    <div className="border-b border-dashed border-slate-400" />
-                    <div className="border-b border-dashed border-slate-400" />
-                    <div className="border-b border-dashed border-slate-400" />
-                  </div>
+                  <svg
+                    viewBox={`0 0 ${svgWidth} ${chartHeight}`}
+                    preserveAspectRatio="none"
+                    className="h-full w-full overflow-visible"
+                  >
+                    {/* Horizontale Gitterlinien */}
+                    <line
+                      x1="0"
+                      y1="0"
+                      x2={svgWidth}
+                      y2="0"
+                      stroke="currentColor"
+                      className="text-slate-300 dark:text-slate-700"
+                      strokeDasharray="3 3"
+                    />
+                    <line
+                      x1="0"
+                      y1={chartHeight * 0.25}
+                      x2={svgWidth}
+                      y2={chartHeight * 0.25}
+                      stroke="currentColor"
+                      className="text-slate-300 dark:text-slate-700"
+                      strokeDasharray="3 3"
+                    />
+                    <line
+                      x1="0"
+                      y1={chartHeight * 0.5}
+                      x2={svgWidth}
+                      y2={chartHeight * 0.5}
+                      stroke="currentColor"
+                      className="text-slate-300 dark:text-slate-700"
+                      strokeDasharray="3 3"
+                    />
+                    <line
+                      x1="0"
+                      y1={chartHeight * 0.75}
+                      x2={svgWidth}
+                      y2={chartHeight * 0.75}
+                      stroke="currentColor"
+                      className="text-slate-300 dark:text-slate-700"
+                      strokeDasharray="3 3"
+                    />
 
-                  {/* Kräftige Balken */}
-                  <div className="absolute inset-0 flex items-end justify-between px-2">
+                    {/* Kräftige SVG-Balken */}
                     {prognoseListe.map((p, idx) => {
-                      const hIn = Math.min(100, (p.gehaltEnde / maxCashflow) * 100);
-                      const hOut = Math.min(100, (p.ausgabenGesamt / maxCashflow) * 100);
+                      const xCenter = idx * slotWidth + slotWidth / 2;
+                      const barW = 8;
+
+                      const hIn = (p.gehaltEnde / maxCashflow) * chartHeight;
+                      const yIn = chartHeight - hIn;
+
+                      const hOut = (p.ausgabenGesamt / maxCashflow) * chartHeight;
+                      const yOut = chartHeight - hOut;
 
                       return (
-                        <div
-                          key={idx}
-                          className="flex h-full w-full items-end justify-center gap-1"
-                        >
-                          {/* Sattes Petrol-Blau */}
-                          <div
-                            style={{ height: `${hIn}%` }}
-                            className="w-2 rounded-t-xs bg-[#005377] transition-all hover:scale-y-105 dark:bg-[#82CBEE]"
-                            title={`Eingang: ${p.gehaltEnde.toFixed(2)} €`}
+                        <g key={idx}>
+                          {/* Eingang (Deep Petrol) */}
+                          <rect
+                            x={xCenter - barW - 1}
+                            y={yIn}
+                            width={barW}
+                            height={hIn}
+                            fill={isDarkMode ? "#82CBEE" : "#005377"}
+                            rx={2}
                           />
-                          {/* Sattes Graphit-Anthrazit */}
-                          <div
-                            style={{ height: `${hOut}%` }}
-                            className="w-2 rounded-t-xs bg-[#334155] transition-all hover:scale-y-105 dark:bg-[#94A3B8]"
-                            title={`Ausgaben: ${p.ausgabenGesamt.toFixed(2)} €`}
+                          {/* Ausgaben (Deep Slate) */}
+                          <rect
+                            x={xCenter + 1}
+                            y={yOut}
+                            width={barW}
+                            height={hOut}
+                            fill={isDarkMode ? "#94A3B8" : "#475569"}
+                            rx={2}
                           />
-                        </div>
+                        </g>
                       );
                     })}
-                  </div>
 
-                  {/* Blaue Linie */}
-                  <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
+                    {/* Fette Budget-Linie */}
                     <polyline
                       fill="none"
                       stroke={isDarkMode ? "#82CBEE" : "#005377"}
-                      strokeWidth="3"
+                      strokeWidth="3.5"
                       points={linePoints}
                     />
-                    {prognoseListe.map((p, idx) => {
-                      const x = idx * stepX;
-                      const y =
-                        chartHeight - (Math.max(0, p.freiVerfuegbar) / maxBudget) * chartHeight;
-                      return (
-                        <circle
-                          key={idx}
-                          cx={x}
-                          cy={y}
-                          r="3.5"
-                          fill={isDarkMode ? "#82CBEE" : "#005377"}
-                          stroke={isDarkMode ? "#100A0B" : "#FFFFFF"}
-                          strokeWidth="1.5"
-                        />
-                      );
-                    })}
+
+                    {/* Daten-Punkte */}
+                    {points.map((pt, idx) => (
+                      <circle
+                        key={idx}
+                        cx={pt.x}
+                        cy={pt.y}
+                        r="4.5"
+                        fill={isDarkMode ? "#82CBEE" : "#005377"}
+                        stroke={isDarkMode ? "#140C0E" : "#FFFFFF"}
+                        strokeWidth="2"
+                      />
+                    ))}
                   </svg>
                 </div>
 
                 {/* Y-Achse Rechts */}
-                <div className="flex h-52 flex-col justify-between pl-2.5 text-left font-mono text-[10px] font-bold text-[#005377] dark:text-[#82CBEE]">
+                <div className="flex h-56 flex-col justify-between pl-3 text-left font-mono text-[11px] font-black text-[#005377] dark:text-[#82CBEE]">
                   <span>14k</span>
                   <span>10k</span>
                   <span>7k</span>
@@ -612,8 +659,8 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 </div>
               </div>
 
-              {/* X-Achse Monate (Sattes Dunkelgrau) */}
-              <div className="mt-2.5 flex justify-between pr-8 pl-8 font-mono text-[10px] font-black text-slate-700 dark:text-slate-200">
+              {/* X-Achsen-Monate (Gestochen scharf) */}
+              <div className="mt-3 flex justify-between pr-10 pl-10 font-mono text-[11px] font-black text-slate-900 dark:text-slate-100">
                 {prognoseListe
                   .filter((_, i) => i % 2 === 0)
                   .map((p, i) => (
@@ -625,12 +672,14 @@ export function FinanceView({ theme }: FinanceViewProps) {
         </div>
       </div>
 
-      {/* Sonderausgaben & Backlog */}
+      {/* ========================================================= */}
+      {/* SONDERAUSGABEN (MIT DEUTLICHEM DATUM) & BACKLOG */}
+      {/* ========================================================= */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         {/* Sonderbudgets */}
         <div className={`${bgCard} space-y-4 rounded-2xl border p-5 shadow-sm`}>
           <div className="flex items-center justify-between">
-            <h3 className={`text-xs font-bold tracking-wider uppercase ${textTitle}`}>
+            <h3 className={`text-xs font-black tracking-wider uppercase ${textTitle}`}>
               Geplante Sonderbudgets
             </h3>
             <span className={`font-mono text-xs font-bold ${badgeBlue} rounded-full px-2.5 py-0.5`}>
@@ -638,33 +687,35 @@ export function FinanceView({ theme }: FinanceViewProps) {
             </span>
           </div>
 
-          <div className="space-y-2.5">
+          <div className="space-y-3">
             {sonderausgaben.map((item) => (
               <div
                 key={item.id}
-                className={`flex items-center justify-between rounded-xl border p-3.5 transition-all hover:border-[#005377]/40 ${bgItem}`}
+                className={`flex items-center justify-between rounded-xl border p-4 transition-all hover:border-[#005377]/50 ${bgItem}`}
               >
                 <div>
-                  <span className={`text-xs font-bold ${textTitle} block`}>{item.was}</span>
-                  <span className="font-mono text-[11px] font-bold text-slate-600 dark:text-slate-300">
-                    📅 {item.wann}
+                  <span className={`text-sm font-bold ${textTitle} block`}>{item.was}</span>
+                  {/* Gestochen scharfes Datum */}
+                  <span className="mt-0.5 flex items-center gap-1.5 font-mono text-xs font-bold text-slate-800 dark:text-slate-200">
+                    <Calendar className="h-3.5 w-3.5 text-[#005377] dark:text-[#82CBEE]" />
+                    {item.wann}
                   </span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={`font-mono text-xs font-black ${textTitle}`}>
+                  <span className={`font-mono text-sm font-black ${textTitle}`}>
                     {item.hoehe.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
                   </span>
                   <button
                     onClick={() => handleDeleteAusgabe(item.id)}
-                    className="flex h-7 items-center gap-1 rounded-lg border border-black/15 px-2.5 text-[11px] font-bold text-emerald-600 opacity-90 transition-all hover:bg-emerald-500/15 dark:border-white/15 dark:text-emerald-400"
+                    className="flex h-8 items-center gap-1 rounded-lg border border-slate-400 bg-white/50 px-2.5 text-xs font-bold text-emerald-700 shadow-xs hover:bg-emerald-500/15 dark:border-white/20 dark:bg-black/40 dark:text-emerald-300"
                   >
-                    <Check className="h-3 w-3" /> Erledigt
+                    <Check className="h-3.5 w-3.5" /> Erledigt
                   </button>
                   <button
                     onClick={() => handleDeleteAusgabe(item.id)}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 opacity-80 transition-all hover:text-rose-500 hover:opacity-100"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 transition-all hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               </div>
@@ -678,10 +729,10 @@ export function FinanceView({ theme }: FinanceViewProps) {
         {/* Backlog */}
         <div className={`${bgCard} space-y-4 rounded-2xl border p-5 shadow-sm`}>
           <div>
-            <h3 className={`text-xs font-bold tracking-wider uppercase ${textTitle}`}>
+            <h3 className={`text-xs font-black tracking-wider uppercase ${textTitle}`}>
               Backlog (Wunschliste)
             </h3>
-            <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300">
+            <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
               Wünsche notieren und bei Bedarf mit Kaufdatum einplanen.
             </p>
           </div>
@@ -692,31 +743,31 @@ export function FinanceView({ theme }: FinanceViewProps) {
               placeholder="Wunsch..."
               value={neuBWas}
               onChange={(e) => setNeuBWas(e.target.value)}
-              className={`col-span-6 rounded-xl border ${bgInput} p-2 text-xs font-medium focus:outline-none`}
+              className={`col-span-6 rounded-xl border ${bgInput} p-2 text-xs font-semibold focus:outline-none`}
             />
             <input
               type="number"
               placeholder="€"
               value={neuBHoehe}
               onChange={(e) => setNeuBHoehe(e.target.value)}
-              className={`col-span-3 rounded-xl border ${bgInput} p-2 text-xs font-bold focus:outline-none`}
+              className={`col-span-3 rounded-xl border ${bgInput} p-2 font-mono text-xs font-bold focus:outline-none`}
             />
             <button
               type="submit"
-              className={`col-span-3 rounded-xl text-xs font-bold ${buttonPrimary} transition-transform active:scale-95`}
+              className={`col-span-3 rounded-xl text-xs font-bold ${buttonPrimary}`}
             >
               Hinzufügen
             </button>
           </form>
 
-          <div className="space-y-2.5 pt-1">
+          <div className="space-y-3 pt-1">
             {backlog.map((item) => (
               <div
                 key={item.id}
-                className={`flex flex-col justify-between gap-2 rounded-xl border p-3.5 transition-all hover:border-[#005377]/40 sm:flex-row sm:items-center ${bgItem}`}
+                className={`flex flex-col justify-between gap-2 rounded-xl border p-4 transition-all hover:border-[#005377]/50 sm:flex-row sm:items-center ${bgItem}`}
               >
                 <div>
-                  <span className={`text-xs font-bold ${textTitle} block`}>{item.was}</span>
+                  <span className={`text-sm font-bold ${textTitle} block`}>{item.was}</span>
                   <span className={`font-mono text-xs font-black ${accentBlue}`}>
                     {item.hoehe.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
                   </span>
@@ -726,19 +777,19 @@ export function FinanceView({ theme }: FinanceViewProps) {
                     type="date"
                     value={backlogDates[item.id] || "2026-08-26"}
                     onChange={(e) => setBacklogDates((p) => ({ ...p, [item.id]: e.target.value }))}
-                    className={`rounded-lg border ${bgInput} p-1 text-[10px] font-bold text-slate-700 dark:text-slate-200`}
+                    className={`rounded-lg border ${bgInput} p-1.5 font-mono text-xs font-bold text-slate-900 dark:text-slate-100`}
                   />
                   <button
                     onClick={() => handlePlanBacklog(item)}
-                    className={`flex h-7 items-center gap-1 rounded-lg px-2.5 text-[11px] font-bold ${buttonPrimary} transition-transform active:scale-95`}
+                    className={`flex h-8 items-center gap-1 rounded-lg px-3 text-xs font-bold ${buttonPrimary}`}
                   >
                     Planen
                   </button>
                   <button
                     onClick={() => handleDeleteBacklog(item.id)}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 opacity-80 transition-all hover:text-rose-500 hover:opacity-100"
+                    className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-600 transition-all hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400"
                   >
-                    <Trash2 className="h-3.5 w-3.5" />
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
               </div>
