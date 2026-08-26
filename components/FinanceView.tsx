@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Lock, ShieldCheck, Trash2, Check, ArrowUpRight, TrendingUp } from "lucide-react";
+import { Lock, ShieldCheck, Trash2, Check } from "lucide-react";
 
 interface Sonderausgabe {
   id: string;
@@ -178,10 +178,10 @@ export function FinanceView({ theme }: FinanceViewProps) {
     setBacklog((p) => p.filter((x) => x.id !== id));
   };
 
-  // Chart Konfiguration
+  // High Contrast Chart Konfiguration
   const maxCashflow = 2200;
   const maxBudget = 14000;
-  const chartHeight = 190;
+  const chartHeight = 200;
   const chartWidth = 720;
   const stepX = chartWidth / (prognoseListe.length - 1);
 
@@ -192,8 +192,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(" ");
-
-  const areaPoints = `0,${chartHeight} ${linePoints} ${chartWidth},${chartHeight}`;
 
   // 🔒 PIN-SPERRE
   if (!isAuthenticated) {
@@ -239,7 +237,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
               Finanzen & Liquidität
             </h1>
             <span
-              className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${badgeBlue}`}
+              className={`flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold ${badgeBlue}`}
             >
               <ShieldCheck className="h-3.5 w-3.5" /> Entsperrt
             </span>
@@ -251,7 +249,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
 
         <button
           onClick={() => setIsAuthenticated(false)}
-          className={`flex h-8 items-center gap-1.5 self-start rounded-xl border px-3 text-xs font-semibold transition-all hover:opacity-80 active:scale-95 sm:self-auto ${bgItem} ${textSub}`}
+          className={`flex h-8 items-center gap-1.5 self-start rounded-xl border px-3 text-xs font-bold transition-all hover:opacity-80 active:scale-95 sm:self-auto ${bgItem} ${textTitle}`}
         >
           <Lock className="h-3.5 w-3.5" /> Sperren
         </button>
@@ -259,20 +257,20 @@ export function FinanceView({ theme }: FinanceViewProps) {
 
       {/* 4 Übersichtskarten */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <div
-          className={`${bgCard} rounded-2xl border p-4.5 shadow-sm transition-all hover:border-[#005377]/30`}
-        >
-          <span className={`text-[11px] font-medium ${textSub}`}>Liquidität (Aktuell)</span>
-          <div className={`mt-1 font-mono text-2xl font-bold md:text-3xl ${textTitle}`}>
+        <div className={`${bgCard} rounded-2xl border p-4.5 shadow-sm transition-all`}>
+          <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+            Liquidität (Aktuell)
+          </span>
+          <div className={`mt-1 font-mono text-2xl font-black md:text-3xl ${textTitle}`}>
             {aktuellerSaldo.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
           </div>
         </div>
 
-        <div
-          className={`${bgCard} rounded-2xl border p-4.5 shadow-sm transition-all hover:border-[#005377]/30`}
-        >
-          <span className={`text-[11px] font-medium ${textSub}`}>Prognose zum {zielDatum}</span>
-          <div className={`mt-1 font-mono text-2xl font-bold md:text-3xl ${textTitle}`}>
+        <div className={`${bgCard} rounded-2xl border p-4.5 shadow-sm transition-all`}>
+          <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
+            Prognose zum {zielDatum}
+          </span>
+          <div className={`mt-1 font-mono text-2xl font-black md:text-3xl ${textTitle}`}>
             {simSaldo.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
           </div>
         </div>
@@ -280,21 +278,19 @@ export function FinanceView({ theme }: FinanceViewProps) {
         <div
           className={`${bgCard} rounded-2xl border border-l-4 border-l-[#005377] p-4.5 shadow-sm transition-all dark:border-l-[#82CBEE]`}
         >
-          <span className={`text-[11px] font-medium ${accentBlue}`}>
+          <span className="text-[11px] font-bold text-[#005377] dark:text-[#82CBEE]">
             Frei verfügbar (Monat {fokusMonat})
           </span>
-          <div className={`mt-1 font-mono text-2xl font-bold md:text-3xl ${accentBlue}`}>
+          <div className={`mt-1 font-mono text-2xl font-black md:text-3xl ${accentBlue}`}>
             {freiVerfuegbarFokus.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
           </div>
         </div>
 
-        <div
-          className={`${bgCard} rounded-2xl border p-4.5 shadow-sm transition-all hover:border-[#005377]/30`}
-        >
-          <span className={`text-[11px] font-medium ${textSub}`}>
+        <div className={`${bgCard} rounded-2xl border p-4.5 shadow-sm transition-all`}>
+          <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
             Sonderausgaben (Monat {fokusMonat})
           </span>
-          <div className={`mt-1 font-mono text-2xl font-bold md:text-3xl ${textTitle}`}>
+          <div className={`mt-1 font-mono text-2xl font-black md:text-3xl ${textTitle}`}>
             {sonderFokus.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
           </div>
         </div>
@@ -310,33 +306,39 @@ export function FinanceView({ theme }: FinanceViewProps) {
             </h3>
 
             <div className="space-y-1.5 border-b border-[#E8E2D9] pb-4 dark:border-white/[0.08]">
-              <label className={`text-xs font-medium ${textSub}`}>Aktueller Kontostand (€)</label>
+              <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                Aktueller Kontostand (€)
+              </label>
               <input
                 type="number"
                 step="10"
                 value={aktuellerSaldo}
                 onChange={(e) => setAktuellerSaldo(parseFloat(e.target.value) || 0)}
-                className={`w-full rounded-xl border ${bgInput} p-2 font-mono text-sm font-semibold focus:outline-none`}
+                className={`w-full rounded-xl border ${bgInput} p-2 font-mono text-sm font-black focus:outline-none`}
               />
             </div>
 
             <div className="space-y-3 border-b border-[#E8E2D9] pb-4 dark:border-white/[0.08]">
-              <h4 className={`text-xs font-semibold ${textTitle}`}>Target-Prognose</h4>
+              <h4 className={`text-xs font-bold ${textTitle}`}>Target-Prognose</h4>
               <div>
-                <label className={`text-[11px] ${textSub}`}>Wunschdatum für Check</label>
+                <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                  Wunschdatum für Check
+                </label>
                 <input
                   type="date"
                   value={zielDatum}
                   onChange={(e) => setZielDatum(e.target.value)}
-                  className={`mt-1 w-full rounded-xl border ${bgInput} p-2 text-xs font-medium`}
+                  className={`mt-1 w-full rounded-xl border ${bgInput} p-2 text-xs font-bold`}
                 />
               </div>
               <div>
-                <label className={`text-[11px] ${textSub}`}>Fokus-Monat</label>
+                <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                  Fokus-Monat
+                </label>
                 <select
                   value={fokusMonat}
                   onChange={(e) => setFokusMonat(parseInt(e.target.value, 10))}
-                  className={`mt-1 w-full rounded-xl border ${bgInput} p-2 text-xs font-medium`}
+                  className={`mt-1 w-full rounded-xl border ${bgInput} p-2 text-xs font-bold`}
                 >
                   {Array.from({ length: 12 }).map((_, i) => (
                     <option key={i + 1} value={i + 1}>
@@ -348,7 +350,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
             </div>
 
             <form onSubmit={handleAddAusgabe} className="space-y-3">
-              <h4 className={`text-xs font-semibold ${textTitle}`}>Sonderausgabe planen</h4>
+              <h4 className={`text-xs font-bold ${textTitle}`}>Sonderausgabe planen</h4>
               <input
                 type="text"
                 placeholder="Zweck..."
@@ -363,68 +365,71 @@ export function FinanceView({ theme }: FinanceViewProps) {
                   placeholder="Betrag (€)"
                   value={neuHoehe}
                   onChange={(e) => setNeuHoehe(e.target.value)}
-                  className={`w-full rounded-xl border ${bgInput} p-2 text-xs font-semibold focus:outline-none`}
+                  className={`w-full rounded-xl border ${bgInput} p-2 text-xs font-bold focus:outline-none`}
                 />
                 <input
                   type="date"
                   value={neuWann}
                   onChange={(e) => setNeuWann(e.target.value)}
-                  className={`w-full rounded-xl border ${bgInput} p-2 text-xs font-medium`}
+                  className={`w-full rounded-xl border ${bgInput} p-2 text-xs font-bold`}
                 />
               </div>
               <button
                 type="submit"
-                className={`w-full rounded-xl py-2 text-xs font-bold ${buttonPrimary} transition-transform active:scale-95`}
+                className={`w-full rounded-xl py-2.5 text-xs font-bold ${buttonPrimary} transition-transform active:scale-95`}
               >
-                Ausgabe speichern
+                Speichern
               </button>
             </form>
           </div>
         </div>
 
-        {/* Taktischer Ausblick & Kontrastreicher Chart */}
+        {/* Taktischer Ausblick & Satter Chart */}
         <div className="space-y-6 lg:col-span-8">
           <div>
             <h2 className={`text-lg font-bold ${textTitle}`}>Taktischer Ausblick (2026 - 2027)</h2>
-            <p className={`mt-0.5 text-xs ${textSub}`}>
+            <p className="mt-0.5 text-xs font-medium text-slate-600 dark:text-slate-300">
               {`Frei verfügbares Budget nach allen Abzügen bis zum nächsten Gehaltseingang.`}
             </p>
           </div>
 
-          {/* Übersichtliche Matrix-Tabelle */}
+          {/* Matrix-Tabelle */}
           <div
             className={`overflow-x-auto rounded-2xl border ${isDarkMode ? "border-white/[0.08] bg-[#140C0E]" : "border-[#E8E2D9] bg-[#FFFFFF]"} shadow-xs`}
           >
             <table className="w-full border-collapse font-mono text-xs">
               <thead>
                 <tr
-                  className={`border-b ${isDarkMode ? "border-white/[0.08] bg-white/[0.02]" : "border-[#E8E2D9] bg-[#FAF8F5]"} text-xs font-bold`}
+                  className={`border-b ${isDarkMode ? "border-white/[0.08] bg-white/[0.04]" : "border-[#E8E2D9] bg-[#FAF8F5]"} text-xs font-bold`}
                 >
                   <th
                     className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left`}
                   />
                   <th
                     colSpan={5}
-                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center text-xs font-bold text-slate-400`}
+                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center text-xs font-bold text-slate-700 dark:text-slate-300`}
                   >
                     2026
                   </th>
-                  <th colSpan={12} className="p-2 text-center text-xs font-bold text-slate-400">
+                  <th
+                    colSpan={12}
+                    className="p-2 text-center text-xs font-bold text-slate-700 dark:text-slate-300"
+                  >
                     2027
                   </th>
                 </tr>
                 <tr
-                  className={`border-b ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} ${textSub}`}
+                  className={`border-b ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} font-bold text-slate-600 dark:text-slate-300`}
                 >
                   <th
-                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left font-medium`}
+                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left font-bold`}
                   >
                     Kategorie
                   </th>
                   {prognoseListe.map((p, i) => (
                     <th
                       key={i}
-                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-medium last:border-r-0`}
+                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-bold last:border-r-0`}
                     >
                       {p.monat}
                     </th>
@@ -436,14 +441,14 @@ export function FinanceView({ theme }: FinanceViewProps) {
               >
                 <tr>
                   <td
-                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left ${textSub}`}
+                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left font-bold text-slate-600 dark:text-slate-400`}
                   >
                     Gehalt (Ende)
                   </td>
                   {prognoseListe.map((p, i) => (
                     <td
                       key={i}
-                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-medium last:border-r-0`}
+                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-semibold text-slate-800 last:border-r-0 dark:text-slate-200`}
                     >
                       {p.gehaltEnde.toFixed(0)}
                     </td>
@@ -451,14 +456,14 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 </tr>
                 <tr>
                   <td
-                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left ${textSub}`}
+                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left font-bold text-slate-600 dark:text-slate-400`}
                   >
                     Fixkosten
                   </td>
                   {prognoseListe.map((p, i) => (
                     <td
                       key={i}
-                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center opacity-70 last:border-r-0`}
+                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center text-slate-600 last:border-r-0 dark:text-slate-400`}
                     >
                       {p.fixMonat.toFixed(0)}
                     </td>
@@ -466,20 +471,20 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 </tr>
                 <tr>
                   <td
-                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left ${textSub}`}
+                    className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left font-bold text-slate-600 dark:text-slate-400`}
                   >
                     Sonderbudgets
                   </td>
                   {prognoseListe.map((p, i) => (
                     <td
                       key={i}
-                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-medium ${p.extraMonat > 0 ? textTitle : "opacity-30"} last:border-r-0`}
+                      className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-bold ${p.extraMonat > 0 ? textTitle : "text-slate-400"} last:border-r-0`}
                     >
                       {p.extraMonat.toFixed(0)}
                     </td>
                   ))}
                 </tr>
-                <tr className={`${isDarkMode ? "bg-white/[0.03]" : "bg-black/[0.02]"} font-bold`}>
+                <tr className={`${isDarkMode ? "bg-white/[0.04]" : "bg-black/[0.03]"} font-black`}>
                   <td
                     className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-left ${textTitle}`}
                   >
@@ -498,23 +503,23 @@ export function FinanceView({ theme }: FinanceViewProps) {
             </table>
           </div>
 
-          {/* Kräftiger, gut lesbarer Chart */}
+          {/* Satter, perfekt lesbarer Chart */}
           <div className={`${bgCard} space-y-3 rounded-2xl border p-5 shadow-sm`}>
             <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
               <h3 className={`text-xs font-bold tracking-wider uppercase ${textTitle}`}>
                 Verlauf & Liquiditäts-Kurve
               </h3>
-              <div className="flex items-center gap-4 text-[11px] font-semibold">
+              <div className="flex items-center gap-4 text-[11px] font-bold">
                 <div className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-sm bg-[#005377] dark:bg-[#82CBEE]" />
+                  <span className="h-3 w-3 rounded-xs bg-[#005377] dark:bg-[#82CBEE]" />
                   <span className={textTitle}>Eingang</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="h-2.5 w-2.5 rounded-sm bg-[#475569] dark:bg-[#94A3B8]" />
+                  <span className="h-3 w-3 rounded-xs bg-[#334155] dark:bg-[#94A3B8]" />
                   <span className={textTitle}>Ausgaben</span>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <span className="h-1 w-3.5 bg-[#005377] dark:bg-[#82CBEE]" />
+                  <span className="h-1 w-4 bg-[#005377] dark:bg-[#82CBEE]" />
                   <span className="text-[#005377] dark:text-[#82CBEE]">Freies Budget</span>
                 </div>
               </div>
@@ -522,17 +527,27 @@ export function FinanceView({ theme }: FinanceViewProps) {
 
             <div className="relative pt-2">
               <div className="flex">
-                <div className="flex h-48 flex-col justify-between pr-2 text-right font-mono text-[9px] font-bold text-slate-400">
-                  <span>2k</span>
+                {/* Y-Achse Links */}
+                <div className="flex h-52 flex-col justify-between pr-2.5 text-right font-mono text-[10px] font-bold text-slate-700 dark:text-slate-300">
+                  <span>2.0k</span>
                   <span>1.5k</span>
-                  <span>1k</span>
+                  <span>1.0k</span>
                   <span>0.5k</span>
                   <span>0</span>
                 </div>
 
                 <div
-                  className={`relative h-48 flex-1 border-b border-l ${isDarkMode ? "border-white/[0.1]" : "border-black/[0.1]"}`}
+                  className={`relative h-52 flex-1 border-b-2 border-l-2 ${isDarkMode ? "border-white/20" : "border-black/20"}`}
                 >
+                  {/* Gitterlinien */}
+                  <div className="pointer-events-none absolute inset-0 flex flex-col justify-between opacity-25">
+                    <div className="border-b border-dashed border-slate-400" />
+                    <div className="border-b border-dashed border-slate-400" />
+                    <div className="border-b border-dashed border-slate-400" />
+                    <div className="border-b border-dashed border-slate-400" />
+                  </div>
+
+                  {/* Kräftige Balken */}
                   <div className="absolute inset-0 flex items-end justify-between px-2">
                     {prognoseListe.map((p, idx) => {
                       const hIn = Math.min(100, (p.gehaltEnde / maxCashflow) * 100);
@@ -543,16 +558,16 @@ export function FinanceView({ theme }: FinanceViewProps) {
                           key={idx}
                           className="flex h-full w-full items-end justify-center gap-1"
                         >
-                          {/* Sattes Petrol/Blau für Eingang */}
+                          {/* Sattes Petrol-Blau */}
                           <div
                             style={{ height: `${hIn}%` }}
-                            className="w-2 rounded-t-xs bg-[#005377] transition-all hover:opacity-80 dark:bg-[#82CBEE]"
+                            className="w-2 rounded-t-xs bg-[#005377] transition-all hover:scale-y-105 dark:bg-[#82CBEE]"
                             title={`Eingang: ${p.gehaltEnde.toFixed(2)} €`}
                           />
-                          {/* Kräftiges Schiefergrau für Ausgaben */}
+                          {/* Sattes Graphit-Anthrazit */}
                           <div
                             style={{ height: `${hOut}%` }}
-                            className="w-2 rounded-t-xs bg-[#475569] transition-all hover:opacity-80 dark:bg-[#94A3B8]"
+                            className="w-2 rounded-t-xs bg-[#334155] transition-all hover:scale-y-105 dark:bg-[#94A3B8]"
                             title={`Ausgaben: ${p.ausgabenGesamt.toFixed(2)} €`}
                           />
                         </div>
@@ -560,26 +575,12 @@ export function FinanceView({ theme }: FinanceViewProps) {
                     })}
                   </div>
 
+                  {/* Blaue Linie */}
                   <svg className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
-                    <defs>
-                      <linearGradient id="budgetAreaGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop
-                          offset="0%"
-                          stopColor={isDarkMode ? "#82CBEE" : "#005377"}
-                          stopOpacity="0.18"
-                        />
-                        <stop
-                          offset="100%"
-                          stopColor={isDarkMode ? "#82CBEE" : "#005377"}
-                          stopOpacity="0.0"
-                        />
-                      </linearGradient>
-                    </defs>
-                    <polygon fill="url(#budgetAreaGradient)" points={areaPoints} />
                     <polyline
                       fill="none"
                       stroke={isDarkMode ? "#82CBEE" : "#005377"}
-                      strokeWidth="2.5"
+                      strokeWidth="3"
                       points={linePoints}
                     />
                     {prognoseListe.map((p, idx) => {
@@ -591,7 +592,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
                           key={idx}
                           cx={x}
                           cy={y}
-                          r="3"
+                          r="3.5"
                           fill={isDarkMode ? "#82CBEE" : "#005377"}
                           stroke={isDarkMode ? "#100A0B" : "#FFFFFF"}
                           strokeWidth="1.5"
@@ -601,7 +602,8 @@ export function FinanceView({ theme }: FinanceViewProps) {
                   </svg>
                 </div>
 
-                <div className="flex h-48 flex-col justify-between pl-2 text-left font-mono text-[9px] font-bold text-[#005377] dark:text-[#82CBEE]">
+                {/* Y-Achse Rechts */}
+                <div className="flex h-52 flex-col justify-between pl-2.5 text-left font-mono text-[10px] font-bold text-[#005377] dark:text-[#82CBEE]">
                   <span>14k</span>
                   <span>10k</span>
                   <span>7k</span>
@@ -610,7 +612,8 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 </div>
               </div>
 
-              <div className="mt-2 flex justify-between pr-6 pl-6 font-mono text-[9px] font-bold text-slate-400">
+              {/* X-Achse Monate (Sattes Dunkelgrau) */}
+              <div className="mt-2.5 flex justify-between pr-8 pl-8 font-mono text-[10px] font-black text-slate-700 dark:text-slate-200">
                 {prognoseListe
                   .filter((_, i) => i % 2 === 0)
                   .map((p, i) => (
@@ -639,25 +642,27 @@ export function FinanceView({ theme }: FinanceViewProps) {
             {sonderausgaben.map((item) => (
               <div
                 key={item.id}
-                className={`flex items-center justify-between rounded-xl border p-3.5 transition-all hover:border-[#005377]/30 ${bgItem}`}
+                className={`flex items-center justify-between rounded-xl border p-3.5 transition-all hover:border-[#005377]/40 ${bgItem}`}
               >
                 <div>
-                  <span className={`text-xs font-semibold ${textTitle} block`}>{item.was}</span>
-                  <span className="text-[10px] text-slate-400">{item.wann}</span>
+                  <span className={`text-xs font-bold ${textTitle} block`}>{item.was}</span>
+                  <span className="font-mono text-[11px] font-bold text-slate-600 dark:text-slate-300">
+                    📅 {item.wann}
+                  </span>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={`font-mono text-xs font-bold ${textTitle}`}>
+                  <span className={`font-mono text-xs font-black ${textTitle}`}>
                     {item.hoehe.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
                   </span>
                   <button
                     onClick={() => handleDeleteAusgabe(item.id)}
-                    className="flex h-7 items-center gap-1 rounded-lg border border-black/10 px-2.5 text-[11px] font-semibold opacity-90 transition-all hover:border-emerald-500/40 hover:opacity-100 dark:border-white/10"
+                    className="flex h-7 items-center gap-1 rounded-lg border border-black/15 px-2.5 text-[11px] font-bold text-emerald-600 opacity-90 transition-all hover:bg-emerald-500/15 dark:border-white/15 dark:text-emerald-400"
                   >
-                    <Check className="h-3 w-3 text-emerald-500" /> Erledigt
+                    <Check className="h-3 w-3" /> Erledigt
                   </button>
                   <button
                     onClick={() => handleDeleteAusgabe(item.id)}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-rose-500 opacity-60 transition-all hover:opacity-100"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 opacity-80 transition-all hover:text-rose-500 hover:opacity-100"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -676,7 +681,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
             <h3 className={`text-xs font-bold tracking-wider uppercase ${textTitle}`}>
               Backlog (Wunschliste)
             </h3>
-            <p className={`text-[11px] ${textSub}`}>
+            <p className="text-[11px] font-medium text-slate-600 dark:text-slate-300">
               Wünsche notieren und bei Bedarf mit Kaufdatum einplanen.
             </p>
           </div>
@@ -694,7 +699,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
               placeholder="€"
               value={neuBHoehe}
               onChange={(e) => setNeuBHoehe(e.target.value)}
-              className={`col-span-3 rounded-xl border ${bgInput} p-2 text-xs font-semibold focus:outline-none`}
+              className={`col-span-3 rounded-xl border ${bgInput} p-2 text-xs font-bold focus:outline-none`}
             />
             <button
               type="submit"
@@ -708,11 +713,11 @@ export function FinanceView({ theme }: FinanceViewProps) {
             {backlog.map((item) => (
               <div
                 key={item.id}
-                className={`flex flex-col justify-between gap-2 rounded-xl border p-3.5 transition-all hover:border-[#005377]/30 sm:flex-row sm:items-center ${bgItem}`}
+                className={`flex flex-col justify-between gap-2 rounded-xl border p-3.5 transition-all hover:border-[#005377]/40 sm:flex-row sm:items-center ${bgItem}`}
               >
                 <div>
-                  <span className={`text-xs font-semibold ${textTitle} block`}>{item.was}</span>
-                  <span className={`font-mono text-xs font-bold ${accentBlue}`}>
+                  <span className={`text-xs font-bold ${textTitle} block`}>{item.was}</span>
+                  <span className={`font-mono text-xs font-black ${accentBlue}`}>
                     {item.hoehe.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
                   </span>
                 </div>
@@ -721,7 +726,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
                     type="date"
                     value={backlogDates[item.id] || "2026-08-26"}
                     onChange={(e) => setBacklogDates((p) => ({ ...p, [item.id]: e.target.value }))}
-                    className={`rounded-lg border ${bgInput} p-1 text-[10px] font-medium`}
+                    className={`rounded-lg border ${bgInput} p-1 text-[10px] font-bold text-slate-700 dark:text-slate-200`}
                   />
                   <button
                     onClick={() => handlePlanBacklog(item)}
@@ -731,7 +736,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
                   </button>
                   <button
                     onClick={() => handleDeleteBacklog(item.id)}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-rose-500 opacity-60 transition-all hover:opacity-100"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 opacity-80 transition-all hover:text-rose-500 hover:opacity-100"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
