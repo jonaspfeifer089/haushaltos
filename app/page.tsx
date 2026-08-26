@@ -24,6 +24,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "../lib/supabaseClient";
+import { TrendingUp } from "lucide-react";
+import { FinanceView } from "../components/FinanceView";
 
 import {
   Departure,
@@ -419,6 +421,7 @@ export default function DashboardPage() {
       count: einkauf.filter((e) => e.status !== "Erledigt").length
     },
     { id: "gym", icon: Dumbbell, label: "Performance" },
+    { id: "finanzen", icon: TrendingUp, label: "Finanzen 🔒" },
     { id: "putzplan", icon: ClipboardList, label: "Putzplan" },
     { id: "vorrat", icon: Package, label: "Vorrat" },
     { id: "notizen", icon: StickyNote, label: "Pinnwand" },
@@ -595,6 +598,9 @@ export default function DashboardPage() {
               theme={themeProps}
             />
           )}
+
+          {activeTab === "finanzen" && <FinanceView theme={themeProps} />}
+
           {activeTab === "putzplan" && (
             <PutzplanView
               aufgaben={aufgaben}
