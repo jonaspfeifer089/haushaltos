@@ -1,5 +1,27 @@
-import React, { useState } from "react";
-import { Lock, Unlock, TrendingUp, Home, ShieldCheck, DollarSign } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import {
+  Lock,
+  ShieldCheck,
+  Plus,
+  Trash2,
+  Check,
+  ArrowUpRight,
+  Calendar,
+  DollarSign
+} from "lucide-react";
+
+interface Sonderausgabe {
+  id: string;
+  was: string;
+  hoehe: number;
+  wann: string; // YYYY-MM-DD
+}
+
+interface BacklogItem {
+  id: string;
+  was: string;
+  hoehe: number;
+}
 
 interface FinanceViewProps {
   theme: any;
@@ -8,9 +30,6 @@ interface FinanceViewProps {
 export function FinanceView({ theme }: FinanceViewProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinInput, setPinInput] = useState("");
-  const [activeSubTab, setActiveSubTab] = useState<"wealth" | "immo" | "rente">("wealth");
-
-  // PIN / Passwort festlegen (hier z. B. "1234")
   const SECRET_PIN = "1234";
 
   const {
@@ -25,100 +44,162 @@ export function FinanceView({ theme }: FinanceViewProps) {
     isDarkMode
   } = theme;
 
-  // --- 15-Jahre Rechner States ---
-  const [netto, setNetto] = useState(3000);
-  const [wachstum, setWachstum] = useState(3.0);
-  const [startkapital, setStartkapital] = useState(25000);
-  const [rendite, setRendite] = useState(6.0);
-  const [fixkosten, setFixkosten] = useState(1200);
-  const [lebenshaltung, setLebenshaltung] = useState(600);
-  const [urlaubPA, setUrlaubPA] = useState(3000);
-  const [inflation, setInflation] = useState(2.0);
+  // --- STREAMLIT BASIS-WERTE & DATEN ---
+  const [aktuellerSaldo, setAktuellerSaldo] = useState<number>(500.0);
+  const [fixEinnahmen, setFixEinnahmen] = useState<number>(880.0);
+  const [fixAusgaben, setFixAusgaben] = useState<number>(70.0);
+  const [fokusMonat, setFokusMonat] = useState<number>(8);
+  const [zielDatum, setZielDatum] = useState<string>("2026-08-31");
 
-  // Partner:in States
-  const [nettoP, setNettoP] = useState(2500);
-  const [wachstumP, setWachstumP] = useState(3.0);
-  const [startkapitalP, setStartkapitalP] = useState(10000);
-  const [fixkostenP, setFixkostenP] = useState(0);
-  const [lebenshaltungP, setLebenshaltungP] = useState(400);
-  const [urlaubPAP, setUrlaubPAP] = useState(2000);
+  // Sonderausgaben (State)
+  const [sonderausgaben, setSonderausgaben] = useState<Sonderausgabe[]>([
+    { id: "1", was: "Miete", hoehe: 380.0, wann: "2026-09-01" },
+    { id: "2", was: "Geburtstagsgeschenk Lena", hoehe: 200.0, wann: "2026-09-05" },
+    { id: "3", was: "Urlaub Restzahlung", hoehe: 300.0, wann: "2026-09-15" },
+    { id: "4", was: "Versicherung KFZ", hoehe: 250.0, wann: "2027-02-15" },
+    { id: "5", was: "Sonderanschaffung", hoehe: 2000.0, wann: "2027-03-01" }
+  ]);
 
-  // --- Immo Rechner States ---
-  const [immoRate, setImmoRate] = useState(1500);
-  const [immoEk, setImmoEk] = useState(50000);
-  const [immoZins, setImmoZins] = useState(3.5);
-  const [immoLaufzeit, setImmoLaufzeit] = useState(25);
-  const [immoNk, setImmoNk] = useState(10.0);
+  // Backlog / Wunschliste (State)
+  const [backlog, setBacklog] = useState<BacklogItem[]>([
+    { id: "b1", was: "Braun Series 9 Pro", hoehe: 250.0 }
+  ]);
+  const [backlogDates, setBacklogDates] = useState<Record<string, string>>({
+    b1: "2026-08-26"
+  });
 
-  // --- Renten Rechner States ---
-  const [alterAktuell, setAlterAktuell] = useState(26);
-  const [alterRente, setAlterRente] = useState(67);
-  const [zielVermoegen, setZielVermoegen] = useState(1000000);
+  // Neue Ausgaben Inputs
+  const [neuWas, setNeuWas] = useState("");
+  const [neuHoehe, setNeuHoehe] = useState<string>("");
+  const [neuWann, setNeuWann] = useState("2026-08-26");
+
+  // Neuer Backlog Input
+  const [neuBWas, setNeuBWas] = useState("");
+  const [neuBHoehe, setNeuBHoehe] = useState<string>("");
+
+  // Bonus-Berechnung aus Streamlit
+  const getBonus = (m: number): number => {
+    const boni: Record<number, number> = {
+      2: 0.7 * 1452 * 0.8,
+      6: 0.85 * 1452 * 0.8 * 0.5,
+      7: 227.0,
+      9: 0.275 * 1452 * 0.8,
+      11: 1452 * 0.5 * 0.8
+    };
+    return boni[m] || 0.0;
+  };
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (pinInput === SECRET_PIN) {
       setIsAuthenticated(true);
     } else {
-      alert("Falscher PIN / Passwort!");
+      alert("Falscher PIN!");
       setPinInput("");
     }
   };
 
-  // --- Berechnungen 15 Jahre ---
-  const sonderMtl = urlaubPA / 12;
-  const ausgabenMtl = fixkosten + lebenshaltung + sonderMtl;
-  const sparrateMtl = netto - ausgabenMtl;
+  // -------------------------------------------------------------
+  // 1. SIMULATIONSMONATE (2026-08 bis 2027-12)
+  // -------------------------------------------------------------
+  const simulationsMonate: { jahr: number; monat: number }[] = [];
+  for (let m = 8; m <= 12; m++) simulationsMonate.push({ jahr: 2026, monat: m });
+  for (let m = 1; m <= 12; m++) simulationsMonate.push({ jahr: 2027, monat: m });
 
-  const ausgabenMtlP = fixkostenP + lebenshaltungP + urlaubPAP / 12;
-  const gesamtNetto = netto + nettoP;
-  const gesamtAusgaben = ausgabenMtl + ausgabenMtlP;
-  const sparrateGemeinsam = gesamtNetto - gesamtAusgaben;
+  let laufenderSaldo = aktuellerSaldo;
+  const prognoseListe = simulationsMonate.map(({ jahr, monat }) => {
+    const b = getBonus(monat);
+    const gehaltEnde = fixEinnahmen + b;
+    const fixMonat = jahr === 2026 && monat === 8 ? 0.0 : fixAusgaben;
 
-  // 15 Jahre Simulation Jonas
-  let vermoegenJonas = startkapital;
-  let aktNettoS = netto;
-  let aktAusgS = ausgabenMtl;
-  for (let y = 1; y <= 15; y++) {
-    const sRate = Math.max(0, aktNettoS - aktAusgS) * 12;
-    vermoegenJonas = (vermoegenJonas + sRate) * (1 + rendite / 100);
-    aktNettoS *= 1 + wachstum / 100;
-    aktAusgS *= 1 + inflation / 100;
+    // Sonderausgaben für diesen Monat
+    const extraMonat = sonderausgaben
+      .filter((s) => {
+        const d = new Date(s.wann);
+        return d.getFullYear() === jahr && d.getMonth() + 1 === monat;
+      })
+      .reduce((sum, item) => sum + item.hoehe, 0);
+
+    const freiVerfuegbar = laufenderSaldo - fixMonat - extraMonat;
+    const endSaldo = freiVerfuegbar + gehaltEnde;
+    laufenderSaldo = endSaldo;
+
+    return {
+      jahr,
+      monat,
+      gehaltEnde,
+      fixMonat,
+      extraMonat,
+      freiVerfuegbar
+    };
+  });
+
+  // -------------------------------------------------------------
+  // 2. TAGESGENAUE PROGNOSE BIS ZUM WUNSCHDATUM
+  // -------------------------------------------------------------
+  let simSaldo = aktuellerSaldo;
+  const heute = new Date("2026-08-26");
+  const targetDateObj = new Date(zielDatum);
+
+  // Einfache tagesgenaue Logik
+  sonderausgaben.forEach((item) => {
+    const itemDate = new Date(item.wann);
+    if (itemDate >= heute && itemDate <= targetDateObj) {
+      simSaldo -= item.hoehe;
+    }
+  });
+  if (targetDateObj >= new Date("2026-08-31")) {
+    simSaldo += fixEinnahmen;
   }
 
-  // 15 Jahre Simulation Gemeinsam
-  let vermoegenJoint = startkapital + startkapitalP;
-  let n1 = netto,
-    n2 = nettoP,
-    ausgJ = gesamtAusgaben;
-  for (let y = 1; y <= 15; y++) {
-    const sRate = Math.max(0, n1 + n2 - ausgJ) * 12;
-    vermoegenJoint = (vermoegenJoint + sRate) * (1 + rendite / 100);
-    n1 *= 1 + wachstum / 100;
-    n2 *= 1 + wachstumP / 100;
-    ausgJ *= 1 + inflation / 100;
-  }
+  // Fokus-Monat Werte
+  const fokusRow = prognoseListe.find(
+    (p) => p.monat === fokusMonat && p.jahr === (fokusMonat >= 8 ? 2026 : 2027)
+  );
+  const freiVerfuegbarFokus = fokusRow ? fokusRow.freiVerfuegbar : 0.0;
+  const sonderFokus = fokusRow ? fokusRow.extraMonat : 0.0;
 
-  // --- Berechnungen Immo ---
-  const rMtl = immoZins / 100 / 12;
-  const monateImmo = immoLaufzeit * 12;
-  const maxDarlehen = immoRate * ((1 - Math.pow(1 + rMtl, -monateImmo)) / rMtl);
-  const gesamtBudget = maxDarlehen + immoEk;
-  const maxKaufpreis = gesamtBudget / (1 + immoNk / 100);
-  const nkAbsolut = maxKaufpreis * (immoNk / 100);
-  const belastungsquote = (immoRate / gesamtNetto) * 100;
+  // Handler Sonderausgaben
+  const handleAddAusgabe = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!neuWas || !neuHoehe) return;
+    setSonderausgaben((p) => [
+      ...p,
+      { id: crypto.randomUUID(), was: neuWas, hoehe: parseFloat(neuHoehe), wann: neuWann }
+    ]);
+    setNeuWas("");
+    setNeuHoehe("");
+  };
 
-  // --- Berechnungen Rente ---
-  const jahreBisRente = alterRente - alterAktuell;
-  const monateRente = jahreBisRente * 12;
-  const rMtlRente = rendite / 100 / 12;
-  const fvStart = startkapital * Math.pow(1 + rMtlRente, monateRente);
-  const benoetigt = zielVermoegen - fvStart;
-  const notwendigeSparrate =
-    benoetigt > 0 ? (benoetigt * rMtlRente) / (Math.pow(1 + rMtlRente, monateRente) - 1) : 0;
-  const monatliche4ProzentEntnahme = (zielVermoegen * 0.04) / 12;
+  const handleDoneAusgabe = (id: string) => {
+    setSonderausgaben((p) => p.filter((x) => x.id !== id));
+  };
 
-  // 🔒 GESPERRTER ZUSTAND (PIN EINGABE)
+  // Handler Backlog
+  const handleAddBacklog = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!neuBWas || !neuBHoehe) return;
+    const newId = crypto.randomUUID();
+    setBacklog((p) => [...p, { id: newId, was: neuBWas, hoehe: parseFloat(neuBHoehe) }]);
+    setBacklogDates((p) => ({ ...p, [newId]: "2026-08-26" }));
+    setNeuBWas("");
+    setNeuBHoehe("");
+  };
+
+  const handlePlanBacklog = (item: BacklogItem) => {
+    const planDate = backlogDates[item.id] || "2026-08-26";
+    setSonderausgaben((p) => [
+      ...p,
+      { id: crypto.randomUUID(), was: item.was, hoehe: item.hoehe, wann: planDate }
+    ]);
+    setBacklog((p) => p.filter((x) => x.id !== item.id));
+  };
+
+  const handleDeleteBacklog = (id: string) => {
+    setBacklog((p) => p.filter((x) => x.id !== id));
+  };
+
+  // 🔒 LOGIN-SPERRE
   if (!isAuthenticated) {
     return (
       <div className="flex min-h-[500px] flex-col items-center justify-center space-y-4">
@@ -135,7 +216,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
           <form onSubmit={handleLogin} className="space-y-3">
             <input
               type="password"
-              placeholder="PIN / Passwort eingeben..."
+              placeholder="PIN eingeben..."
               value={pinInput}
               onChange={(e) => setPinInput(e.target.value)}
               className={`w-full text-center font-mono text-lg tracking-widest ${bgInput} rounded-xl border px-4 py-2.5 focus:outline-none`}
@@ -152,389 +233,386 @@ export function FinanceView({ theme }: FinanceViewProps) {
     );
   }
 
-  // 🔓 ENTSPERRTER ZUSTAND (DASHBOARD)
   return (
-    <div className="space-y-6">
-      {/* Top Header mit Abmelde-Button */}
-      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+    <div className="space-y-8">
+      {/* ========================================================= */}
+      {/* 1. TOP BAR & METRIKEN */}
+      {/* ========================================================= */}
+      <div className="flex flex-col justify-between gap-4 border-b border-black/5 pb-4 sm:flex-row sm:items-center dark:border-white/5">
         <div>
           <div className="flex items-center gap-2">
-            <h2 className={`text-2xl font-black tracking-tight ${textTitle}`}>
+            <h1 className={`text-3xl font-black tracking-tight ${textTitle}`}>
               💼 WealthDashboard Pro
-            </h2>
+            </h1>
             <span
               className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${badgeGreen} flex items-center gap-1`}
             >
-              <ShieldCheck className="h-3 w-3" /> Entsperrt
+              <ShieldCheck className="h-3 w-3" /> Live
             </span>
           </div>
-          <p className={`text-xs ${textSub}`}>
-            Vermögensprognosen, Hausbau-Cockpit & Altersvorsorge
+          <p className={`text-xs ${textSub} mt-1`}>
+            Interaktiver Finanz-Simulator mit Cloud-Datenbank & Prognose-Cockpits
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Sub-Tabs Switcher */}
-          <div className="flex rounded-xl bg-black/5 p-1 dark:bg-white/5">
-            {[
-              { id: "wealth", label: "🏡 15-Jahre Master" },
-              { id: "immo", label: "🏰 Immobilien-Rechner" },
-              { id: "rente", label: "🏖️ Rente & Zinseszins" }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveSubTab(tab.id as any)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-all ${
-                  activeSubTab === tab.id
-                    ? "bg-white text-black shadow-sm dark:bg-[#2C2C2E] dark:text-white"
-                    : `${textSub} hover:text-black dark:hover:text-white`
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+        <button
+          onClick={() => setIsAuthenticated(false)}
+          className="flex h-8 items-center gap-1.5 self-start rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 text-xs font-bold text-rose-500 hover:bg-rose-500/20 sm:self-auto"
+        >
+          <Lock className="h-3.5 w-3.5" /> Sperren
+        </button>
+      </div>
 
-          <button
-            onClick={() => setIsAuthenticated(false)}
-            className="flex h-8 items-center gap-1 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 text-xs font-bold text-rose-500 hover:bg-rose-500/20"
-          >
-            <Lock className="h-3.5 w-3.5" /> Sperren
-          </button>
+      {/* 4 Top-Metriken */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <div className={`${bgCard} rounded-3xl border p-5 shadow-sm`}>
+          <span className={`text-[11px] font-bold tracking-wider uppercase ${textSub}`}>
+            Liquidität (Aktuell)
+          </span>
+          <div className="mt-1 font-mono text-2xl font-black text-[#005377] dark:text-[#82CBEE]">
+            {aktuellerSaldo.toFixed(2)} €
+          </div>
+        </div>
+
+        <div className={`${bgCard} rounded-3xl border p-5 shadow-sm`}>
+          <span className={`text-[11px] font-bold tracking-wider uppercase ${textSub}`}>
+            Prognose zum {zielDatum}
+          </span>
+          <div className="mt-1 font-mono text-2xl font-black text-emerald-500">
+            {simSaldo.toFixed(2)} €
+          </div>
+        </div>
+
+        <div className={`${bgCard} rounded-3xl border p-5 shadow-sm`}>
+          <span className={`text-[11px] font-bold tracking-wider uppercase ${textSub}`}>
+            Frei verfügbar (Monat {fokusMonat})
+          </span>
+          <div className="mt-1 font-mono text-2xl font-black text-emerald-500">
+            {freiVerfuegbarFokus.toFixed(2)} €
+          </div>
+        </div>
+
+        <div className={`${bgCard} rounded-3xl border p-5 shadow-sm`}>
+          <span className={`text-[11px] font-bold tracking-wider uppercase ${textSub}`}>
+            Geplante Sonderausgaben (M {fokusMonat})
+          </span>
+          <div className="mt-1 font-mono text-2xl font-black text-rose-500">
+            {sonderFokus.toFixed(2)} €
+          </div>
         </div>
       </div>
 
       {/* ========================================================= */}
-      {/* 1. 15-JAHRE VERMÖGENS-COCKPIT */}
+      {/* 2. GRID: KONTROLLZENTRUM (LINKS) & TAKTISCHER AUSBLICK (RECHTS) */}
       {/* ========================================================= */}
-      {activeSubTab === "wealth" && (
-        <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            {/* Jonas Input */}
-            <div className={`${bgCard} space-y-4 rounded-3xl border p-6`}>
-              <h3 className={`text-sm font-bold ${textTitle} tracking-wider uppercase`}>
-                👤 Deine Parameter
-              </h3>
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <label className={textSub}>Netto (mtl. €)</label>
-                  <input
-                    type="number"
-                    value={netto}
-                    onChange={(e) => setNetto(Number(e.target.value))}
-                    className={`mt-1 w-full ${bgInput} rounded-xl border p-2 font-bold`}
-                  />
-                </div>
-                <div>
-                  <label className={textSub}>Startkapital (€)</label>
-                  <input
-                    type="number"
-                    value={startkapital}
-                    onChange={(e) => setStartkapital(Number(e.target.value))}
-                    className={`mt-1 w-full ${bgInput} rounded-xl border p-2 font-bold`}
-                  />
-                </div>
-                <div>
-                  <label className={textSub}>Fixkosten (mtl. €)</label>
-                  <input
-                    type="number"
-                    value={fixkosten}
-                    onChange={(e) => setFixkosten(Number(e.target.value))}
-                    className={`mt-1 w-full ${bgInput} rounded-xl border p-2 font-bold`}
-                  />
-                </div>
-                <div>
-                  <label className={textSub}>Lebenshaltung (mtl. €)</label>
-                  <input
-                    type="number"
-                    value={lebenshaltung}
-                    onChange={(e) => setLebenshaltung(Number(e.target.value))}
-                    className={`mt-1 w-full ${bgInput} rounded-xl border p-2 font-bold`}
-                  />
-                </div>
-              </div>
-              <div className={`rounded-2xl p-4 ${bgItem} flex items-center justify-between`}>
-                <span className={`text-xs font-bold ${textSub}`}>Deine Sparrate heute:</span>
-                <span
-                  className={`font-mono text-sm font-black ${sparrateMtl >= 0 ? "text-emerald-500" : "text-rose-500"}`}
-                >
-                  {sparrateMtl.toFixed(2)} € / Monat
-                </span>
-              </div>
-            </div>
-
-            {/* Lena Input */}
-            <div className={`${bgCard} space-y-4 rounded-3xl border p-6`}>
-              <h3 className={`text-sm font-bold ${textTitle} tracking-wider uppercase`}>
-                👩‍❤️‍👨 Partner:in Parameter
-              </h3>
-              <div className="grid grid-cols-2 gap-3 text-xs">
-                <div>
-                  <label className={textSub}>Netto Partner:in (mtl. €)</label>
-                  <input
-                    type="number"
-                    value={nettoP}
-                    onChange={(e) => setNettoP(Number(e.target.value))}
-                    className={`mt-1 w-full ${bgInput} rounded-xl border p-2 font-bold`}
-                  />
-                </div>
-                <div>
-                  <label className={textSub}>Startkapital Partner:in (€)</label>
-                  <input
-                    type="number"
-                    value={startkapitalP}
-                    onChange={(e) => setStartkapitalP(Number(e.target.value))}
-                    className={`mt-1 w-full ${bgInput} rounded-xl border p-2 font-bold`}
-                  />
-                </div>
-                <div>
-                  <label className={textSub}>Fixkosten Partner:in (mtl. €)</label>
-                  <input
-                    type="number"
-                    value={fixkostenP}
-                    onChange={(e) => setFixkostenP(Number(e.target.value))}
-                    className={`mt-1 w-full ${bgInput} rounded-xl border p-2 font-bold`}
-                  />
-                </div>
-                <div>
-                  <label className={textSub}>Lebenshaltung Partner:in (mtl. €)</label>
-                  <input
-                    type="number"
-                    value={lebenshaltungP}
-                    onChange={(e) => setLebenshaltungP(Number(e.target.value))}
-                    className={`mt-1 w-full ${bgInput} rounded-xl border p-2 font-bold`}
-                  />
-                </div>
-              </div>
-              <div className={`rounded-2xl p-4 ${bgItem} flex items-center justify-between`}>
-                <span className={`text-xs font-bold ${textSub}`}>Gemeinsame Sparrate:</span>
-                <span
-                  className={`font-mono text-sm font-black ${sparrateGemeinsam >= 0 ? "text-emerald-500" : "text-rose-500"}`}
-                >
-                  {sparrateGemeinsam.toFixed(2)} € / Monat
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* 15-Jahre Prognose Cards */}
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            <div className={`${bgCard} space-y-2 rounded-3xl border p-6 text-center`}>
-              <span className={`text-xs font-bold tracking-wider uppercase ${textSub}`}>
-                Dein Vermögen in 15 Jahren
-              </span>
-              <div className="font-mono text-3xl font-black text-[#005377] dark:text-[#82CBEE]">
-                {vermoegenJonas.toLocaleString("de-DE", {
-                  style: "currency",
-                  currency: "EUR",
-                  maximumFractionDigits: 0
-                })}
-              </div>
-              <p className={`text-[11px] ${textSub}`}>
-                Basiert auf {rendite}% Rendite & {wachstum}% Gehaltserhöhung p.a.
-              </p>
-            </div>
-
-            <div className={`${bgCard} space-y-2 rounded-3xl border p-6 text-center`}>
-              <span className={`text-xs font-bold tracking-wider uppercase ${textSub}`}>
-                Gemeinsames Vermögen in 15 Jahren
-              </span>
-              <div className="font-mono text-3xl font-black text-emerald-500">
-                {vermoegenJoint.toLocaleString("de-DE", {
-                  style: "currency",
-                  currency: "EUR",
-                  maximumFractionDigits: 0
-                })}
-              </div>
-              <p className={`text-[11px] ${textSub}`}>
-                Gebündelte Sparpower von beiden Haushaltspartnern
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================= */}
-      {/* 2. IMMOBILIEN-ERSCHWINGLICHKEIT */}
-      {/* ========================================================= */}
-      {activeSubTab === "immo" && (
-        <div className="space-y-6">
-          <div className={`${bgCard} space-y-4 rounded-3xl border p-6`}>
-            <h3 className={`text-sm font-bold ${textTitle} tracking-wider uppercase`}>
-              🏰 Finanzierungs-Parameter
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+        {/* LINKE SPALTE: KONTROLLZENTRUM */}
+        <div className="space-y-6 lg:col-span-4">
+          <div className={`${bgCard} space-y-4 rounded-3xl border p-6 shadow-sm`}>
+            <h3 className={`text-xs font-black tracking-wider uppercase ${textTitle}`}>
+              🕹️ Kontrollzentrum
             </h3>
-            <div className="grid grid-cols-2 gap-4 text-xs sm:grid-cols-4">
-              <div>
-                <label className={textSub}>Wunschrate (mtl. €)</label>
-                <input
-                  type="number"
-                  value={immoRate}
-                  onChange={(e) => setImmoRate(Number(e.target.value))}
-                  className={`mt-1 w-full ${bgInput} rounded-xl border p-2 font-bold`}
-                />
-              </div>
-              <div>
-                <label className={textSub}>Eigenkapital (€)</label>
-                <input
-                  type="number"
-                  value={immoEk}
-                  onChange={(e) => setImmoEk(Number(e.target.value))}
-                  className={`mt-1 w-full ${bgInput} rounded-xl border p-2 font-bold`}
-                />
-              </div>
-              <div>
-                <label className={textSub}>Bauzins (% p.a.)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={immoZins}
-                  onChange={(e) => setImmoZins(Number(e.target.value))}
-                  className={`mt-1 w-full ${bgInput} rounded-xl border p-2 font-bold`}
-                />
-              </div>
-              <div>
-                <label className={textSub}>Laufzeit (Jahre)</label>
-                <input
-                  type="number"
-                  value={immoLaufzeit}
-                  onChange={(e) => setImmoLaufzeit(Number(e.target.value))}
-                  className={`mt-1 w-full ${bgInput} rounded-xl border p-2 font-bold`}
-                />
-              </div>
-            </div>
-          </div>
 
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <div className={`${bgCard} space-y-1 rounded-3xl border p-5 text-center`}>
-              <span className={`text-[10px] font-bold uppercase ${textSub}`}>
-                Maximaler Kaufpreis
-              </span>
-              <div className="font-mono text-2xl font-black text-emerald-500">
-                {maxKaufpreis.toLocaleString("de-DE", {
-                  style: "currency",
-                  currency: "EUR",
-                  maximumFractionDigits: 0
-                })}
+            {/* Saldo anpassen */}
+            <div className="space-y-1.5 border-b border-black/5 pb-4 dark:border-white/5">
+              <label className={`text-xs font-bold ${textSub}`}>💰 Aktueller Kontostand (€)</label>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  step="10"
+                  value={aktuellerSaldo}
+                  onChange={(e) => setAktuellerSaldo(parseFloat(e.target.value) || 0)}
+                  className={`w-full rounded-xl border ${bgInput} p-2 font-mono text-sm font-bold`}
+                />
               </div>
-              <p className={`text-[10px] ${textSub}`}>Für die Immobiliensuche</p>
             </div>
-            <div className={`${bgCard} space-y-1 rounded-3xl border p-5 text-center`}>
-              <span className={`text-[10px] font-bold uppercase ${textSub}`}>
-                Darlehensbetrag (Bank)
-              </span>
-              <div className="font-mono text-2xl font-black text-[#005377] dark:text-[#82CBEE]">
-                {maxDarlehen.toLocaleString("de-DE", {
-                  style: "currency",
-                  currency: "EUR",
-                  maximumFractionDigits: 0
-                })}
+
+            {/* Target-Prognose */}
+            <div className="space-y-3 border-b border-black/5 pb-4 dark:border-white/5">
+              <h4 className={`text-xs font-bold ${textTitle}`}>🔮 Target-Prognose</h4>
+              <div>
+                <label className={`text-[11px] font-semibold ${textSub}`}>
+                  Wunschdatum für Check
+                </label>
+                <input
+                  type="date"
+                  value={zielDatum}
+                  onChange={(e) => setZielDatum(e.target.value)}
+                  className={`mt-1 w-full rounded-xl border ${bgInput} p-2 text-xs font-bold`}
+                />
               </div>
-              <p className={`text-[10px] ${textSub}`}>Gesamter Kredit</p>
+              <div>
+                <label className={`text-[11px] font-semibold ${textSub}`}>Fokus-Monat</label>
+                <select
+                  value={fokusMonat}
+                  onChange={(e) => setFokusMonat(parseInt(e.target.value, 10))}
+                  className={`mt-1 w-full rounded-xl border ${bgInput} p-2 text-xs font-bold`}
+                >
+                  {Array.from({ length: 12 }).map((_, i) => (
+                    <option key={i + 1} value={i + 1}>
+                      Monat {i + 1}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div className={`${bgCard} space-y-1 rounded-3xl border p-5 text-center`}>
-              <span className={`text-[10px] font-bold uppercase ${textSub}`}>
-                Kaufnebenkosten ({immoNk}%)
-              </span>
-              <div className="font-mono text-2xl font-black text-rose-500">
-                {nkAbsolut.toLocaleString("de-DE", {
-                  style: "currency",
-                  currency: "EUR",
-                  maximumFractionDigits: 0
+
+            {/* Sonderausgabe planen */}
+            <form onSubmit={handleAddAusgabe} className="space-y-3">
+              <h4 className={`text-xs font-bold ${textTitle}`}>➕ Sonderausgabe planen</h4>
+              <input
+                type="text"
+                placeholder="Zweck / Beschreibung"
+                value={neuWas}
+                onChange={(e) => setNeuWas(e.target.value)}
+                className={`w-full rounded-xl border ${bgInput} p-2 text-xs font-medium`}
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="number"
+                  step="10"
+                  placeholder="Betrag (€)"
+                  value={neuHoehe}
+                  onChange={(e) => setNeuHoehe(e.target.value)}
+                  className={`w-full rounded-xl border ${bgInput} p-2 text-xs font-bold`}
+                />
+                <input
+                  type="date"
+                  value={neuWann}
+                  onChange={(e) => setNeuWann(e.target.value)}
+                  className={`w-full rounded-xl border ${bgInput} p-2 text-xs font-bold`}
+                />
+              </div>
+              <button
+                type="submit"
+                className={`w-full rounded-xl py-2.5 text-xs font-bold ${buttonPrimary}`}
+              >
+                Ausgabe speichern
+              </button>
+            </form>
+          </div>
+        </div>
+
+        {/* RECHTE SPALTE: TAKTISCHER AUSBLICK & CHART */}
+        <div className="space-y-6 lg:col-span-8">
+          <div className={`${bgCard} space-y-4 rounded-3xl border p-6 shadow-sm`}>
+            <div>
+              <h3 className={`text-sm font-black tracking-wider uppercase ${textTitle}`}>
+                📅 Taktischer Ausblick (2026 - 2027)
+              </h3>
+              <p className={`text-xs ${textSub} mt-0.5`}>
+                Das &apos;Frei Verfügbare&apos; Budget zeigt das Geld, das dir nach allen Abzügen in
+                dem Monat verbleibt.
+              </p>
+            </div>
+
+            {/* Matrix Tabelle */}
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-left font-mono text-xs">
+                <thead>
+                  <tr className="border-b border-black/10 text-slate-400 dark:border-white/10">
+                    <th className="py-2 pr-3 text-[10px] font-bold uppercase">Kategorie</th>
+                    {prognoseListe.slice(0, 14).map((p, i) => (
+                      <th key={i} className="px-2 py-2 text-center text-[10px]">
+                        {p.jahr === 2026 && p.monat === 8
+                          ? "2026 / 8"
+                          : p.monat === 1
+                            ? `2027 / ${p.monat}`
+                            : p.monat}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-black/5 dark:divide-white/5">
+                  <tr>
+                    <td className="py-2 pr-3 font-semibold text-slate-400">Gehalt (Monatsende)</td>
+                    {prognoseListe.slice(0, 14).map((p, i) => (
+                      <td key={i} className="px-2 py-2 text-center font-bold text-emerald-500">
+                        {p.gehaltEnde.toFixed(0)}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="py-2 pr-3 font-semibold text-slate-400">Fixkosten</td>
+                    {prognoseListe.slice(0, 14).map((p, i) => (
+                      <td key={i} className="px-2 py-2 text-center text-slate-400">
+                        {p.fixMonat.toFixed(0)}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr>
+                    <td className="py-2 pr-3 font-semibold text-slate-400">Sonderbudgets</td>
+                    {prognoseListe.slice(0, 14).map((p, i) => (
+                      <td
+                        key={i}
+                        className={`px-2 py-2 text-center font-bold ${p.extraMonat > 0 ? "text-rose-500" : "text-slate-400"}`}
+                      >
+                        {p.extraMonat.toFixed(0)}
+                      </td>
+                    ))}
+                  </tr>
+                  <tr className="bg-black/[0.02] font-black dark:bg-white/[0.02]">
+                    <td className={`py-2.5 pr-3 ${textTitle}`}>Frei Verfügbar (Saldo)</td>
+                    {prognoseListe.slice(0, 14).map((p, i) => (
+                      <td
+                        key={i}
+                        className="px-2 py-2.5 text-center text-[#005377] dark:text-[#82CBEE]"
+                      >
+                        {p.freiVerfuegbar.toFixed(0)}
+                      </td>
+                    ))}
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Simulierter Vermögensverlauf (Visueller Bar/Line Chart Ersatz) */}
+            <div className="border-t border-black/5 pt-4 dark:border-white/5">
+              <h4 className={`text-xs font-bold uppercase ${textSub} mb-3`}>
+                Simulierter Vermögensverlauf (Monatsbudgets)
+              </h4>
+              <div className="flex h-36 items-end gap-1.5 pt-6 pb-2">
+                {prognoseListe.slice(0, 14).map((p, i) => {
+                  const maxVal = 10000;
+                  const barHeight = Math.min(100, Math.max(10, (p.freiVerfuegbar / maxVal) * 100));
+                  return (
+                    <div
+                      key={i}
+                      className="flex h-full flex-1 flex-col items-center justify-end gap-1.5"
+                    >
+                      <div
+                        style={{ height: `${barHeight}%` }}
+                        className="w-full rounded-t-lg bg-gradient-to-t from-[#005377] to-[#82CBEE] opacity-90 transition-all hover:opacity-100"
+                        title={`Monat ${p.monat}: ${p.freiVerfuegbar.toFixed(2)} €`}
+                      />
+                      <span className="font-mono text-[9px] text-slate-400">{p.monat}</span>
+                    </div>
+                  );
                 })}
               </div>
-              <p className={`text-[10px] ${textSub}`}>Notar, Grunderwerbsteuer etc.</p>
             </div>
           </div>
         </div>
-      )}
+      </div>
 
       {/* ========================================================= */}
-      {/* 3. DUALER RENTEN-SIMULATOR */}
+      {/* 3. SONDERAUSGABEN MANAGEMENT & BACKLOG */}
       {/* ========================================================= */}
-      {activeSubTab === "rente" && (
-        <div className="space-y-6">
-          <div className={`${bgCard} space-y-4 rounded-3xl border p-6`}>
-            <h3 className={`text-sm font-bold ${textTitle} tracking-wider uppercase`}>
-              🏖️ Renten-Ziel Parameter
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+        {/* Geplante Sonderbudgets verwalten */}
+        <div className={`${bgCard} space-y-4 rounded-3xl border p-6 shadow-sm`}>
+          <div className="flex items-center justify-between">
+            <h3 className={`text-sm font-black tracking-wider uppercase ${textTitle}`}>
+              🗓️ Geplante Sonderbudgets verwalten
             </h3>
-            <div className="grid grid-cols-1 gap-4 text-xs sm:grid-cols-3">
-              <div>
-                <label className={textSub}>Aktuelles Alter / Rentenalter</label>
-                <div className="mt-1 flex gap-2">
-                  <input
-                    type="number"
-                    value={alterAktuell}
-                    onChange={(e) => setAlterAktuell(Number(e.target.value))}
-                    className={`w-1/2 ${bgInput} rounded-xl border p-2 font-bold`}
-                  />
-                  <input
-                    type="number"
-                    value={alterRente}
-                    onChange={(e) => setAlterRente(Number(e.target.value))}
-                    className={`w-1/2 ${bgInput} rounded-xl border p-2 font-bold`}
-                  />
+            <span className={`font-mono text-xs font-bold ${badgeBlue} rounded-full px-2.5 py-0.5`}>
+              {sonderausgaben.length} aktiv
+            </span>
+          </div>
+
+          <div className="space-y-2.5">
+            {sonderausgaben.map((item) => (
+              <div
+                key={item.id}
+                className={`flex items-center justify-between rounded-2xl border p-3.5 ${bgItem}`}
+              >
+                <div>
+                  <span className={`text-xs font-bold ${textTitle} block`}>🏷️ {item.was}</span>
+                  <span className={`text-[10px] font-semibold text-slate-400`}>📅 {item.wann}</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-xs font-black text-rose-500">
+                    {item.hoehe.toFixed(2)} €
+                  </span>
+                  <button
+                    onClick={() => handleDoneAusgabe(item.id)}
+                    className="flex h-7 items-center gap-1 rounded-lg bg-emerald-500/15 px-2 text-[10px] font-bold text-emerald-600 hover:bg-emerald-500/25 dark:text-emerald-400"
+                  >
+                    <Check className="h-3 w-3" /> Erledigt
+                  </button>
                 </div>
               </div>
-              <div>
-                <label className={textSub}>Ziel-Vermögen (€)</label>
-                <input
-                  type="number"
-                  value={zielVermoegen}
-                  onChange={(e) => setZielVermoegen(Number(e.target.value))}
-                  className={`mt-1 w-full ${bgInput} rounded-xl border p-2 font-bold`}
-                />
-              </div>
-              <div>
-                <label className={textSub}>Rendite-Erwartung (% p.a.)</label>
-                <input
-                  type="number"
-                  step="0.5"
-                  value={rendite}
-                  onChange={(e) => setRendite(Number(e.target.value))}
-                  className={`mt-1 w-full ${bgInput} rounded-xl border p-2 font-bold`}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-            <div className={`${bgCard} space-y-2 rounded-3xl border p-6`}>
-              <span className={`text-xs font-bold tracking-wider uppercase ${textSub}`}>
-                Notwendige monatliche Sparrate
-              </span>
-              <div className="font-mono text-3xl font-black text-emerald-500">
-                {notwendigeSparrate.toLocaleString("de-DE", {
-                  style: "currency",
-                  currency: "EUR",
-                  maximumFractionDigits: 2
-                })}{" "}
-                / Mo
-              </div>
-              <p className={`text-xs ${textSub}`}>
-                Um mit {alterRente} Jahren exakt {zielVermoegen.toLocaleString("de-DE")} € im Depot
-                zu haben.
-              </p>
-            </div>
-
-            <div className={`${bgCard} space-y-2 rounded-3xl border p-6`}>
-              <span className={`text-xs font-bold tracking-wider uppercase ${textSub}`}>
-                Monatliche Zusatzrente (4%-Regel)
-              </span>
-              <div className="font-mono text-3xl font-black text-[#005377] dark:text-[#82CBEE]">
-                {monatliche4ProzentEntnahme.toLocaleString("de-DE", {
-                  style: "currency",
-                  currency: "EUR",
-                  maximumFractionDigits: 2
-                })}{" "}
-                / Mo
-              </div>
-              <p className={`text-xs ${textSub}`}>
-                Kann lebenslang entnommen werden, ohne den Kapitalstock aufzubrauchen.
-              </p>
-            </div>
+            ))}
+            {sonderausgaben.length === 0 && (
+              <p className={`p-4 text-center text-xs ${textSub}`}>Keine Sonderausgaben geplant.</p>
+            )}
           </div>
         </div>
-      )}
+
+        {/* Backlog (Wunschliste & Ideen) */}
+        <div className={`${bgCard} space-y-4 rounded-3xl border p-6 shadow-sm`}>
+          <div>
+            <h3 className={`text-sm font-black tracking-wider uppercase ${textTitle}`}>
+              🛒 Backlog (Wunschliste & Ideen)
+            </h3>
+            <p className={`text-[11px] ${textSub}`}>
+              Notiere Wünsche. Wenn es soweit ist, wähle ein Datum und plane sie ein.
+            </p>
+          </div>
+
+          <form onSubmit={handleAddBacklog} className="grid grid-cols-12 gap-2">
+            <input
+              type="text"
+              placeholder="Was steht auf der Wunschliste?"
+              value={neuBWas}
+              onChange={(e) => setNeuBWas(e.target.value)}
+              className={`col-span-6 rounded-xl border ${bgInput} p-2 text-xs font-medium`}
+            />
+            <input
+              type="number"
+              placeholder="Kosten (€)"
+              value={neuBHoehe}
+              onChange={(e) => setNeuBHoehe(e.target.value)}
+              className={`col-span-3 rounded-xl border ${bgInput} p-2 text-xs font-bold`}
+            />
+            <button
+              type="submit"
+              className={`col-span-3 rounded-xl text-xs font-bold ${buttonPrimary}`}
+            >
+              Auf Liste 📝
+            </button>
+          </form>
+
+          <div className="space-y-2.5 pt-2">
+            {backlog.map((item) => (
+              <div
+                key={item.id}
+                className={`flex flex-col justify-between gap-2 rounded-2xl border p-3.5 sm:flex-row sm:items-center ${bgItem}`}
+              >
+                <div>
+                  <span className={`text-xs font-bold ${textTitle} block`}>💭 {item.was}</span>
+                  <span className="font-mono text-xs font-black text-[#005377] dark:text-[#82CBEE]">
+                    {item.hoehe.toFixed(2)} €
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={backlogDates[item.id] || "2026-08-26"}
+                    onChange={(e) => setBacklogDates((p) => ({ ...p, [item.id]: e.target.value }))}
+                    className={`rounded-lg border ${bgInput} p-1 text-[10px] font-bold`}
+                  />
+                  <button
+                    onClick={() => handlePlanBacklog(item)}
+                    className="flex h-7 items-center gap-1 rounded-lg bg-[#005377] px-2 text-[10px] font-bold text-white hover:bg-[#00415E]"
+                  >
+                    Planen ⬆️
+                  </button>
+                  <button
+                    onClick={() => handleDeleteBacklog(item.id)}
+                    className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-500/10 text-rose-500 hover:bg-rose-500/20"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
+            ))}
+            {backlog.length === 0 && (
+              <p className={`p-4 text-center text-xs ${textSub}`}>Dein Backlog ist aktuell leer.</p>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
