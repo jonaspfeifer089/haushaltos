@@ -1,6 +1,6 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { Sparkle, ListTodo, ShoppingCart } from "lucide-react";
+import { Sparkle, ListTodo, ShoppingCart, Mic } from "lucide-react";
 import { Departure, CalendarEvent, TodoItem, EinkaufItem, CountdownItem } from "../types";
 import { calculateDaysLeft } from "../lib/mciEngine";
 
@@ -16,6 +16,8 @@ interface HomeViewProps {
   offeneEinkaeufe: EinkaufItem[];
   departures: Departure[];
   setActiveTab: (tab: string) => void;
+  startGlobalVoice: () => void;
+  isListening: boolean;
   springConfig: any;
   theme: any;
 }
@@ -32,6 +34,8 @@ export function HomeView({
   offeneEinkaeufe,
   departures,
   setActiveTab,
+  startGlobalVoice,
+  isListening,
   springConfig,
   theme
 }: HomeViewProps) {
@@ -40,7 +44,7 @@ export function HomeView({
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col justify-between gap-4 border-b border-[#E8E2D9] pb-2 md:flex-row md:items-end dark:border-white/[0.08]">
+      <div className="flex flex-col justify-between gap-4 border-b border-[#E8E2D9] pb-4 md:flex-row md:items-end dark:border-white/[0.08]">
         <div>
           <div
             className={`flex items-center gap-2 text-xs font-bold tracking-wider uppercase ${accentGreen} mb-1`}
@@ -51,22 +55,36 @@ export function HomeView({
             Guten Tag, {activeUser}!
           </h1>
         </div>
-        <div className={`rounded-2xl border p-4 ${bgCard} flex items-center gap-3`}>
-          <div className="shrink-0 text-2xl">💡</div>
-          <div>
-            <span className={`text-[10px] font-bold tracking-wider uppercase ${textSub} block`}>
-              Tages- & Outfit-Empfehlung ({locationName})
-            </span>
-            <p className={`text-xs font-semibold ${textTitle} mt-0.5`}>{weatherTip}</p>
+
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Globaler KI Voice Button */}
+          <button
+            onClick={startGlobalVoice}
+            className={`flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-xs font-bold shadow-sm transition-all ${
+              isListening
+                ? "animate-pulse border-rose-500 bg-rose-500/20 text-rose-500"
+                : "border-[#005377]/30 bg-[#005377]/10 text-[#005377] hover:bg-[#005377]/20 dark:border-[#82CBEE]/30 dark:bg-[#82CBEE]/10 dark:text-[#82CBEE]"
+            }`}
+          >
+            <Mic className={`h-4 w-4 ${isListening ? "animate-bounce" : ""}`} />
+            <span>{isListening ? "Ich höre zu..." : "Sprechen..."}</span>
+          </button>
+
+          {/* Wetter Kachel */}
+          <div className={`rounded-2xl border p-3.5 ${bgCard} flex items-center gap-3`}>
+            <div className="shrink-0 text-xl">💡</div>
+            <div>
+              <span className={`text-[10px] font-bold tracking-wider uppercase ${textSub} block`}>
+                Empfehlung ({locationName})
+              </span>
+              <p className={`text-xs font-semibold ${textTitle} mt-0.5 max-w-[280px] truncate`}>
+                {weatherTip}
+              </p>
+            </div>
+            <div className="ml-2 border-l border-black/10 pl-3 dark:border-white/10">
+              <span className={`font-mono text-sm font-extrabold ${textTitle}`}>{weather}</span>
+            </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={`font-mono text-base leading-none font-extrabold ${textTitle}`}>
-            {weather}
-          </span>
-          <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${badgeGreen}`}>
-            {locationName}
-          </span>
         </div>
       </div>
 

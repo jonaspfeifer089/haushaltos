@@ -1,54 +1,52 @@
 import { NextResponse } from "next/server";
+import { GoogleGenAI } from "@google/genai";
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
 
 export async function POST(req: Request) {
   try {
     const { input, defaultUser } = await req.json();
     if (!input) return NextResponse.json({ error: "Kein Text übergeben" }, { status: 400 });
 
-    const text = input.toLowerCase();
+    const prompt = `Du bist ein intelligenter Assistent für ein Haushalts-Dashboard von Jonas und Lena.
+Analysiere den folgenden gesprochenen Satz und extrahiere strukturierte JSON-Daten:
+Satz: "${input}"
 
-    // 1. Zuweisung erkennen
-    let zustaendig: "Jonas" | "Lena" | "Beide" = "Beide";
-    if (text.includes("jonas")) zustaendig = "Jonas";
-    else if (text.includes("lena")) zustaendig = "Lena";
-    else if (defaultUser) zustaendig = defaultUser;
+Regeln:
+1. "type": Entweder "todo", "einkauf" oder "notiz".
+   - "einkauf" wenn Lebensmittel/Produkte besorgt werden sollen (z.B. "Kauf Hafermilch", "Wir brauchen Eier").
+   - "notiz" wenn es eine Information, Idee, Code oder Notiz ist (z.B. "WLAN Passwort ist 1234", "Idee für Urlaub").
+   - "todo" für Aufgaben, Erledigungen, Haushaltsarbeiten.
+2. "text": Formuliere den eigentlichen Inhalt grammatikalisch sauber, präzise und leserlich im Infinitiv oder als klares Substantiv (z.B. aus "Jonas soll sich heute gedanken machen um Geschenk für Mama" wird "Gedanken um Geschenk für Mama machen", aus "kauf bitte eier und milch" wird "Eier und Milch").
+3. "user": "Jonas", "Lena" oder "Beide". Wenn niemand genannt wird, nutze "${defaultUser || "Beide"}".
+4. "kategorie": 
+   - Für todo: "Haushalt & Reparatur", "Einkauf & Besorgungen", "Finanzen & Papierkram" oder "Sonstiges".
+   - Für einkauf: Passende Kategorie (z.B. "Obst & Gemüse", "Kühlregal & Milch", "Drogerie & Haushalt", "Vorrat & Nudeln", "Bäckerei & Brot", "Getränke", "Sonstiges").
+   - Für notiz: "Allgemein", "WLAN & Haus" oder "Wichtig".
+5. "datum": Falls ein Datum genannt wird (heute, morgen, übermorgen, Wochentag), berechne das Datum relativ zu heute (${new Date().toISOString().split("T")[0]}). Sonst leer lassen.
 
-    // 2. Kategorie erkennen
-    let kategorie = "Haushalt & Reparatur";
-    if (text.match(/kauf|besorg|supermarkt|drogerie|rewe|edeka|dm/))
-      kategorie = "Einkauf & Besorgungen";
-    else if (text.match(/arzt|termin|bank|überweis|anruf|mail/))
-      kategorie = "Finanzen & Papierkram";
-    else if (text.match(/putz|wisch|saugen|müll|wasch|bad|küche/))
-      kategorie = "Haushalt & Reparatur";
+Antworte NUR mit reinem JSON ohne Markdown-Codeblöcke:
+{
+  "type": "todo" | "einkauf" | "notiz",
+  "text": "string",
+  "user": "Jonas" | "Lena" | "Beide",
+  "kategorie": "string",
+  "datum": "YYYY-MM-DD" | ""
+}`;
 
-    // 3. Zeit / Datum erkennen
-    const today = new Date();
-    let targetDate = today.toISOString().split("T")[0];
-
-    if (text.includes("morgen")) {
-      const tomorrow = new Date();
-      tomorrow.setDate(today.getDate() + 1);
-      targetDate = tomorrow.toISOString().split("T")[0];
-    } else if (text.includes("übermorgen")) {
-      const dayAfter = new Date();
-      dayAfter.setDate(today.getDate() + 2);
-      targetDate = dayAfter.toISOString().split("T")[0];
-    }
-
-    // 4. Bereinigter Aufgabentext
-    const cleanTask = input
-      .replace(/(bitte|soll|musst|muss|heute|morgen|übermorgen|jonas|lena|um \d+ Uhr)/gi, "")
-      .replace(/\s+/g, " ")
-      .trim();
-
-    return NextResponse.json({
-      aufgabe: cleanTask || input,
-      kategorie,
-      zustaendig,
-      datum: targetDate
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json"
+      }
     });
-  } catch {
-    return NextResponse.json({ error: "Fehler beim Parsen" }, { status: 500 });
+
+    const jsonText = response.text || "{}";
+    const parsed = JSON.parse(jsonText);
+
+    return NextResponse.json(parsed);
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || "Fehler beim Parsen" }, { status: 500 });
   }
 }

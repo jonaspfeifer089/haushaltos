@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useState, useRef } from "react";
-import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Home,
@@ -20,8 +19,10 @@ import {
   ListTodo,
   Dumbbell,
   Activity,
-  ChevronUp
+  ChevronUp,
+  Mic
 } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "../lib/supabaseClient";
 
 import {
@@ -58,14 +59,14 @@ export default function DashboardPage() {
   const [isFabOpen, setIsFabOpen] = useState(false);
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [isListeningGlobal, setIsListeningGlobal] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [departures, setDepartures] = useState<Departure[]>([]);
-  const [calendarMode, setCalendarMode] = useState<"month" | "week">("month");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [termine, setTermine] = useState<CalendarEvent[]>([]);
 
-  // 1. Hooks
+  // 1. Custom Hooks
   const { weather, weatherTip, locationName } = useWeather();
   const {
     todos,
@@ -106,14 +107,15 @@ export default function DashboardPage() {
       .then((d) => {
         if (Array.isArray(d))
           setDepartures(
-            d.slice(0, 5).map((x: any) => ({
-              line: x.label || "U",
-              destination: x.destination || "Unbekannt",
-              time: new Date(x.realtimeDepartureTime || x.plannedDepartureTime).toLocaleTimeString(
-                "de-DE",
-                { hour: "2-digit", minute: "2-digit" }
-              )
-            }))
+            d
+              .slice(0, 5)
+              .map((x: any) => ({
+                line: x.label || "U",
+                destination: x.destination || "Unbekannt",
+                time: new Date(
+                  x.realtimeDepartureTime || x.plannedDepartureTime
+                ).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
+              }))
           );
       })
       .catch(() => {});
@@ -130,7 +132,6 @@ export default function DashboardPage() {
   };
 
   // Helper Actions
-  // 1. Einkauf hinzufügen mit Toast-Bestätigung
   const addEinkauf = async (artikelName?: string, userFuer = "Beide") => {
     if (!artikelName?.trim()) return;
     const item: EinkaufItem = {
@@ -142,12 +143,9 @@ export default function DashboardPage() {
     };
     setEinkauf((p) => [...p, item]);
     setIsFabOpen(false);
-
-    // Toast Feedback
-    toast.success(`"${item.artikel}" hinzugefügt`, {
+    toast.success(`"${item.artikel}" auf die Einkaufsliste gesetzt`, {
       description: `Kategorie: ${item.kategorie} • Für: ${userFuer}`
     });
-
     await supabase.from("einkauf").insert(item);
     if (userFuer !== activeUser)
       fetch("https://ntfy.sh/HaushaltLenaJonas", {
@@ -156,36 +154,90 @@ export default function DashboardPage() {
         headers: { Title: "Neuer Einkauf", Tags: "shopping_cart" }
       });
   };
+  const markEinkaufErledigt = async (item: EinkaufItem, status: "Erledigt" | "Offen") => {
+    setEinkauf((p) => p.map((e) => (e.id === item.id ? { ...e, status } : e)));
+    await supabase.from("einkauf").update({ status }).eq("id", item.id);
+  };
+  const deleteEinkauf = async (item: EinkaufItem) => {
+    setEinkauf((p) => p.filter((e) => e.id !== item.id));
+    await supabase.from("einkauf").delete().eq("id", item.id);
+  };
 
-  // 2. To-Do abhaken mit Toast-Bestätigung
+  const addTodo = async (text: string, kat: string, zust: string) => {
+    const item: TodoItem = {
+      id: crypto.randomUUID(),
+      aufgabe: text,
+      kategorie: kat,
+      status: "Offen",
+      zustaendig: zust
+    };
+    setTodos((p) => [...p, item]);
+    setIsFabOpen(false);
+    toast.success("To-Do angelegt!", { description: `${text} (${zust})` });
+    await supabase.from("todos").insert(item);
+    if (zust !== activeUser) {
+      const appUrl =
+        typeof window !== "undefined" ? window.location.origin : "https://haushaltos.vercel.app";
+      fetch("https://ntfy.sh/HaushaltLenaJonas", {
+        method: "POST",
+        body: `${activeUser} hat ein neues To-Do angelegt: "${text}" (${zust})`,
+        headers: {
+          Title: "Neues To-Do",
+          Tags: "memo",
+          Actions: `http, ✅ Erledigen, ${appUrl}/api/action, method=POST, body='{"type":"todo","id":"${item.id}","action":"erledigt"}', clear=true`
+        }
+      });
+    }
+  };
   const markTodoErledigt = async (item: TodoItem, status: "Erledigt" | "Offen") => {
     setTodos((p) => p.map((t) => (t.id === item.id ? { ...t, status } : t)));
-
     if (status === "Erledigt") {
-      toast.success("To-Do erledigt! 🎉", {
-        description: item.aufgabe
-      });
+      toast.success("To-Do erledigt! 🎉", { description: item.aufgabe });
       fetch("https://ntfy.sh/HaushaltLenaJonas", {
         method: "POST",
         body: `✅ ${activeUser} hat die Aufgabe "${item.aufgabe}" erledigt!`,
         headers: { Title: "To-Do erledigt", Tags: "white_check_mark" }
       });
-    } else {
-      toast.info("To-Do wieder geöffnet", {
-        description: item.aufgabe
-      });
     }
-
     await supabase.from("todos").update({ status }).eq("id", item.id);
   };
+  const deleteTodo = async (item: TodoItem) => {
+    setTodos((p) => p.filter((t) => t.id !== item.id));
+    await supabase.from("todos").delete().eq("id", item.id);
+  };
 
-  // 3. Vorrats-Scan mit Toasts statt alert()
+  const markAufgabeErledigt = async (item: PutzItem) => {
+    const today = new Date().toISOString().split("T")[0];
+    setAufgaben((p) => p.map((a) => (a.id === item.id ? { ...a, letztes_datum: today } : a)));
+    await supabase.from("haushalt").update({ letztes_datum: today }).eq("id", item.id);
+  };
+  const addNote = async (title: string, content: string, category: string) => {
+    const item: NoteItem = { id: crypto.randomUUID(), title, content, category, color: "green" };
+    setNotes((p) => [...p, item]);
+    setIsFabOpen(false);
+    toast.success("Notiz angeheftet!", { description: title });
+    await supabase.from("notizen").insert(item);
+  };
+  const toggleCheckItem = async (note: NoteItem, lineIdx: number) => {
+    const lines = note.content
+      .split("\n")
+      .map((line, idx) =>
+        idx !== lineIdx
+          ? line
+          : line.includes("- [ ]")
+            ? line.replace("- [ ]", "- [x]")
+            : line.replace("- [x]", "- [ ]")
+      );
+    const newContent = lines.join("\n");
+    setNotes((p) => p.map((n) => (n.id === note.id ? { ...n, content: newContent } : n)));
+    await supabase.from("notizen").update({ content: newContent }).eq("id", note.id);
+  };
+
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setIsScanning(true);
     const toastId = toast.loading("Analysiere Produkt & MHD per KI...");
-
     const reader = new FileReader();
     reader.onload = (event) => {
       const img = new Image();
@@ -221,22 +273,17 @@ export default function DashboardPage() {
             };
             setVorrat((p) => [...p, item]);
             await supabase.from("vorrat").insert(item);
-
-            toast.success("Produkt erkannt & gespeichert!", {
+            toast.success("Produkt erkannt!", {
               id: toastId,
               description: `${data.artikel} (MHD: ${data.mhd})`
             });
-          } else {
+          } else
             toast.error("Produkt nicht erkannt", {
               id: toastId,
-              description: data.error || "Bitte bei besserem Licht wiederholen."
+              description: data.error || "Bitte erneut versuchen."
             });
-          }
         } catch {
-          toast.error("Fehler bei der Bildanalyse", {
-            id: toastId,
-            description: "Netzwerkfehler oder Server nicht erreichbar."
-          });
+          toast.error("Fehler bei der Bildanalyse", { id: toastId });
         }
         setIsScanning(false);
       };
@@ -245,70 +292,70 @@ export default function DashboardPage() {
     reader.readAsDataURL(file);
   };
 
-  const markEinkaufErledigt = async (item: EinkaufItem, status: "Erledigt" | "Offen") => {
-    setEinkauf((p) => p.map((e) => (e.id === item.id ? { ...e, status } : e)));
-    await supabase.from("einkauf").update({ status }).eq("id", item.id);
-  };
-  const deleteEinkauf = async (item: EinkaufItem) => {
-    setEinkauf((p) => p.filter((e) => e.id !== item.id));
-    await supabase.from("einkauf").delete().eq("id", item.id);
-  };
-
-  const addTodo = async (text: string, kat: string, zust: string) => {
-    const item: TodoItem = {
-      id: crypto.randomUUID(),
-      aufgabe: text,
-      kategorie: kat,
-      status: "Offen",
-      zustaendig: zust
-    };
-    setTodos((p) => [...p, item]);
-    setIsFabOpen(false);
-    await supabase.from("todos").insert(item);
-    if (zust !== activeUser) {
-      const appUrl =
-        typeof window !== "undefined" ? window.location.origin : "https://haushaltos.vercel.app";
-      fetch("https://ntfy.sh/HaushaltLenaJonas", {
-        method: "POST",
-        body: `${activeUser} hat ein neues To-Do angelegt: "${text}" (${zust})`,
-        headers: {
-          Title: "Neues To-Do",
-          Tags: "memo",
-          Actions: `http, ✅ Erledigen, ${appUrl}/api/action, method=POST, body='{"type":"todo","id":"${item.id}","action":"erledigt"}', clear=true`
-        }
-      });
+  // -------------------------------------------------------------
+  // INTELLIGENTER GLOBALER KI-VOICE ASSISTANT (Home & FAB)
+  // -------------------------------------------------------------
+  const startGlobalVoice = () => {
+    if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
+      toast.error("Spracherkennung im Browser nicht unterstützt.");
+      return;
     }
-  };
 
-  const deleteTodo = async (item: TodoItem) => {
-    setTodos((p) => p.filter((t) => t.id !== item.id));
-    await supabase.from("todos").delete().eq("id", item.id);
-  };
+    const SpeechRecognition =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    const recognition = new SpeechRecognition();
+    recognition.lang = "de-DE";
+    recognition.continuous = false;
 
-  const markAufgabeErledigt = async (item: PutzItem) => {
-    const today = new Date().toISOString().split("T")[0];
-    setAufgaben((p) => p.map((a) => (a.id === item.id ? { ...a, letztes_datum: today } : a)));
-    await supabase.from("haushalt").update({ letztes_datum: today }).eq("id", item.id);
-  };
-  const addNote = async (title: string, content: string, category: string) => {
-    const item: NoteItem = { id: crypto.randomUUID(), title, content, category, color: "green" };
-    setNotes((p) => [...p, item]);
-    setIsFabOpen(false);
-    await supabase.from("notizen").insert(item);
-  };
-  const toggleCheckItem = async (note: NoteItem, lineIdx: number) => {
-    const lines = note.content
-      .split("\n")
-      .map((line, idx) =>
-        idx !== lineIdx
-          ? line
-          : line.includes("- [ ]")
-            ? line.replace("- [ ]", "- [x]")
-            : line.replace("- [x]", "- [ ]")
-      );
-    const newContent = lines.join("\n");
-    setNotes((p) => p.map((n) => (n.id === note.id ? { ...n, content: newContent } : n)));
-    await supabase.from("notizen").update({ content: newContent }).eq("id", note.id);
+    recognition.onstart = () => {
+      setIsListeningGlobal(true);
+      toast.info("Ich höre zu... (z. B. 'Lena soll morgen Milch kaufen')", { id: "voice-toast" });
+    };
+
+    recognition.onresult = async (event: any) => {
+      const transcript = event.results[0][0].transcript;
+      toast.loading(`Verarbeite: "${transcript}"...`, { id: "voice-toast" });
+
+      try {
+        const res = await fetch("/api/parse-task", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ input: transcript, defaultUser: activeUser })
+        });
+        const parsed = await res.json();
+
+        if (parsed.type === "einkauf") {
+          await addEinkauf(parsed.text, parsed.user || "Beide");
+          toast.success(`🛒 Auf Einkaufsliste gesetzt!`, {
+            id: "voice-toast",
+            description: `${parsed.text} (${parsed.user || "Beide"})`
+          });
+        } else if (parsed.type === "notiz") {
+          await addNote(parsed.text, parsed.text, parsed.kategorie || "Allgemein");
+          toast.success(`📌 Notiz angeheftet!`, { id: "voice-toast", description: parsed.text });
+        } else {
+          await addTodo(
+            parsed.text,
+            parsed.kategorie || "Haushalt & Reparatur",
+            parsed.user || "Beide"
+          );
+          toast.success(`✅ To-Do erstellt!`, {
+            id: "voice-toast",
+            description: `${parsed.text} (${parsed.user || "Beide"})`
+          });
+        }
+      } catch {
+        toast.error("Konnte Spracheingabe nicht analysieren", { id: "voice-toast" });
+      }
+      setIsListeningGlobal(false);
+    };
+
+    recognition.onerror = () => {
+      setIsListeningGlobal(false);
+      toast.error("Spracheingabe abgebrochen", { id: "voice-toast" });
+    };
+
+    recognition.start();
   };
 
   const getEventsForDate = (dateObj: Date) => {
@@ -510,10 +557,13 @@ export default function DashboardPage() {
               offeneEinkaeufe={einkauf.filter((e) => e.status !== "Erledigt")}
               departures={departures}
               setActiveTab={setActiveTab}
+              startGlobalVoice={startGlobalVoice}
+              isListening={isListeningGlobal}
               springConfig={springConfig}
               theme={themeProps}
             />
           )}
+
           {activeTab === "todos" && (
             <TodoView
               todos={todos}
@@ -575,6 +625,8 @@ export default function DashboardPage() {
               theme={themeProps}
             />
           )}
+
+          {/* ECHTER APPLE KALENDER VIEW */}
           {activeTab === "kalender" && (
             <KalenderView
               currentDate={currentDate}
@@ -636,6 +688,18 @@ export default function DashboardPage() {
               exit={{ opacity: 0, scale: 0.85, y: 15 }}
               className="absolute right-0 bottom-16 mb-2 flex w-max flex-col items-end gap-2.5"
             >
+              <button
+                onClick={() => {
+                  startGlobalVoice();
+                  setIsFabOpen(false);
+                }}
+                className={`flex items-center gap-2.5 rounded-xl border px-3.5 py-2 shadow-lg ${themeProps.bgCard} ${themeProps.textTitle} text-xs font-bold transition-all hover:scale-105`}
+              >
+                <span>KI Voice Assistent</span>
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-600 text-white">
+                  <Mic className="h-4 w-4" />
+                </div>
+              </button>
               <button
                 onClick={() => {
                   setActiveTab("todos");
