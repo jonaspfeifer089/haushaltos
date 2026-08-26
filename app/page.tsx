@@ -44,7 +44,8 @@ import { HomeView } from "../components/HomeView";
 import { TodoView } from "../components/ToDoView";
 import { ShoppingView } from "../components/ShoppingView";
 import { ActiveWorkoutView, GymDashboardView } from "../components/GymViews";
-import { PutzplanView, VorratView, NotizenView, KalenderView } from "../components/OtherViews";
+import { KalenderView } from "../components/KalenderView";
+import { PutzplanView, VorratView, NotizenView } from "../components/OtherViews";
 
 const springConfig = { type: "spring" as const, stiffness: 400, damping: 25, mass: 0.8 };
 const tapGesture = {
@@ -107,15 +108,14 @@ export default function DashboardPage() {
       .then((d) => {
         if (Array.isArray(d))
           setDepartures(
-            d
-              .slice(0, 5)
-              .map((x: any) => ({
-                line: x.label || "U",
-                destination: x.destination || "Unbekannt",
-                time: new Date(
-                  x.realtimeDepartureTime || x.plannedDepartureTime
-                ).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })
-              }))
+            d.slice(0, 5).map((x: any) => ({
+              line: x.label || "U",
+              destination: x.destination || "Unbekannt",
+              time: new Date(x.realtimeDepartureTime || x.plannedDepartureTime).toLocaleTimeString(
+                "de-DE",
+                { hour: "2-digit", minute: "2-digit" }
+              )
+            }))
           );
       })
       .catch(() => {});

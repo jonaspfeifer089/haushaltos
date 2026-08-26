@@ -1,7 +1,5 @@
 import React, { useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Plus } from "lucide-react";
-import { CalendarEvent, PutzItem } from "../types";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface KalenderViewProps {
   currentDate: Date;
@@ -20,13 +18,11 @@ export function KalenderView({
   const [viewMode, setViewMode] = useState<AppleViewMode>("month");
   const [selectedDate, setSelectedDate] = useState<Date>(new Date(initialDate));
 
-  const { bgCard, bgItem, textTitle, textSub, isDarkMode } = theme;
+  const { bgCard, bgItem, textTitle, textSub } = theme;
 
   const today = new Date();
   const isToday = (d: Date) => d.toDateString() === today.toDateString();
-  const isSelected = (d: Date) => d.toDateString() === selectedDate.toDateString();
 
-  // Navigation handlers
   const handlePrev = () => {
     const d = new Date(currentDate);
     if (viewMode === "day") d.setDate(d.getDate() - 1);
@@ -51,7 +47,6 @@ export function KalenderView({
     setSelectedDate(now);
   };
 
-  // Hilfsdaten
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
   const monthName = currentDate.toLocaleDateString("de-DE", { month: "long" });
@@ -68,7 +63,7 @@ export function KalenderView({
     });
   };
 
-  const hours = Array.from({ length: 16 }).map((_, i) => i + 7); // 07:00 bis 22:00
+  const hours = Array.from({ length: 16 }).map((_, i) => i + 7);
 
   return (
     <div className="space-y-4">
@@ -96,7 +91,7 @@ export function KalenderView({
           </button>
         </div>
 
-        {/* Apple Segmented Control */}
+        {/* Apple Segmented Switcher */}
         <div className="flex items-center justify-between gap-3 sm:justify-end">
           <div className="flex rounded-xl bg-black/5 p-1 dark:bg-white/5">
             {(["day", "week", "month", "year"] as AppleViewMode[]).map((mode) => (
@@ -139,9 +134,7 @@ export function KalenderView({
 
       {/* Main Container */}
       <div className={`${bgCard} min-h-[550px] overflow-hidden rounded-3xl border p-4 sm:p-6`}>
-        {/* ========================================================= */}
-        {/* 1. MONATSANSICHT (Apple Standard) */}
-        {/* ========================================================= */}
+        {/* MONATSANSICHT */}
         {viewMode === "month" && (
           <div className="space-y-2">
             <div className="grid grid-cols-7 border-b border-black/5 pb-2 text-center text-[11px] font-bold tracking-wider text-slate-400 uppercase dark:border-white/5">
@@ -155,12 +148,10 @@ export function KalenderView({
             </div>
 
             <div className="grid grid-cols-7 gap-1 sm:gap-2">
-              {/* Leere Tage vor Monatsbeginn */}
               {Array.from({ length: (new Date(year, month, 1).getDay() + 6) % 7 }).map((_, i) => (
                 <div key={`empty-${i}`} className="h-24 rounded-2xl opacity-20" />
               ))}
 
-              {/* Monatstage */}
               {Array.from({ length: new Date(year, month + 1, 0).getDate() }).map((_, i) => {
                 const dayNum = i + 1;
                 const d = new Date(year, month, dayNum);
@@ -172,6 +163,7 @@ export function KalenderView({
                     key={dayNum}
                     onClick={() => {
                       setSelectedDate(d);
+                      setCurrentDate(d);
                       setViewMode("day");
                     }}
                     className={`group flex h-24 cursor-pointer flex-col justify-between rounded-2xl border p-2 transition-all sm:h-28 ${
@@ -211,12 +203,9 @@ export function KalenderView({
           </div>
         )}
 
-        {/* ========================================================= */}
-        {/* 2. WOCHENANSICHT (Apple Multi-Column Timeline) */}
-        {/* ========================================================= */}
+        {/* WOCHENANSICHT */}
         {viewMode === "week" && (
           <div className="space-y-4">
-            {/* Header Tage */}
             <div className="grid grid-cols-7 gap-2 border-b border-black/5 pb-3 text-center dark:border-white/5">
               {getWeekDays().map((d, i) => {
                 const activeToday = isToday(d);
@@ -239,7 +228,6 @@ export function KalenderView({
               })}
             </div>
 
-            {/* Wochen-Spalten */}
             <div className="grid grid-cols-7 gap-2">
               {getWeekDays().map((d, i) => {
                 const events = getEventsForDate(d);
@@ -267,9 +255,7 @@ export function KalenderView({
           </div>
         )}
 
-        {/* ========================================================= */}
-        {/* 3. TAGESANSICHT (Apple Schedule Time-Grid) */}
-        {/* ========================================================= */}
+        {/* TAGESANSICHT */}
         {viewMode === "day" && (
           <div className="space-y-6">
             <div className="flex items-center gap-3 border-b border-black/5 pb-4 dark:border-white/5">
@@ -290,7 +276,6 @@ export function KalenderView({
               </div>
             </div>
 
-            {/* Tages-Stunden-Grid */}
             <div className="max-h-[420px] space-y-3 overflow-y-auto pr-2">
               {hours.map((hour) => {
                 const hourStr = `${String(hour).padStart(2, "0")}:00`;
@@ -326,9 +311,7 @@ export function KalenderView({
           </div>
         )}
 
-        {/* ========================================================= */}
-        {/* 4. JAHRESÜBERSICHT (Apple 12-Monate Heatmap Grid) */}
-        {/* ========================================================= */}
+        {/* JAHRESANSICHT */}
         {viewMode === "year" && (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             {Array.from({ length: 12 }).map((_, mIdx) => {
