@@ -67,10 +67,24 @@ export function FinanceView({ theme }: FinanceViewProps) {
   const [fokusMonat, setFokusMonat] = useState<number>(8);
   const [zielDatum, setZielDatum] = useState<string>("2026-08-31");
 
-  // Sonderausgaben & Backlog
-  const [sonderausgaben, setSonderausgaben] = useState<Sonderausgabe[]>([]);
-  const [backlog, setBacklog] = useState<BacklogItem[]>([]);
-  const [backlogDates, setBacklogDates] = useState<Record<string, string>>({});
+  // 1:1 INITIAL-WERTE AUS DEM SCREENSHOT
+  const [sonderausgaben, setSonderausgaben] = useState<Sonderausgabe[]>([
+    { id: "1", was: "Miete", hoehe: 380.0, wann: "2026-09-01" },
+    { id: "2", was: "Geburtstagsgeschenk Lena", hoehe: 200.0, wann: "2026-09-05" },
+    { id: "3", was: "Urlaub Gardasee", hoehe: 300.0, wann: "2026-09-22" },
+    { id: "4", was: "Miete", hoehe: 380.0, wann: "2026-10-01" },
+    { id: "5", was: "Miete", hoehe: 380.0, wann: "2026-11-01" },
+    { id: "6", was: "Weihnachtsgeschenke", hoehe: 450.0, wann: "2026-11-20" },
+    { id: "7", was: "Valentinstag", hoehe: 250.0, wann: "2027-02-14" },
+    { id: "8", was: "Urlaub 2027", hoehe: 2000.0, wann: "2027-03-15" }
+  ]);
+
+  const [backlog, setBacklog] = useState<BacklogItem[]>([
+    { id: "b1", was: "Braun Series 9 Pro", hoehe: 250.0 }
+  ]);
+  const [backlogDates, setBacklogDates] = useState<Record<string, string>>({
+    b1: "2026-08-26"
+  });
 
   // Inputs
   const [neuWas, setNeuWas] = useState("");
@@ -117,7 +131,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
         .from("sonderausgaben")
         .select("*")
         .eq("status", "Offen");
-      if (listRes) {
+      if (listRes && listRes.length > 0) {
         const active: Sonderausgabe[] = [];
         const bLog: BacklogItem[] = [];
         listRes.forEach((row: any) => {
@@ -249,6 +263,9 @@ export function FinanceView({ theme }: FinanceViewProps) {
     return boni[m] || 0.0;
   };
 
+  // -------------------------------------------------------------
+  // SIMULATION (1:1 PYTHON/STREAMLIT LOGIK)
+  // -------------------------------------------------------------
   const simulationsMonate: { jahr: number; monat: number }[] = [
     ...[8, 9, 10, 11, 12].map((m) => ({ jahr: 2026, monat: m })),
     ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => ({ jahr: 2027, monat: m }))
@@ -398,16 +415,14 @@ export function FinanceView({ theme }: FinanceViewProps) {
     await supabase.from("wishlist_items").delete().eq("id", id);
   };
 
-  // -------------------------------------------------------------
-  // 3 DIVERGENTE, KLARE FARBEN FÜR DAS DIAGRAMM
-  // -------------------------------------------------------------
-  const colorEingang = isDarkMode ? "#2EC4B6" : "#028090"; // Sattes Petrol/Türkis (Inflows)
-  const colorAusgaben = isDarkMode ? "#E76F51" : "#3D405B"; // Warmes Schiefer-Anthrazit / Terracotta (Outflows)
-  const colorBudget = isDarkMode ? "#82CBEE" : "#003566"; // Tiefes Königs-Navy (Budget Linie)
+  // 3 KLARE FARBEN
+  const colorEingang = isDarkMode ? "#2EC4B6" : "#028090";
+  const colorAusgaben = isDarkMode ? "#E76F51" : "#3D405B";
+  const colorBudget = isDarkMode ? "#82CBEE" : "#003566";
 
-  // Chart Geometrie (Mit Sicherheitsabstand oben & rechts)
+  // Chart
   const maxCashflow = 2200;
-  const maxBudget = 16000; // Erhöht auf 16k, damit die Linie oben niemals abgeschnitten wird
+  const maxBudget = 16000;
   const chartHeight = 220;
   const svgWidth = 800;
   const numPoints = prognoseListe.length;
@@ -418,7 +433,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
 
   const points = prognoseListe.map((p, idx) => {
     const x = paddingLeft + idx * slotWidth;
-    // Y-Koordinate mit 12px Top-Padding
     const y = Math.max(
       12,
       chartHeight - (Math.max(0, p.freiVerfuegbar) / maxBudget) * (chartHeight - 20)
@@ -465,7 +479,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
     <div className="space-y-10">
       {/* 1. TOP KONTROLLZENTRUM & TAKTISCHER AUSBLICK */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-        {/* LINKE SPALTE: KONTROLLZENTRUM */}
+        {/* LINKE SPALTE */}
         <div className="space-y-6 lg:col-span-4">
           <div className={`${bgCard} space-y-4 rounded-2xl border p-5 shadow-sm`}>
             <h3 className={`text-xs font-bold tracking-wider uppercase ${textTitle}`}>
@@ -556,7 +570,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
           </div>
         </div>
 
-        {/* RECHTE SPALTE: TAKTISCHER AUSBLICK & 3-FARBIGES DIAGRAMM */}
+        {/* RECHTE SPALTE */}
         <div className="space-y-6 lg:col-span-8">
           <div>
             <h2 className={`text-lg font-bold ${textTitle}`}>Taktischer Ausblick (2026 - 2027)</h2>
@@ -565,7 +579,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
             </p>
           </div>
 
-          {/* Einheitliche Matrix-Tabelle */}
+          {/* 1:1 EXAKTE MATRIX-TABELLE */}
           <div
             className={`overflow-x-auto rounded-2xl border ${isDarkMode ? "border-white/[0.08] bg-[#140C0E]" : "border-[#E8E2D9] bg-[#FFFFFF]"} shadow-xs`}
           >
@@ -619,7 +633,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
                       key={i}
                       className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center font-medium last:border-r-0`}
                     >
-                      {p.gehaltEnde.toFixed(0)}
+                      {p.gehaltEnde % 1 === 0 ? p.gehaltEnde.toFixed(0) : p.gehaltEnde.toFixed(2)}
                     </td>
                   ))}
                 </tr>
@@ -664,7 +678,9 @@ export function FinanceView({ theme }: FinanceViewProps) {
                       key={i}
                       className={`border-r ${isDarkMode ? "border-white/[0.08]" : "border-[#E8E2D9]"} p-2 text-center ${accentBlue} last:border-r-0`}
                     >
-                      {p.freiVerfuegbar.toFixed(0)}
+                      {p.freiVerfuegbar % 1 === 0
+                        ? p.freiVerfuegbar.toFixed(0)
+                        : p.freiVerfuegbar.toFixed(2)}
                     </td>
                   ))}
                 </tr>
@@ -672,7 +688,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
             </table>
           </div>
 
-          {/* DIAGRAMM MIT 3 KLAR ERKENNBAREN FARBEN & SAUBEREN RÄNDERN */}
+          {/* DIAGRAMM */}
           <div className={`${bgCard} space-y-3 rounded-2xl border p-5 shadow-sm`}>
             <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
               <h3 className={`text-xs font-bold tracking-wider uppercase ${textTitle}`}>
@@ -707,7 +723,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
 
             <div className="relative pt-2">
               <div className="flex">
-                {/* Y-Achse Links */}
                 <div
                   className={`flex h-48 flex-col justify-between pr-2 text-right font-mono text-[9px] font-bold ${textSub}`}
                 >
@@ -718,7 +733,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
                   <span>0</span>
                 </div>
 
-                {/* Plot Area */}
                 <div
                   className={`relative h-48 flex-1 border-b border-l ${isDarkMode ? "border-white/[0.08]" : "border-black/[0.08]"} overflow-hidden`}
                 >
@@ -727,7 +741,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
                     preserveAspectRatio="none"
                     className="h-full w-full"
                   >
-                    {/* Horizontale Hilfslinien */}
                     <line
                       x1="0"
                       y1="12"
@@ -765,7 +778,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
                       strokeDasharray="3 3"
                     />
 
-                    {/* 1. Eingang & 2. Ausgaben Balken */}
                     {prognoseListe.map((p, idx) => {
                       const xCenter = paddingLeft + idx * slotWidth;
                       const barW = 6;
@@ -776,7 +788,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
 
                       return (
                         <g key={idx}>
-                          {/* Eingang (Farbe 1: Petrol/Türkis) */}
                           <rect
                             x={xCenter - barW - 1}
                             y={yIn}
@@ -785,7 +796,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
                             fill={colorEingang}
                             rx={1}
                           />
-                          {/* Ausgaben (Farbe 2: Schiefer-Anthrazit) */}
                           <rect
                             x={xCenter + 1}
                             y={yOut}
@@ -798,15 +808,12 @@ export function FinanceView({ theme }: FinanceViewProps) {
                       );
                     })}
 
-                    {/* 3. Budget-Linie (Farbe 3: Königs-Navy) */}
                     <polyline
                       fill="none"
                       stroke={colorBudget}
                       strokeWidth="2.5"
                       points={linePoints}
                     />
-
-                    {/* Datenpunkte */}
                     {points.map((pt, idx) => (
                       <circle
                         key={idx}
@@ -821,7 +828,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
                   </svg>
                 </div>
 
-                {/* Y-Achse Rechts */}
                 <div
                   className="flex h-48 flex-col justify-between pl-2 text-left font-mono text-[9px] font-bold"
                   style={{ color: colorBudget }}
@@ -834,7 +840,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 </div>
               </div>
 
-              {/* X-Achse Monate */}
               <div
                 className={`mt-2 flex justify-between pr-8 pl-6 font-mono text-[9px] font-bold ${textSub}`}
               >
@@ -849,7 +854,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
         </div>
       </div>
 
-      {/* 2. SONDERAUSGABEN & BACKLOG */}
+      {/* 2. GEPLANTE SONDERBUDGETS (1:1 DATEN) & BACKLOG */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
         <div className={`${bgCard} space-y-4 rounded-2xl border p-5 shadow-sm`}>
           <div className="flex items-center justify-between">
@@ -868,8 +873,15 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 className={`flex items-center justify-between rounded-xl border p-3.5 ${bgItem}`}
               >
                 <div>
-                  <span className={`text-xs font-semibold ${textTitle} block`}>{item.was}</span>
-                  <span className={`text-[10px] font-medium ${textSub}`}>{item.wann}</span>
+                  <span className={`text-xs font-semibold ${textTitle} block`}>🏷️ {item.was}</span>
+                  <span className={`text-[10px] font-medium ${textSub}`}>
+                    📅 Datum:{" "}
+                    {new Date(item.wann).toLocaleDateString("de-DE", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric"
+                    })}
+                  </span>
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`font-mono text-xs font-bold ${textTitle}`}>
@@ -879,7 +891,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
                     onClick={() => handleDeleteAusgabe(item.id, true)}
                     className="flex h-7 items-center gap-1 rounded-lg border border-black/10 px-2 text-[11px] font-semibold opacity-80 hover:opacity-100 dark:border-white/10"
                   >
-                    <Check className="h-3 w-3" /> Erledigt
+                    <Check className="h-3 w-3" /> Erledigt 💸
                   </button>
                   <button
                     onClick={() => handleDeleteAusgabe(item.id, false)}
@@ -934,7 +946,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 className={`flex flex-col justify-between gap-2 rounded-xl border p-3 sm:flex-row sm:items-center ${bgItem}`}
               >
                 <div>
-                  <span className={`text-xs font-semibold ${textTitle} block`}>{item.was}</span>
+                  <span className={`text-xs font-semibold ${textTitle} block`}>💭 {item.was}</span>
                   <span className={`font-mono text-xs font-bold ${accentBlue}`}>
                     {item.hoehe.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
                   </span>
@@ -950,7 +962,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
                     onClick={() => handlePlanBacklog(item)}
                     className={`flex h-7 items-center gap-1 rounded-lg px-2 text-[11px] font-bold ${buttonPrimary}`}
                   >
-                    Planen
+                    Planen ⬆️
                   </button>
                   <button
                     onClick={() => handleDeleteBacklog(item.id)}
@@ -985,7 +997,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
         </div>
 
         <div className="space-y-4">
-          {/* Produktivität/Home */}
           <div className={`${bgCard} space-y-3 rounded-2xl border p-5 shadow-sm`}>
             <div
               onClick={() => toggleSection("Produktivität/Home")}
@@ -1031,7 +1042,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
             )}
           </div>
 
-          {/* Lifestyle */}
           <div className={`${bgCard} space-y-4 rounded-2xl border p-5 shadow-sm`}>
             <div
               onClick={() => toggleSection("Lifestyle")}
@@ -1050,7 +1060,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
 
             {openSections["Lifestyle"] && (
               <div className="space-y-5 pt-1 pl-4">
-                {/* Oberteile */}
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <span className="text-sm">🎽</span>
@@ -1088,7 +1097,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
                             </button>
                           </div>
 
-                          {/* Embed Card */}
                           {item.embed_url && (
                             <a
                               href={item.embed_url}
@@ -1133,7 +1141,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
                   </div>
                 </div>
 
-                {/* Hosen */}
                 <div className="space-y-2 pt-2">
                   <div className="flex items-center gap-2">
                     <span className="text-sm">👖</span>
@@ -1173,7 +1180,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
           </div>
         </div>
 
-        {/* Modal */}
         {showAddModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
             <div
