@@ -880,9 +880,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div
-                    className={`rounded-lg border ${bgInput} px-2.5 py-1 font-mono text-[11px] font-medium text-slate-700 dark:text-slate-200`}
-                  >
+                  <div className={`rounded-lg border ${bgInput} p-1 text-[10px] font-medium`}>
                     {new Date(item.wann).toLocaleDateString("de-DE", {
                       day: "2-digit",
                       month: "2-digit",
