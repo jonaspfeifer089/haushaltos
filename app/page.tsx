@@ -25,8 +25,8 @@ import {
 import { toast } from "sonner";
 import { supabase } from "../lib/supabaseClient";
 import { TrendingUp } from "lucide-react";
-import { SleepCalculator } from "./SleepCalculator";
 import { FinanceView } from "../components/FinanceView";
+import { SleepCalculator } from "../components/SleepCalculator";
 
 import {
   Departure,
