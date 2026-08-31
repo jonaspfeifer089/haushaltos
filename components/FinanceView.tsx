@@ -741,6 +741,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
                     preserveAspectRatio="none"
                     className="h-full w-full"
                   >
+                    {/* Hilfslinien */}
                     <line
                       x1="0"
                       y1="12"
@@ -778,51 +779,61 @@ export function FinanceView({ theme }: FinanceViewProps) {
                       strokeDasharray="3 3"
                     />
 
+                    {/* MAXIMAL BREITE BALKEN */}
                     {prognoseListe.map((p, idx) => {
                       const xCenter = paddingLeft + idx * slotWidth;
-                      const barW = 6;
+                      // Dynamisch maximale Breite (ca. 18-20px pro Balken)
+                      const barW = Math.max(16, Math.floor(slotWidth * 0.42));
+                      const gap = 2;
+
                       const hIn = (p.gehaltEnde / maxCashflow) * (chartHeight - 12);
                       const yIn = chartHeight - hIn;
+
                       const hOut = (p.ausgabenGesamt / maxCashflow) * (chartHeight - 12);
                       const yOut = chartHeight - hOut;
 
                       return (
                         <g key={idx}>
+                          {/* Eingang (Breit & Petrol) */}
                           <rect
-                            x={xCenter - barW - 1}
+                            x={xCenter - barW - gap / 2}
                             y={yIn}
                             width={barW}
                             height={hIn}
                             fill={colorEingang}
-                            rx={1}
+                            rx={3}
                           />
+                          {/* Ausgaben (Breit & Schiefer) */}
                           <rect
-                            x={xCenter + 1}
+                            x={xCenter + gap / 2}
                             y={yOut}
                             width={barW}
                             height={hOut}
                             fill={colorAusgaben}
-                            rx={1}
+                            rx={3}
                           />
                         </g>
                       );
                     })}
 
+                    {/* Budget-Linie */}
                     <polyline
                       fill="none"
                       stroke={colorBudget}
                       strokeWidth="2.5"
                       points={linePoints}
                     />
+
+                    {/* Datenpunkte */}
                     {points.map((pt, idx) => (
                       <circle
                         key={idx}
                         cx={pt.x}
                         cy={pt.y}
-                        r="3.5"
+                        r="4"
                         fill={colorBudget}
                         stroke={isDarkMode ? "#140C0E" : "#FFFFFF"}
-                        strokeWidth="1.5"
+                        strokeWidth="2"
                       />
                     ))}
                   </svg>
