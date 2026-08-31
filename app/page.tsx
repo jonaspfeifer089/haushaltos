@@ -25,6 +25,7 @@ import {
 import { toast } from "sonner";
 import { supabase } from "../lib/supabaseClient";
 import { TrendingUp } from "lucide-react";
+import { SleepCalculator } from "./SleepCalculator";
 import { FinanceView } from "../components/FinanceView";
 
 import {
@@ -548,23 +549,28 @@ export default function DashboardPage() {
 
         <div className="mx-auto w-full max-w-[1400px] space-y-5 p-3.5 pb-[calc(env(safe-area-inset-bottom)+7rem)] md:space-y-8 md:p-8">
           {activeTab === "home" && (
-            <HomeView
-              activeUser={activeUser}
-              todayStr={todayStr}
-              weather={weather}
-              weatherTip={weatherTip}
-              locationName={locationName}
-              countdowns={countdowns}
-              termine={termine}
-              offeneTodos={todos.filter((t) => t.status !== "Erledigt")}
-              offeneEinkaeufe={einkauf.filter((e) => e.status !== "Erledigt")}
-              departures={departures}
-              setActiveTab={setActiveTab}
-              startGlobalVoice={startGlobalVoice}
-              isListening={isListeningGlobal}
-              springConfig={springConfig}
-              theme={themeProps}
-            />
+            <div className="space-y-6">
+              <HomeView
+                activeUser={activeUser}
+                todayStr={todayStr}
+                weather={weather}
+                weatherTip={weatherTip}
+                locationName={locationName}
+                countdowns={countdowns}
+                termine={termine}
+                offeneTodos={todos.filter((t) => t.status !== "Erledigt")}
+                offeneEinkaeufe={einkauf.filter((e) => e.status !== "Erledigt")}
+                departures={departures}
+                setActiveTab={setActiveTab}
+                startGlobalVoice={startGlobalVoice}
+                isListening={isListeningGlobal}
+                springConfig={springConfig}
+                theme={themeProps}
+              />
+
+              {/* SMART SLEEP & WECKER-RECHNER */}
+              <SleepCalculator theme={themeProps} />
+            </div>
           )}
 
           {activeTab === "todos" && (
