@@ -854,8 +854,9 @@ export function FinanceView({ theme }: FinanceViewProps) {
         </div>
       </div>
 
-      {/* 2. GEPLANTE SONDERBUDGETS (1:1 DATEN) & BACKLOG */}
+      {/* 2. GEPLANTE SONDERBUDGETS & BACKLOG (1:1 IDENTISCHES DESIGN) */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+        {/* SONDERBUDGETS (LINKS) */}
         <div className={`${bgCard} space-y-4 rounded-2xl border p-5 shadow-sm`}>
           <div className="flex items-center justify-between">
             <h3 className={`text-xs font-bold tracking-wider uppercase ${textTitle}`}>
@@ -870,32 +871,33 @@ export function FinanceView({ theme }: FinanceViewProps) {
             {sonderausgaben.map((item) => (
               <div
                 key={item.id}
-                className={`flex items-center justify-between rounded-xl border p-3.5 ${bgItem}`}
+                className={`flex flex-col justify-between gap-2 rounded-xl border p-3.5 sm:flex-row sm:items-center ${bgItem}`}
               >
                 <div>
-                  <span className={`text-xs font-semibold ${textTitle} block`}>🏷️ {item.was}</span>
-                  <span className={`text-[10px] font-medium ${textSub}`}>
-                    📅 Datum:{" "}
+                  <span className={`text-xs font-semibold ${textTitle} block`}>{item.was}</span>
+                  <span className={`font-mono text-xs font-bold ${accentBlue}`}>
+                    {item.hoehe.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div
+                    className={`rounded-lg border ${bgInput} px-2.5 py-1 font-mono text-[11px] font-medium text-slate-700 dark:text-slate-200`}
+                  >
                     {new Date(item.wann).toLocaleDateString("de-DE", {
                       day: "2-digit",
                       month: "2-digit",
                       year: "numeric"
                     })}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className={`font-mono text-xs font-bold ${textTitle}`}>
-                    {item.hoehe.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
-                  </span>
+                  </div>
                   <button
                     onClick={() => handleDeleteAusgabe(item.id, true)}
-                    className="flex h-7 items-center gap-1 rounded-lg border border-black/10 px-2 text-[11px] font-semibold opacity-80 hover:opacity-100 dark:border-white/10"
+                    className={`flex h-7 items-center gap-1 rounded-lg px-2.5 text-[11px] font-bold ${buttonPrimary}`}
                   >
-                    <Check className="h-3 w-3" /> Erledigt 💸
+                    Erledigt 💸
                   </button>
                   <button
                     onClick={() => handleDeleteAusgabe(item.id, false)}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-rose-500 opacity-60 hover:opacity-100"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-rose-500 opacity-60 transition-all hover:opacity-100"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
@@ -908,6 +910,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
           </div>
         </div>
 
+        {/* BACKLOG (RECHTS) */}
         <div className={`${bgCard} space-y-4 rounded-2xl border p-5 shadow-sm`}>
           <div>
             <h3 className={`text-xs font-bold tracking-wider uppercase ${textTitle}`}>
@@ -943,10 +946,10 @@ export function FinanceView({ theme }: FinanceViewProps) {
             {backlog.map((item) => (
               <div
                 key={item.id}
-                className={`flex flex-col justify-between gap-2 rounded-xl border p-3 sm:flex-row sm:items-center ${bgItem}`}
+                className={`flex flex-col justify-between gap-2 rounded-xl border p-3.5 sm:flex-row sm:items-center ${bgItem}`}
               >
                 <div>
-                  <span className={`text-xs font-semibold ${textTitle} block`}>💭 {item.was}</span>
+                  <span className={`text-xs font-semibold ${textTitle} block`}>{item.was}</span>
                   <span className={`font-mono text-xs font-bold ${accentBlue}`}>
                     {item.hoehe.toLocaleString("de-DE", { minimumFractionDigits: 2 })} €
                   </span>
@@ -960,19 +963,22 @@ export function FinanceView({ theme }: FinanceViewProps) {
                   />
                   <button
                     onClick={() => handlePlanBacklog(item)}
-                    className={`flex h-7 items-center gap-1 rounded-lg px-2 text-[11px] font-bold ${buttonPrimary}`}
+                    className={`flex h-7 items-center gap-1 rounded-lg px-2.5 text-[11px] font-bold ${buttonPrimary}`}
                   >
                     Planen ⬆️
                   </button>
                   <button
                     onClick={() => handleDeleteBacklog(item.id)}
-                    className="flex h-7 w-7 items-center justify-center rounded-lg text-rose-500 opacity-60 hover:opacity-100"
+                    className="flex h-7 w-7 items-center justify-center rounded-lg text-rose-500 opacity-60 transition-all hover:opacity-100"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </div>
             ))}
+            {backlog.length === 0 && (
+              <p className={`p-4 text-center text-xs ${textSub}`}>Backlog ist leer.</p>
+            )}
           </div>
         </div>
       </div>
