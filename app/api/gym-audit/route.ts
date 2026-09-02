@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { supabase } from "@/lib/supabaseClient";
 
 export async function POST(req: Request) {
   try {
@@ -17,77 +16,31 @@ export async function POST(req: Request) {
       );
     }
 
-    let records = clientData;
-
-    // Falls vom Client keine Daten mitgegeben wurden, Abfrage über Supabase
-    if (!records || records.length === 0) {
-      // Test 1: Spaltenname 'username'
-      let { data, error } = await supabase
-        .from("gym_data")
-        .select("*")
-        .eq("username", user)
-        .order("datum", { ascending: true });
-
-      // Test 2: Spaltenname 'user'
-      if (error || !data || data.length === 0) {
-        const fallback = await supabase
-          .from("gym_data")
-          .select("*")
-          .eq("user", user)
-          .order("datum", { ascending: true });
-
-        if (!fallback.error && fallback.data) {
-          data = fallback.data;
-          error = null;
-        }
-      }
-
-      if (error) {
-        console.error("Detaillierter Supabase-Fehler:", error);
-        return NextResponse.json(
-          { error: `Datenbankfehler: ${error.message} (Code: ${error.code})` },
-          { status: 500 }
-        );
-      }
-      records = data;
-    }
-
-    // Nur Daten des aktuellen Users filtern (falls gemischt übergeben)
-    const userRecords = (records || []).filter((r: any) => r.username === user || r.user === user);
+    // Verwende direkt die Daten aus dem Frontend-State
+    const userRecords = (clientData || []).filter(
+      (r: any) =>
+        (r.username && r.username.toLowerCase() === user.toLowerCase()) ||
+        (r.user && r.user.toLowerCase() === user.toLowerCase())
+    );
 
     if (userRecords.length === 0) {
       return NextResponse.json({
-        report: `Es liegen für Athlet "${user}" noch keine protokollierten Trainingssätze vor. Starte zuerst ein Workout und trage Sätze ein.`
+        report: `Es liegen für Athlet "${user}" noch keine Trainingsdaten vor. Bitte prüfe, ob Workouts eingetragen sind.`
       });
     }
 
-    // Nach Datum aggregieren
+    // Trainings nach Datum gruppieren
     const sessionsByDate: Record<string, any[]> = {};
     userRecords.forEach((row: any) => {
       const d = row.datum || row.created_at || "Unbekannt";
       if (!sessionsByDate[d]) sessionsByDate[d] = [];
       sessionsByDate[d].push({
-        uebung: row.uebung,
-        gewicht: row.gewicht,
-        reps: row.reps
+        uebung: row.uebung || row.exercise || row.name,
+        gewicht: row.gewicht || row.weight || 0,
+        reps: row.reps || row.wiederholungen || 0
       });
     });
 
-    const systemPrompt = `Du bist ein weltklasse Strength & Conditioning Coach und Sportwissenschaftler.
-Deine Aufgabe ist ein unvoreingenommenes, absolut sachliches, evidenzbasiertes und gnadenlos ehrliches Performance-Audit der Trainingshistorie von Athlet "${user}".
-Verboten sind: Floskeln, Schönfärberei, unangebrachtes Schulterklopfen. 
-Wenn der Athlet stagniert, zu wenig Intensität zeigt, Übungen meidet oder unbalanciert trainiert, benenne es exakt mit Daten und Fakten.
-
-Gliedere deine Analyse zwingend in folgende Abschnitte:
-1. 📊 MAKRO-ÜBERSICHT & KONSISTENZ (Frequenz, Entwicklung des Satz- und Tonnage-Volumens)
-2. 📈 PROGRESSIVE OVERLOAD AUDIT (Wo gab es messbare Progression? Wo herrscht Stagnation oder Scheinsicherheit?)
-3. ⚖️ ANATOMISCHE BALANCE & MUSKELKETTEN (Push vs. Pull, Verhältnis der Muskelgruppen, Disbalancen & Verletzungsrisiken)
-4. 🥊 SCHONUNGSLOSE KRITIK & EFFIZIENZFRESSER (Was läuft objektiv ineffizient? Junk Volume, ineffiziente Satzstrukturen, fehlende Ausbelastung)
-5. 🎯 DIE 3 PRIORITÄREN KORREKTUREN (Konkrete, sofort umsetzbare Vorgaben für den nächsten Trainingszyklus)`;
-
-    const userContent = `Hier sind die vollständigen Trainingsprotokolle sortiert nach Datum:\n\n${JSON.stringify(sessionsByDate, null, 2)}`;
-
-    // Gemini API Call mit system_instruction und ausreichend Tokens
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
 
     const res = await fetch(geminiUrl, {
@@ -131,7 +84,6 @@ Gliedere deine Analyse zwingend in folgende 5 Abschnitte:
 
     if (!res.ok) {
       const errBody = await res.text();
-      console.error("Gemini API Error:", errBody);
       return NextResponse.json(
         { error: `Gemini API meldet Fehler (${res.status}): ${errBody}` },
         { status: 500 }
@@ -144,7 +96,6 @@ Gliedere deine Analyse zwingend in folgende 5 Abschnitte:
 
     return NextResponse.json({ report: reportText });
   } catch (err: any) {
-    console.error("Gym Audit Server Error:", err);
     return NextResponse.json({ error: err.message || "Interner Serverfehler" }, { status: 500 });
   }
 }
