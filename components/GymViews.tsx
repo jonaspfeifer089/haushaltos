@@ -277,7 +277,7 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
     isDarkMode
   } = theme;
 
-  const userGymData = gymData.filter((g: GymItem) => g.username === activeUser);
+  const userGymData = (gymData || []).filter((g: GymItem) => g.username === activeUser);
   const activeExerciseName = gymUebung.trim() || PUSH_ROUTINE[0];
 
   const exerciseSets = userGymData
@@ -468,7 +468,12 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
         </div>
       </div>
 
-      <GymAuditView activeUser={activeUser} gymData={gymData} theme={theme} />
+      {/* WISSENSCHAFTLICHES PERFORMANCE AUDIT */}
+      <GymAuditView
+        activeUser={activeUser}
+        gymData={userGymData.length > 0 ? userGymData : gymData}
+        theme={theme}
+      />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div
