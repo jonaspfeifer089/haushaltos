@@ -4,8 +4,10 @@ export async function POST(req: Request) {
   try {
     const { user, clientData } = await req.json();
 
-    if (!user) {
-      return NextResponse.json({ error: "Kein User übergeben" }, { status: 400 });
+    if (!clientData || !Array.isArray(clientData) || clientData.length === 0) {
+      return NextResponse.json({
+        report: `Es wurden keine Trainingsdaten an die Analyse übergeben (Array ist leer).`
+      });
     }
 
     const apiKey = process.env.GEMINI_API_KEY;
@@ -16,28 +18,27 @@ export async function POST(req: Request) {
       );
     }
 
-    // Verwende direkt die Daten aus dem Frontend-State
-    const userRecords = (clientData || []).filter(
-      (r: any) =>
-        (r.username && r.username.toLowerCase() === user.toLowerCase()) ||
-        (r.user && r.user.toLowerCase() === user.toLowerCase())
+    // Falls User-Feld existiert, filtern; sonst alle Daten verwenden
+    let userRecords = clientData.filter((r: any) =>
+      !r.username && !r.user
+        ? true
+        : r.username?.toLowerCase() === user?.toLowerCase() ||
+          r.user?.toLowerCase() === user?.toLowerCase()
     );
 
     if (userRecords.length === 0) {
-      return NextResponse.json({
-        report: `Es liegen für Athlet "${user}" noch keine Trainingsdaten vor. Bitte prüfe, ob Workouts eingetragen sind.`
-      });
+      userRecords = clientData;
     }
 
     // Trainings nach Datum gruppieren
     const sessionsByDate: Record<string, any[]> = {};
     userRecords.forEach((row: any) => {
-      const d = row.datum || row.created_at || "Unbekannt";
+      const d = row.datum || row.created_at || "Training";
       if (!sessionsByDate[d]) sessionsByDate[d] = [];
       sessionsByDate[d].push({
-        uebung: row.uebung || row.exercise || row.name,
-        gewicht: row.gewicht || row.weight || 0,
-        reps: row.reps || row.wiederholungen || 0
+        uebung: row.uebung || row.exercise || row.name || "Übung",
+        gewicht: Number(row.gewicht ?? row.weight ?? 0),
+        reps: Number(row.reps ?? row.wiederholungen ?? 0)
       });
     });
 
