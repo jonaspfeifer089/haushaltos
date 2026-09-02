@@ -468,7 +468,7 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
         </div>
       </div>
 
-      <GymAuditView activeUser={activeUser} theme={theme} />
+      <GymAuditView activeUser={activeUser} gymData={gymData} theme={theme} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div

@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabaseClient";
 
 export async function POST(req: Request) {
   try {
-    const { user } = await req.json();
+    const { user, clientData } = await req.json();
 
     if (!user) {
       return NextResponse.json({ error: "Kein User übergeben" }, { status: 400 });
@@ -17,29 +17,56 @@ export async function POST(req: Request) {
       );
     }
 
-    // 1. Alle bisherigen Trainingsdaten für den User aus Supabase holen
-    const { data: gymData, error: dbError } = await supabase
-      .from("gym_data")
-      .select("*")
-      .eq("username", user)
-      .order("datum", { ascending: true });
+    let records = clientData;
 
-    if (dbError) {
-      console.error("Supabase Error:", dbError);
-      return NextResponse.json({ error: "Datenbank-Abfrage fehlgeschlagen." }, { status: 500 });
+    // Falls vom Client keine Daten mitgegeben wurden, Abfrage über Supabase
+    if (!records || records.length === 0) {
+      // Test 1: Spaltenname 'username'
+      let { data, error } = await supabase
+        .from("gym_data")
+        .select("*")
+        .eq("username", user)
+        .order("datum", { ascending: true });
+
+      // Test 2: Spaltenname 'user'
+      if (error || !data || data.length === 0) {
+        const fallback = await supabase
+          .from("gym_data")
+          .select("*")
+          .eq("user", user)
+          .order("datum", { ascending: true });
+
+        if (!fallback.error && fallback.data) {
+          data = fallback.data;
+          error = null;
+        }
+      }
+
+      if (error) {
+        console.error("Detaillierter Supabase-Fehler:", error);
+        return NextResponse.json(
+          { error: `Datenbankfehler: ${error.message} (Code: ${error.code})` },
+          { status: 500 }
+        );
+      }
+      records = data;
     }
 
-    if (!gymData || gymData.length === 0) {
+    // Nur Daten des aktuellen Users filtern (falls gemischt übergeben)
+    const userRecords = (records || []).filter((r: any) => r.username === user || r.user === user);
+
+    if (userRecords.length === 0) {
       return NextResponse.json({
-        report: `Es liegen für Athlet "${user}" noch keine protokollierten Trainingssätze in Supabase vor. Starte zuerst Workouts, damit fundierte Daten analysiert werden können.`
+        report: `Es liegen für Athlet "${user}" noch keine protokollierten Trainingssätze vor. Starte zuerst ein Workout und trage Sätze ein.`
       });
     }
 
-    // 2. Daten kompakt aggregieren, um Kontext-Fenster optimal zu nutzen
+    // Nach Datum aggregieren
     const sessionsByDate: Record<string, any[]> = {};
-    gymData.forEach((row: any) => {
-      if (!sessionsByDate[row.datum]) sessionsByDate[row.datum] = [];
-      sessionsByDate[row.datum].push({
+    userRecords.forEach((row: any) => {
+      const d = row.datum || row.created_at || "Unbekannt";
+      if (!sessionsByDate[d]) sessionsByDate[d] = [];
+      sessionsByDate[d].push({
         uebung: row.uebung,
         gewicht: row.gewicht,
         reps: row.reps
@@ -60,7 +87,7 @@ Gliedere deine Analyse zwingend in folgende Abschnitte:
 
     const userContent = `Hier sind die vollständigen Trainingsprotokolle sortiert nach Datum:\n\n${JSON.stringify(sessionsByDate, null, 2)}`;
 
-    // 3. Nativer Gemini REST-Call (stabil, schnell, ohne SDK-Dependency)
+    // Gemini API Call
     const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
 
     const res = await fetch(geminiUrl, {
@@ -74,7 +101,7 @@ Gliedere deine Analyse zwingend in folgende Abschnitte:
           }
         ],
         generationConfig: {
-          temperature: 0.2, // Sehr niedrig für maximale Sachlichkeit und Validität
+          temperature: 0.2,
           maxOutputTokens: 2048
         }
       })
@@ -84,7 +111,7 @@ Gliedere deine Analyse zwingend in folgende Abschnitte:
       const errBody = await res.text();
       console.error("Gemini API Error:", errBody);
       return NextResponse.json(
-        { error: `Gemini API meldet Status ${res.status}: ${errBody}` },
+        { error: `Gemini API meldet Fehler (${res.status}): ${errBody}` },
         { status: 500 }
       );
     }
@@ -96,6 +123,6 @@ Gliedere deine Analyse zwingend in folgende Abschnitte:
     return NextResponse.json({ report: reportText });
   } catch (err: any) {
     console.error("Gym Audit Server Error:", err);
-    return NextResponse.json({ error: err.message || "Interner Fehler" }, { status: 500 });
+    return NextResponse.json({ error: err.message || "Interner Serverfehler" }, { status: 500 });
   }
 }

@@ -1,14 +1,15 @@
 import React, { useState } from "react";
-import { Activity, Sparkles, AlertCircle, RefreshCw, ChevronRight } from "lucide-react";
+import { Activity, Sparkles, AlertCircle, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 interface GymAuditViewProps {
   activeUser: string;
+  gymData?: any[]; // <-- NEU: Daten direkt übergeben
   theme: any;
 }
 
-export function GymAuditView({ activeUser, theme }: GymAuditViewProps) {
-  const { bgCard, bgItem, textTitle, textSub, accentBlue, buttonPrimary, isDarkMode } = theme;
+export function GymAuditView({ activeUser, gymData = [], theme }: GymAuditViewProps) {
+  const { bgCard, bgItem, textTitle, textSub, buttonPrimary } = theme;
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<string | null>(null);
 
@@ -21,7 +22,10 @@ export function GymAuditView({ activeUser, theme }: GymAuditViewProps) {
       const res = await fetch("/api/gym-audit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user: activeUser })
+        body: JSON.stringify({
+          user: activeUser,
+          clientData: gymData // <-- Schickt die bereits geladenen Sätze direkt mit!
+        })
       });
 
       const data = await res.json();
@@ -41,7 +45,6 @@ export function GymAuditView({ activeUser, theme }: GymAuditViewProps) {
 
   return (
     <div className={`${bgCard} space-y-6 rounded-2xl border p-6 shadow-sm`}>
-      {/* Header */}
       <div className="flex flex-col justify-between gap-4 border-b border-black/5 pb-4 sm:flex-row sm:items-center dark:border-white/5">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#005377]/10 text-[#005377] dark:bg-[#82CBEE]/20 dark:text-[#82CBEE]">
@@ -52,8 +55,7 @@ export function GymAuditView({ activeUser, theme }: GymAuditViewProps) {
               Wissenschaftliches Performance-Audit
             </h3>
             <p className={`text-xs ${textSub}`}>
-              KI-gestützte Auswertung aller Tonnagen, Zyklen, RIR-Werte und Disbalancen für{" "}
-              {activeUser}
+              KI-gestützte Auswertung aller Tonnagen, Zyklen und Progression für {activeUser}
             </p>
           </div>
         </div>
@@ -77,7 +79,6 @@ export function GymAuditView({ activeUser, theme }: GymAuditViewProps) {
         </button>
       </div>
 
-      {/* Ergebnis-Anzeige */}
       {loading && (
         <div className="flex flex-col items-center justify-center space-y-3 py-12">
           <RefreshCw className="h-8 w-8 animate-spin text-[#005377] dark:text-[#82CBEE]" />
@@ -96,7 +97,7 @@ export function GymAuditView({ activeUser, theme }: GymAuditViewProps) {
             Kein aktiver Prüfbericht
           </h4>
           <p className={`mx-auto mt-1 max-w-md text-xs ${textSub}`}>
-            Klicke auf den Button oben, um deine gesamte Datenbank nach Progressionslücken,
+            Klicke auf den Button oben, um deine Trainingshistorie nach Progressionslücken,
             vernachlässigten Muskelketten und Plateaus scannen zu lassen.
           </p>
         </div>
