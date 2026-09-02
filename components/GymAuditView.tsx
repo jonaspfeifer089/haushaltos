@@ -115,7 +115,13 @@ export function GymAuditView({ activeUser, gymData = [], theme }: GymAuditViewPr
               Stand: {new Date().toLocaleDateString("de-DE")}
             </span>
           </div>
-          <div className={`whitespace-pre-wrap ${textTitle} space-y-3`}>{report}</div>
+          <div className={`space-y-4 text-xs leading-relaxed ${textTitle}`}>
+            {report.split("\n\n").map((paragraph, idx) => (
+              <p key={idx} className="whitespace-pre-wrap">
+                {paragraph}
+              </p>
+            ))}
+          </div>
         </div>
       )}
     </div>

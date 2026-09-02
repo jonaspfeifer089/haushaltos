@@ -87,22 +87,44 @@ Gliedere deine Analyse zwingend in folgende Abschnitte:
 
     const userContent = `Hier sind die vollständigen Trainingsprotokolle sortiert nach Datum:\n\n${JSON.stringify(sessionsByDate, null, 2)}`;
 
-    // Gemini API Call
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent?key=${apiKey}`;
+    // Gemini API Call mit system_instruction und ausreichend Tokens
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
 
     const res = await fetch(geminiUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        system_instruction: {
+          parts: [
+            {
+              text: `Du bist ein weltklasse Strength & Conditioning Coach und Sportwissenschaftler.
+Antworte ZWINGEND und AUSNAHMSLOS auf DEUTSCH.
+Deine Aufgabe ist ein unvoreingenommenes, absolut sachliches, evidenzbasiertes und gnadenlos ehrliches Performance-Audit der Trainingshistorie von Athlet "${user}".
+Verboten sind: Floskeln, Schönfärberei, unangebrachtes Lob.
+Wenn der Athlet stagniert, zu wenig Intensität zeigt, Übungen meidet oder unbalanciert trainiert, benenne es exakt mit Daten und Fakten.
+
+Gliedere deine Analyse zwingend in folgende 5 Abschnitte:
+1. 📊 MAKRO-ÜBERSICHT & KONSISTENZ (Frequenz, Entwicklung des Satz- und Tonnage-Volumens)
+2. 📈 PROGRESSIVE OVERLOAD AUDIT (Wo gab es messbare Progression? Wo herrscht Stagnation oder Scheinsicherheit?)
+3. ⚖️ ANATOMISCHE BALANCE & MUSKELKETTEN (Push vs. Pull, Verhältnis der Muskelgruppen, Disbalancen & Verletzungsrisiken)
+4. 🥊 SCHONUNGSLOSE KRITIK & EFFIZIENZFRESSER (Was läuft objektiv ineffizient? Junk Volume, ineffiziente Satzstrukturen, fehlende Ausbelastung)
+5. 🎯 DIE 3 PRIORITÄREN KORREKTUREN (Konkrete, sofort umsetzbare Vorgaben für den nächsten Trainingszyklus)`
+            }
+          ]
+        },
         contents: [
           {
             role: "user",
-            parts: [{ text: `${systemPrompt}\n\n${userContent}` }]
+            parts: [
+              {
+                text: `Hier sind die vollständigen Trainingsprotokolle von Athlet ${user} sortiert nach Datum:\n\n${JSON.stringify(sessionsByDate, null, 2)}`
+              }
+            ]
           }
         ],
         generationConfig: {
           temperature: 0.2,
-          maxOutputTokens: 2048
+          maxOutputTokens: 8192
         }
       })
     });
