@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { GymAuditView } from "./GymAuditView";
 import { Dumbbell, Flame, Activity, Check, X, Plus, ChevronDown, Trash2 } from "lucide-react";
 import {
   AreaChart,
@@ -466,6 +467,8 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
           </p>
         </div>
       </div>
+
+      <GymAuditView activeUser={activeUser} theme={theme} />
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div
