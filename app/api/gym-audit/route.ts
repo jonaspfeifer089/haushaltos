@@ -42,16 +42,11 @@ export async function POST(req: Request) {
       });
     });
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
-
-    const res = await fetch(geminiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        system_instruction: {
-          parts: [
-            {
-              text: `Du bist ein weltklasse Strength & Conditioning Coach und Sportwissenschaftler.
+    const payload = {
+      system_instruction: {
+        parts: [
+          {
+            text: `Du bist ein weltklasse Strength & Conditioning Coach und Sportwissenschaftler.
 Antworte ZWINGEND und AUSNAHMSLOS auf DEUTSCH.
 Deine Aufgabe ist ein unvoreingenommenes, absolut sachliches, evidenzbasiertes und gnadenlos ehrliches Performance-Audit der Trainingshistorie von Athlet "${user}".
 Verboten sind: Floskeln, Schönfärberei, unangebrachtes Lob.
@@ -63,40 +58,71 @@ Gliedere deine Analyse zwingend in folgende 5 Abschnitte:
 3. ⚖️ ANATOMISCHE BALANCE & MUSKELKETTEN (Push vs. Pull, Verhältnis der Muskelgruppen, Disbalancen & Verletzungsrisiken)
 4. 🥊 SCHONUNGSLOSE KRITIK & EFFIZIENZFRESSER (Was läuft objektiv ineffizient? Junk Volume, ineffiziente Satzstrukturen, fehlende Ausbelastung)
 5. 🎯 DIE 3 PRIORITÄREN KORREKTUREN (Konkrete, sofort umsetzbare Vorgaben für den nächsten Trainingszyklus)`
+          }
+        ]
+      },
+      contents: [
+        {
+          role: "user",
+          parts: [
+            {
+              text: `Hier sind die vollständigen Trainingsprotokolle von Athlet ${user} sortiert nach Datum:\n\n${JSON.stringify(sessionsByDate, null, 2)}`
             }
           ]
-        },
-        contents: [
-          {
-            role: "user",
-            parts: [
-              {
-                text: `Hier sind die vollständigen Trainingsprotokolle von Athlet ${user} sortiert nach Datum:\n\n${JSON.stringify(sessionsByDate, null, 2)}`
-              }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 8192
         }
-      })
-    });
+      ],
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 4096
+      }
+    };
 
-    if (!res.ok) {
-      const errBody = await res.text();
+    // Offizielle existierende Modelle
+    const validModels = ["gemini-1.5-flash", "gemini-1.5-pro"];
+    let reportText: string | null = null;
+    let lastErrorDetails = "";
+
+    for (const model of validModels) {
+      try {
+        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+        // Verhindert endloses Hängenbleiben (bricht nach 25 Sekunden hart ab)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 25000);
+
+        const res = await fetch(geminiUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+          signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          const aiJson = await res.json();
+          reportText = aiJson.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (reportText) break;
+        } else {
+          lastErrorDetails = await res.text();
+          console.error(`Gemini Error (${model}):`, lastErrorDetails);
+        }
+      } catch (fetchErr: any) {
+        lastErrorDetails = fetchErr.message;
+        console.error(`Fetch Error (${model}):`, fetchErr.message);
+      }
+    }
+
+    if (!reportText) {
       return NextResponse.json(
-        { error: `Gemini API meldet Fehler (${res.status}): ${errBody}` },
-        { status: 500 }
+        { error: `Analyse fehlgeschlagen: ${lastErrorDetails || "Keine Antwort erhalten."}` },
+        { status: 502 }
       );
     }
 
-    const aiJson = await res.json();
-    const reportText =
-      aiJson.candidates?.[0]?.content?.parts?.[0]?.text || "Keine Antwort vom Modell generiert.";
-
     return NextResponse.json({ report: reportText });
   } catch (err: any) {
+    console.error("Gym Audit Route Error:", err);
     return NextResponse.json({ error: err.message || "Interner Serverfehler" }, { status: 500 });
   }
 }
