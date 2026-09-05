@@ -95,8 +95,9 @@ Gliedere deine Analyse zwingend in folgende 5 Abschnitte:
       }
     };
 
-    // Stabile, offizielle Modelle nacheinander versuchen
-    const candidateModels = ["gemini-1.5-flash"];
+    // FIX: Explizite -latest Suffixe für die REST API, um 404 zu vermeiden.
+    const candidateModels = ["gemini-1.5-flash-latest", "gemini-1.5-pro-latest", "gemini-pro"];
+
     let reportText: string | null = null;
     let lastError = "";
 
@@ -118,18 +119,24 @@ Gliedere deine Analyse zwingend in folgende 5 Abschnitte:
         if (res.ok) {
           const aiJson = await res.json();
           reportText = aiJson.candidates?.[0]?.content?.parts?.[0]?.text;
-          if (reportText) break;
+          if (reportText) break; // Erfolgreich -> Schleife abbrechen
         } else {
           lastError = await res.text();
+          console.error(`Gemini Fehler mit Modell ${model}:`, lastError);
+          // Bei 503 kurz warten vor dem nächsten Modell
+          if (res.status === 503) {
+            await new Promise((r) => setTimeout(r, 600));
+          }
         }
       } catch (err: any) {
         lastError = err.message;
+        console.error(`Fetch-Fehler bei ${model}:`, err.message);
       }
     }
 
     if (!reportText) {
       return NextResponse.json(
-        { error: `Gemini-Analyse fehlgeschlagen: ${lastError}` },
+        { error: `Gemini-Analyse mit allen Modellen fehlgeschlagen. Letzter Fehler: ${lastError}` },
         { status: 502 }
       );
     }
