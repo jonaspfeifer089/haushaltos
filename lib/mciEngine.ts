@@ -18,7 +18,39 @@ export function ermittleKategorie(artikel: string): string {
   return "Sonstiges";
 }
 
-export const calculate1RM = (weight: number, reps: number) => Math.round(weight * (1 + reps / 30));
+export const calculate1RM = (weight: number, reps: number) => {
+  if (!weight || !reps) return 0;
+  return Math.round(weight * (1 + reps / 30));
+};
+
+// Normalisiert Übungsnamen (entfernt Klammern, Sonderzeichen, Leerzeichen) für verlässlichen Match
+export function normalizeExerciseName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\(.*?\)/g, "")
+    .replace(/[^a-z0-9äöüß]/gi, "")
+    .trim();
+}
+
+// Findet das letzte Datum, an dem die Übung absolviert wurde, und holt die Sätze dieser Session
+export function getPreviousSetsForExercise(exerciseName: string, gymData: GymItem[]): GymItem[] {
+  const normTarget = normalizeExerciseName(exerciseName);
+
+  const matching = gymData.filter((g) => {
+    const normCurrent = normalizeExerciseName(g.uebung);
+    return normCurrent.includes(normTarget) || normTarget.includes(normCurrent);
+  });
+
+  if (matching.length === 0) return [];
+
+  // Nach Datum absteigend sortieren
+  const sorted = [...matching].sort(
+    (a, b) => new Date(b.datum).getTime() - new Date(a.datum).getTime()
+  );
+
+  const lastDate = sorted[0].datum;
+  return sorted.filter((s) => s.datum === lastDate);
+}
 
 export function getNextSetTarget(
   exerciseName: string,
@@ -27,15 +59,19 @@ export function getNextSetTarget(
   targetMin = 8,
   targetMax = 12
 ) {
-  const lastSet = previousSets.find((s) => s.setnum === setNum) || previousSets[0];
-  if (!lastSet) return { targetKg: 20, targetReps: targetMin, label: "Startgewicht" };
+  const lastSessionSets = getPreviousSetsForExercise(exerciseName, previousSets);
+  const lastSet = lastSessionSets.find((s) => s.setnum === setNum) || lastSessionSets[0];
+
+  if (!lastSet || !lastSet.gewicht) {
+    return { targetKg: 20, targetReps: targetMin, label: "Startgewicht" };
+  }
 
   const isCompound = /bank|rudern|drücken|lat|presse/i.test(exerciseName);
   const step = isCompound ? 2.5 : 1.25;
 
   if (lastSet.reps >= targetMax) {
     return {
-      targetKg: lastSet.gewicht + step,
+      targetKg: Number((lastSet.gewicht + step).toFixed(1)),
       targetReps: targetMin,
       label: `🔥 +${step}kg Overload!`
     };
@@ -58,10 +94,6 @@ export const formatDauer = (seconds: number) => {
 
 export const calculateDaysLeft = (targetDateStr: string) =>
   Math.ceil((new Date(targetDateStr).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-
-// -------------------------------------------------------------
-// SUPERMARKT AISLE ROUTER (Einkaufsstraßen-Logik)
-// -------------------------------------------------------------
 
 export const AISLE_ORDER: Record<string, number> = {
   "Obst & Gemüse": 1,

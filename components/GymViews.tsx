@@ -113,11 +113,7 @@ export function ActiveWorkoutView({ activeUser, gymData, workout, theme }: any) 
                   const targetInfo = getNextSetTarget(
                     ex.name,
                     s.set,
-                    gymData.filter(
-                      (g: any) =>
-                        g.username === activeUser &&
-                        g.uebung.toLowerCase() === ex.name.toLowerCase()
-                    )
+                    gymData.filter((g: any) => g.username === activeUser)
                   );
                   return (
                     <div
@@ -745,7 +741,7 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
                     <defs>
                       <linearGradient id="colorGlobalScore" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#32D74B" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#32D74B" stopOpacity={0} />
+                        <stop offset="95%" stopColor="#32D74B" stopOpacity={0.4} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid

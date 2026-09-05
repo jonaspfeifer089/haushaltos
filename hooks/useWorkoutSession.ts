@@ -1,6 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { GymItem, PUSH_ROUTINE, PULL_ROUTINE } from "../types";
 import { supabase } from "../lib/supabaseClient";
+import { getPreviousSetsForExercise } from "../lib/mciEngine";
+import { toast } from "sonner";
 
 export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGymData: any) {
   const [isWorkoutActive, setIsWorkoutActive] = useState(false);
@@ -10,12 +12,18 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
   const [showAddExerciseModal, setShowAddExerciseModal] = useState(false);
   const [customExerciseName, setCustomExerciseName] = useState("");
 
+  const saveTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
+
+  // Workout-Timer
   useEffect(() => {
     let interval: any;
-    if (isWorkoutActive) interval = setInterval(() => setWorkoutDauer((prev) => prev + 1), 1000);
+    if (isWorkoutActive) {
+      interval = setInterval(() => setWorkoutDauer((prev) => prev + 1), 1000);
+    }
     return () => clearInterval(interval);
   }, [isWorkoutActive]);
 
+  // Lokale Persistenz im Browser für Refresh-Schutz
   useEffect(() => {
     if (isWorkoutActive) {
       localStorage.setItem(
@@ -27,6 +35,7 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
     }
   }, [isWorkoutActive, isWorkoutMinimized, activeExercises, workoutDauer]);
 
+  // Session beim ersten Rendern wiederherstellen
   useEffect(() => {
     const saved = localStorage.getItem("haushalt_active_workout");
     if (saved) {
@@ -38,9 +47,60 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
           setIsWorkoutActive(true);
           setIsWorkoutMinimized(parsed.isWorkoutMinimized ?? true);
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error("Fehler beim Laden des Workout-States:", e);
+      }
     }
   }, []);
+
+  // Live-Sync in Supabase (Debounced)
+  const syncSetToSupabase = useCallback(
+    (exerciseName: string, setObj: any) => {
+      const kgVal = parseFloat(setObj.kg);
+      const repsVal = parseInt(setObj.reps, 10);
+
+      // Nur synchronisieren, wenn mindestens ein numerischer Wert vorliegt
+      if (isNaN(kgVal) && isNaN(repsVal)) return;
+
+      const today = new Date().toISOString().split("T")[0];
+
+      if (saveTimeoutRef.current[setObj.id]) {
+        clearTimeout(saveTimeoutRef.current[setObj.id]);
+      }
+
+      saveTimeoutRef.current[setObj.id] = setTimeout(async () => {
+        const payload: GymItem = {
+          id: setObj.id,
+          datum: today,
+          uebung: exerciseName,
+          setnum: setObj.set,
+          gewicht: isNaN(kgVal) ? 0 : kgVal,
+          reps: isNaN(repsVal) ? 0 : repsVal,
+          username: activeUser
+        };
+
+        try {
+          const { error } = await supabase.from("gym").upsert(payload, { onConflict: "id" });
+          if (!error) {
+            setGymData((prev: GymItem[]) => {
+              const idx = prev.findIndex((item) => item.id === payload.id);
+              if (idx >= 0) {
+                const next = [...prev];
+                next[idx] = payload;
+                return next;
+              }
+              return [...prev, payload];
+            });
+          } else {
+            console.error("Supabase Live-Save Fehler:", error);
+          }
+        } catch (err) {
+          console.error("Netzwerkfehler beim Auto-Save:", err);
+        }
+      }, 500);
+    },
+    [activeUser, setGymData]
+  );
 
   const startWorkout = (type: "push" | "pull" | "empty") => {
     setWorkoutDauer(0);
@@ -50,14 +110,16 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
         : type === "pull"
           ? PULL_ROUTINE
           : ["Bankdrücken (Langhantel)"];
+
     const builtExercises = exerciseNames.map((name) => {
-      const previousSets = gymData
-        .filter((g) => g.username === activeUser && g.uebung.toLowerCase() === name.toLowerCase())
-        .sort((a, b) => new Date(b.datum).getTime() - new Date(a.datum).getTime());
+      const userGymSets = gymData.filter((g) => g.username === activeUser);
+      const previousSets = getPreviousSetsForExercise(name, userGymSets);
+
       const sets = [1, 2, 3].map((setNum) => {
-        const lastMatchingSet = previousSets.find((s) => s.setnum === setNum) || previousSets[0];
+        const lastMatchingSet =
+          previousSets.find((s) => s.setnum === setNum) || previousSets[setNum - 1];
         const prevText = lastMatchingSet
-          ? `${lastMatchingSet.gewicht}kg x ${lastMatchingSet.reps}`
+          ? `${lastMatchingSet.gewicht}kg × ${lastMatchingSet.reps}`
           : "-";
         return {
           id: crypto.randomUUID(),
@@ -70,8 +132,10 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
       });
       return { id: crypto.randomUUID(), name, targetRange: "8-12", sets };
     });
+
     setActiveExercises(builtExercises);
     setIsWorkoutActive(true);
+    setIsWorkoutMinimized(false);
   };
 
   const addSetToExercise = (exerciseId: string) => {
@@ -79,6 +143,13 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
       prev.map((ex) => {
         if (ex.id !== exerciseId) return ex;
         const nextSetNum = ex.sets.length + 1;
+        const userGymSets = gymData.filter((g) => g.username === activeUser);
+        const previousSets = getPreviousSetsForExercise(ex.name, userGymSets);
+        const lastMatchingSet = previousSets.find((s) => s.setnum === nextSetNum);
+        const prevText = lastMatchingSet
+          ? `${lastMatchingSet.gewicht}kg × ${lastMatchingSet.reps}`
+          : ex.sets[ex.sets.length - 1]?.prev || "-";
+
         return {
           ...ex,
           sets: [
@@ -86,7 +157,7 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
             {
               id: crypto.randomUUID(),
               set: nextSetNum,
-              prev: ex.sets[ex.sets.length - 1]?.prev || "-",
+              prev: prevText,
               kg: "",
               reps: "",
               done: false
@@ -97,7 +168,11 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
     );
   };
 
-  const removeSetFromExercise = (exerciseId: string, setId: string) => {
+  const removeSetFromExercise = async (exerciseId: string, setId: string) => {
+    // Falls der Satz schon in Supabase war, dort auch löschen
+    await supabase.from("gym").delete().eq("id", setId);
+    setGymData((prev: GymItem[]) => prev.filter((item) => item.id !== setId));
+
     setActiveExercises((prev) =>
       prev.map((ex) => {
         if (ex.id !== exerciseId) return ex;
@@ -114,20 +189,22 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
 
   const addExerciseToActiveWorkout = (name: string) => {
     if (!name.trim()) return;
-    const previousSets = gymData
-      .filter((g) => g.username === activeUser && g.uebung.toLowerCase() === name.toLowerCase())
-      .sort((a, b) => new Date(b.datum).getTime() - new Date(a.datum).getTime());
+    const userGymSets = gymData.filter((g) => g.username === activeUser);
+    const previousSets = getPreviousSetsForExercise(name.trim(), userGymSets);
+
     const sets = [1, 2, 3].map((setNum) => {
-      const lastMatchingSet = previousSets.find((s) => s.setnum === setNum) || previousSets[0];
+      const lastMatchingSet =
+        previousSets.find((s) => s.setnum === setNum) || previousSets[setNum - 1];
       return {
         id: crypto.randomUUID(),
         set: setNum,
-        prev: lastMatchingSet ? `${lastMatchingSet.gewicht}kg x ${lastMatchingSet.reps}` : "-",
+        prev: lastMatchingSet ? `${lastMatchingSet.gewicht}kg × ${lastMatchingSet.reps}` : "-",
         kg: "",
         reps: "",
         done: false
       };
     });
+
     setActiveExercises((prev) => [
       ...prev,
       { id: crypto.randomUUID(), name: name.trim(), targetRange: "8-12", sets }
@@ -146,10 +223,14 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
     setActiveExercises((prev) =>
       prev.map((ex) => {
         if (ex.id !== exerciseId) return ex;
-        return {
-          ...ex,
-          sets: ex.sets.map((s: any) => (s.id === setId ? { ...s, [field]: value } : s))
-        };
+        const nextSets = ex.sets.map((s: any) => {
+          if (s.id !== setId) return s;
+          const updated = { ...s, [field]: value };
+          // Live synchronisieren
+          syncSetToSupabase(ex.name, updated);
+          return updated;
+        });
+        return { ...ex, sets: nextSets };
       })
     );
   };
@@ -158,10 +239,14 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
     setActiveExercises((prev) =>
       prev.map((ex) => {
         if (ex.id !== exerciseId) return ex;
-        return {
-          ...ex,
-          sets: ex.sets.map((s: any) => (s.id === setId ? { ...s, done: !s.done } : s))
-        };
+        const nextSets = ex.sets.map((s: any) => {
+          if (s.id !== setId) return s;
+          const updated = { ...s, done: !s.done };
+          // Wenn angehakt wird und Werte da sind, sofort flushen
+          syncSetToSupabase(ex.name, updated);
+          return updated;
+        });
+        return { ...ex, sets: nextSets };
       })
     );
   };
@@ -169,36 +254,50 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
   const endWorkout = async () => {
     const today = new Date().toISOString().split("T")[0];
     const completedSets: GymItem[] = [];
+
     activeExercises.forEach((ex) => {
-      ex.sets
-        .filter((s: any) => s.done && s.kg && s.reps)
-        .forEach((s: any) => {
+      ex.sets.forEach((s: any) => {
+        const kgVal = parseFloat(s.kg);
+        const repsVal = parseInt(s.reps, 10);
+        // Speichern wenn angehakt ODER wenn gültige Werte eingetragen sind
+        if ((s.done || (!isNaN(kgVal) && !isNaN(repsVal))) && repsVal > 0) {
           completedSets.push({
-            id: crypto.randomUUID(),
+            id: s.id,
             datum: today,
             uebung: ex.name,
-            gewicht: parseFloat(s.kg),
-            reps: parseInt(s.reps, 10),
+            gewicht: isNaN(kgVal) ? 0 : kgVal,
+            reps: repsVal,
             setnum: s.set,
             username: activeUser
           });
-        });
+        }
+      });
     });
 
     if (completedSets.length === 0) {
+      toast.info("Keine ausgefüllten Sätze vorhanden. Workout beendet.");
       setIsWorkoutActive(false);
+      localStorage.removeItem("haushalt_active_workout");
       return;
     }
 
-    setGymData((prev: GymItem[]) => [...prev, ...completedSets]);
-    setIsWorkoutActive(false);
-    setIsWorkoutMinimized(false);
-    localStorage.removeItem("haushalt_active_workout");
-
+    // Finale Sicherung aller Sätze in Supabase
     for (const set of completedSets) {
-      await supabase.from("gym").insert(set);
+      await supabase.from("gym").upsert(set, { onConflict: "id" });
     }
 
+    setGymData((prev: GymItem[]) => {
+      const remaining = prev.filter((p) => !completedSets.some((c) => c.id === p.id));
+      return [...remaining, ...completedSets];
+    });
+
+    setIsWorkoutActive(false);
+    setIsWorkoutMinimized(false);
+    setActiveExercises([]);
+    localStorage.removeItem("haushalt_active_workout");
+    toast.success(`Workout mit ${completedSets.length} Sätzen erfolgreich gesichert! 🏋️‍♂️`);
+
+    // Notification versenden
     const totalVolume = completedSets.reduce((sum, s) => sum + s.gewicht * s.reps, 0);
     const appUrl =
       typeof window !== "undefined" ? window.location.origin : "https://haushaltos.vercel.app";
@@ -210,15 +309,17 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
         Tags: "muscle,trophy",
         Actions: `view, App oeffnen, ${appUrl}`
       }
-    });
+    }).catch(() => {});
   };
 
   let currentWorkoutVolume = 0;
   let currentWorkoutSets = 0;
   activeExercises.forEach((ex) => {
     ex.sets.forEach((s: any) => {
-      if (s.done && s.kg && s.reps) {
-        currentWorkoutVolume += parseFloat(s.kg) * parseInt(s.reps, 10);
+      const kgVal = parseFloat(s.kg);
+      const repsVal = parseInt(s.reps, 10);
+      if ((s.done || (!isNaN(kgVal) && !isNaN(repsVal))) && repsVal > 0) {
+        currentWorkoutVolume += (isNaN(kgVal) ? 0 : kgVal) * repsVal;
         currentWorkoutSets++;
       }
     });
