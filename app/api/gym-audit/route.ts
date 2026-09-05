@@ -1,54 +1,72 @@
 import { NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 
 export async function POST(req: Request) {
   try {
     const { user, clientData } = await req.json();
-
-    if (!clientData || !Array.isArray(clientData) || clientData.length === 0) {
-      return NextResponse.json({
-        report: `Es wurden keine Trainingsdaten an die Analyse übergeben (Array ist leer).`
-      });
-    }
+    const targetUser = user || "Jonas";
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
       return NextResponse.json(
-        { error: "GEMINI_API_KEY fehlt in der .env.local!" },
+        { error: "GEMINI_API_KEY fehlt in der Umgebung (.env.local)!" },
         { status: 500 }
       );
     }
 
-    // Falls User-Feld existiert, filtern; sonst alle Daten verwenden
-    let userRecords = clientData.filter((r: any) =>
-      !r.username && !r.user
-        ? true
-        : r.username?.toLowerCase() === user?.toLowerCase() ||
-          r.user?.toLowerCase() === user?.toLowerCase()
-    );
+    let records: any[] = [];
 
-    if (userRecords.length === 0) {
-      userRecords = clientData;
+    // 1. Prüfen, ob Client-Daten valide übergeben wurden
+    if (Array.isArray(clientData) && clientData.length > 0) {
+      records = clientData;
+    } else {
+      // 2. Fallback: Direkt aus der Supabase-Tabelle 'gym' holen
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const supabaseKey =
+        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+      if (supabaseUrl && supabaseKey) {
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        const { data, error } = await supabase
+          .from("gym")
+          .select("id, username, datum, uebung, setnum, gewicht, reps")
+          .ilike("username", targetUser)
+          .order("datum", { ascending: true });
+
+        if (!error && data && data.length > 0) {
+          records = data;
+        } else if (error) {
+          console.error("Supabase-Query Fehler auf Tabelle 'gym':", error);
+        }
+      }
     }
 
-    // Trainings nach Datum gruppieren
+    if (!records || records.length === 0) {
+      return NextResponse.json({
+        report: `Es konnten in der Tabelle "gym" keine Trainingsdaten für Athlet "${targetUser}" gefunden werden.`
+      });
+    }
+
+    // Trainingsdaten nach Datum gruppieren
     const sessionsByDate: Record<string, any[]> = {};
-    userRecords.forEach((row: any) => {
-      const d = row.datum || row.created_at || "Training";
+    records.forEach((row: any) => {
+      const d = row.datum || "Unbekannt";
       if (!sessionsByDate[d]) sessionsByDate[d] = [];
       sessionsByDate[d].push({
-        uebung: row.uebung || row.exercise || row.name || "Übung",
-        gewicht: Number(row.gewicht ?? row.weight ?? 0),
-        reps: Number(row.reps ?? row.wiederholungen ?? 0)
+        uebung: row.uebung,
+        satz: row.setnum ?? 1,
+        gewicht: Number(row.gewicht ?? 0),
+        reps: Number(row.reps ?? 0)
       });
     });
 
-    const payload = {
+    const bodyPayload = {
       system_instruction: {
         parts: [
           {
             text: `Du bist ein weltklasse Strength & Conditioning Coach und Sportwissenschaftler.
 Antworte ZWINGEND und AUSNAHMSLOS auf DEUTSCH.
-Deine Aufgabe ist ein unvoreingenommenes, absolut sachliches, evidenzbasiertes und gnadenlos ehrliches Performance-Audit der Trainingshistorie von Athlet "${user}".
+Deine Aufgabe ist ein unvoreingenommenes, absolut sachliches, evidenzbasiertes und gnadenlos ehrliches Performance-Audit der Trainingshistorie von Athlet "${targetUser}".
 Verboten sind: Floskeln, Schönfärberei, unangebrachtes Lob.
 Wenn der Athlet stagniert, zu wenig Intensität zeigt, Übungen meidet oder unbalanciert trainiert, benenne es exakt mit Daten und Fakten.
 
@@ -66,7 +84,7 @@ Gliedere deine Analyse zwingend in folgende 5 Abschnitte:
           role: "user",
           parts: [
             {
-              text: `Hier sind die vollständigen Trainingsprotokolle von Athlet ${user} sortiert nach Datum:\n\n${JSON.stringify(sessionsByDate, null, 2)}`
+              text: `Hier sind die vollständigen Trainingsprotokolle von Athlet ${targetUser} sortiert nach Datum:\n\n${JSON.stringify(sessionsByDate, null, 2)}`
             }
           ]
         }
@@ -77,23 +95,21 @@ Gliedere deine Analyse zwingend in folgende 5 Abschnitte:
       }
     };
 
-    // Offizielle existierende Modelle
-    const validModels = ["gemini-1.5-flash", "gemini-1.5-pro"];
+    // Stabile, offizielle Modelle nacheinander versuchen
+    const candidateModels = ["gemini-1.5-flash", "gemini-1.5-pro"];
     let reportText: string | null = null;
-    let lastErrorDetails = "";
+    let lastError = "";
 
-    for (const model of validModels) {
+    for (const model of candidateModels) {
       try {
         const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-        // Verhindert endloses Hängenbleiben (bricht nach 25 Sekunden hart ab)
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 25000);
 
         const res = await fetch(geminiUrl, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(bodyPayload),
           signal: controller.signal
         });
 
@@ -104,25 +120,22 @@ Gliedere deine Analyse zwingend in folgende 5 Abschnitte:
           reportText = aiJson.candidates?.[0]?.content?.parts?.[0]?.text;
           if (reportText) break;
         } else {
-          lastErrorDetails = await res.text();
-          console.error(`Gemini Error (${model}):`, lastErrorDetails);
+          lastError = await res.text();
         }
-      } catch (fetchErr: any) {
-        lastErrorDetails = fetchErr.message;
-        console.error(`Fetch Error (${model}):`, fetchErr.message);
+      } catch (err: any) {
+        lastError = err.message;
       }
     }
 
     if (!reportText) {
       return NextResponse.json(
-        { error: `Analyse fehlgeschlagen: ${lastErrorDetails || "Keine Antwort erhalten."}` },
+        { error: `Gemini-Analyse fehlgeschlagen: ${lastError}` },
         { status: 502 }
       );
     }
 
     return NextResponse.json({ report: reportText });
   } catch (err: any) {
-    console.error("Gym Audit Route Error:", err);
     return NextResponse.json({ error: err.message || "Interner Serverfehler" }, { status: 500 });
   }
 }
