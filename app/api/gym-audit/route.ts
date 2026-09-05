@@ -35,8 +35,6 @@ export async function POST(req: Request) {
 
         if (!error && data && data.length > 0) {
           records = data;
-        } else if (error) {
-          console.error("Supabase-Query Fehler auf Tabelle 'gym':", error);
         }
       }
     }
@@ -95,11 +93,11 @@ Gliedere deine Analyse zwingend in folgende 5 Abschnitte:
       }
     };
 
-    // FIX: Explizite -latest Suffixe für die REST API, um 404 zu vermeiden.
-    const candidateModels = ["gemini-1.5-flash-latest", "gemini-1.5-pro-latest", "gemini-pro"];
+    // FIX: Nur noch die strikten, offiziellen Bezeichner aus der aktuellen API-Dokumentation
+    const candidateModels = ["gemini-1.5-flash", "gemini-1.5-pro"];
 
     let reportText: string | null = null;
-    let lastError = "";
+    const errors: string[] = [];
 
     for (const model of candidateModels) {
       try {
@@ -121,24 +119,26 @@ Gliedere deine Analyse zwingend in folgende 5 Abschnitte:
           reportText = aiJson.candidates?.[0]?.content?.parts?.[0]?.text;
           if (reportText) break; // Erfolgreich -> Schleife abbrechen
         } else {
-          lastError = await res.text();
-          console.error(`Gemini Fehler mit Modell ${model}:`, lastError);
-          // Bei 503 kurz warten vor dem nächsten Modell
+          const errText = await res.text();
+          errors.push(`[${model}]: ${res.status} ${errText}`);
+
+          // Bei 503 (High Demand) kurz warten und das nächste Modell probieren
           if (res.status === 503) {
-            await new Promise((r) => setTimeout(r, 600));
+            await new Promise((r) => setTimeout(r, 800));
           }
         }
       } catch (err: any) {
-        lastError = err.message;
-        console.error(`Fetch-Fehler bei ${model}:`, err.message);
+        errors.push(`[${model} Fetch-Error]: ${err.message}`);
       }
     }
 
     if (!reportText) {
-      return NextResponse.json(
-        { error: `Gemini-Analyse mit allen Modellen fehlgeschlagen. Letzter Fehler: ${lastError}` },
-        { status: 502 }
-      );
+      // Gibt nun die echten Fehler (z.B. 503 High Demand) aus, statt einem verschleierten 404
+      const errorMessage = errors.some((e) => e.includes("503") || e.includes("High demand"))
+        ? "Die Google Server sind momentan überlastet (High Demand). Bitte in 15 Sekunden erneut versuchen."
+        : `Fehler: ${errors.join(" | ")}`;
+
+      return NextResponse.json({ error: errorMessage }, { status: 502 });
     }
 
     return NextResponse.json({ report: reportText });
