@@ -42,7 +42,7 @@ export async function POST(req: Request) {
       });
     });
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash:generateContent?key=${apiKey}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
 
     const res = await fetch(geminiUrl, {
       method: "POST",
