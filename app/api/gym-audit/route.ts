@@ -96,7 +96,7 @@ Gliedere deine Analyse zwingend in folgende 5 Abschnitte:
     };
 
     // Stabile, offizielle Modelle nacheinander versuchen
-    const candidateModels = ["gemini-1.5-flash", "gemini-1.5-pro"];
+    const candidateModels = ["gemini-1.5-flash"];
     let reportText: string | null = null;
     let lastError = "";
 
