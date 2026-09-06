@@ -748,7 +748,7 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <defs>
-                      <linearGradient id="color1RM" x1="0" y1="0" x2="0" y2="1">
+                      <linearGradient id="colorAvgRM" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#0A84FF" stopOpacity={0.4} />
                         <stop offset="95%" stopColor="#0A84FF" stopOpacity={0} />
                       </linearGradient>
@@ -782,13 +782,13 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
                             >
                               <div className="font-bold text-slate-400">{data.rawDatum}</div>
                               <div className="font-mono font-black text-[#0A84FF]">
-                                1RM: {data.oneRepMax} kg
+                                Ø Session-Performance: {data.avg1RM} kg
                               </div>
                               <div className="font-mono text-slate-300">
-                                Bester Satz: {data.bestWeight} kg × {data.bestReps} Reps
+                                Peak Topsatz (Max): {data.oneRepMax} kg
                               </div>
                               <div className="font-mono text-slate-400">
-                                Lastdichte: {data.avgIntensity} kg / Rep
+                                Bester Satz: {data.bestWeight} kg × {data.bestReps} Reps
                               </div>
                             </div>
                           );
@@ -796,15 +796,28 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
                         return null;
                       }}
                     />
+
+                    {/* Die Haupt-Fläche: Durchschnittliche Performance aller Sätze (stabil, zeigt echte Ausdauer/Volumen-Progression) */}
                     <Area
                       type="monotone"
-                      dataKey="oneRepMax"
+                      dataKey="avg1RM"
                       stroke="#0A84FF"
                       strokeWidth={3}
                       fillOpacity={1}
-                      fill="url(#color1RM)"
+                      fill="url(#colorAvgRM)"
                       dot={{ r: 4, strokeWidth: 2, fill: isDarkMode ? "#0C0C0E" : "#FFFFFF" }}
                       activeDot={{ r: 6 }}
+                    />
+
+                    {/* Die gestrichelte Linie darüber: Der absolute Topsatz des Tages */}
+                    <Area
+                      type="monotone"
+                      dataKey="oneRepMax"
+                      stroke="#82CBEE"
+                      strokeWidth={2}
+                      strokeDasharray="4 4"
+                      fill="none"
+                      dot={{ r: 3, fill: "#82CBEE" }}
                     />
                   </AreaChart>
                 </ResponsiveContainer>
