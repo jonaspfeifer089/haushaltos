@@ -23,27 +23,28 @@ export const calculate1RM = (weight: number, reps: number) => {
   return Math.round(weight * (1 + reps / 30));
 };
 
-// Normalisiert Übungsnamen (entfernt Klammern, Sonderzeichen, Leerzeichen) für verlässlichen Match
+// FIX: Behält Leerzeichen und trennt Wörter sauber, filtert nur Klammer-Inhalte
 export function normalizeExerciseName(name: string): string {
   return name
     .toLowerCase()
-    .replace(/\(.*?\)/g, "")
-    .replace(/[^a-z0-9äöüß]/gi, "")
+    .replace(/\(.*?\)/g, "") // Entfernt alles in Klammern inkl. der Klammern
+    .replace(/[^a-z0-9äöüß\s]/gi, " ") // Sonderzeichen zu Leerzeichen
+    .replace(/\s+/g, " ") // Mehrfache Leerzeichen zusammenfassen
     .trim();
 }
 
-// Findet das letzte Datum, an dem die Übung absolviert wurde, und holt die Sätze dieser Session
+// FIX: Exakter Abgleich statt .includes()
 export function getPreviousSetsForExercise(exerciseName: string, gymData: GymItem[]): GymItem[] {
   const normTarget = normalizeExerciseName(exerciseName);
 
   const matching = gymData.filter((g) => {
     const normCurrent = normalizeExerciseName(g.uebung);
-    return normCurrent.includes(normTarget) || normTarget.includes(normCurrent);
+    // Strikte Gleichheit: "seitheben" ist NICHT gleich "einarmiges seitheben"
+    return normCurrent === normTarget;
   });
 
   if (matching.length === 0) return [];
 
-  // Nach Datum absteigend sortieren
   const sorted = [...matching].sort(
     (a, b) => new Date(b.datum).getTime() - new Date(a.datum).getTime()
   );

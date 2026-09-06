@@ -10,7 +10,6 @@ import {
   ChevronDown,
   Trash2,
   TrendingUp,
-  AlertTriangle,
   Scale,
   Zap
 } from "lucide-react";
@@ -23,10 +22,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   BarChart,
-  Bar,
-  LineChart,
-  Line,
-  ReferenceLine
+  Bar
 } from "recharts";
 import { PUSH_ROUTINE, PULL_ROUTINE, CORE_COMPOUNDS, GymItem } from "../types";
 import {
@@ -305,7 +301,6 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
     textTitle,
     textSub,
     accentBlue,
-    accentGreen,
     badgeBlue,
     badgeGreen,
     buttonPrimary,
@@ -314,18 +309,15 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
 
   const userGymData = (gymData || []).filter((g: GymItem) => g.username === activeUser);
   const activeExerciseName = gymUebung.trim() || PUSH_ROUTINE[0];
+
+  // FIX: Normalisieren für exakten Match
   const activeExerciseNorm = normalizeExerciseName(activeExerciseName);
 
-  // 1. Daten für die ausgewählte Übung filtern
+  // FIX: Strikter Match `===` anstelle von `.includes()`
   const exerciseSets = userGymData
-    .filter(
-      (g: GymItem) =>
-        normalizeExerciseName(g.uebung).includes(activeExerciseNorm) ||
-        activeExerciseNorm.includes(normalizeExerciseName(g.uebung))
-    )
+    .filter((g: GymItem) => normalizeExerciseName(g.uebung) === activeExerciseNorm)
     .sort((a: GymItem, b: GymItem) => new Date(a.datum).getTime() - new Date(b.datum).getTime());
 
-  // Sessions nach Datum bündeln
   const exerciseSessionsMap = exerciseSets.reduce(
     (acc: any, curr: GymItem) => {
       if (!acc[curr.datum]) acc[curr.datum] = { datum: curr.datum, sets: [] as GymItem[] };
@@ -335,9 +327,7 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
     {} as Record<string, { datum: string; sets: GymItem[] }>
   );
 
-  // Sportwissenschaftliche Metriken pro Einheit berechnen
   const chartData = Object.values(exerciseSessionsMap).map((session: any) => {
-    // 1RM nach modifizierter Brzycki-Formel für valide Arbeitssätze
     const validSets = session.sets.filter((s: GymItem) => s.gewicht > 0 && s.reps > 0);
     const bestSet = validSets.reduce(
       (prev: GymItem, curr: GymItem) => {
@@ -348,13 +338,16 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
       validSets[0] || { gewicht: 0, reps: 0 }
     );
 
+    // NEU: Das Durchschnittliche 1RM über alle Sätze berechnen
+    let sum1RM = 0;
+    validSets.forEach((s: GymItem) => (sum1RM += calculate1RM(s.gewicht, s.reps)));
+    const avg1RM = validSets.length > 0 ? Math.round(sum1RM / validSets.length) : 0;
+
     const totalSessionVol = validSets.reduce(
       (sum: number, s: GymItem) => sum + s.gewicht * s.reps,
       0
     );
     const totalReps = validSets.reduce((sum: number, s: GymItem) => sum + s.reps, 0);
-
-    // Effektive Lastdichte: Wie schwer war das durchschnittlich bewegte Gewicht pro Repetition?
     const avgLoadPerRep = totalReps > 0 ? Number((totalSessionVol / totalReps).toFixed(1)) : 0;
     const max1RM = calculate1RM(bestSet.gewicht, bestSet.reps);
     const d = new Date(session.datum);
@@ -363,6 +356,7 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
       datum: d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }),
       rawDatum: session.datum,
       oneRepMax: max1RM,
+      avg1RM: avg1RM, // <-- Neuer, stabilisierter Wert für die Flächen-Kurve
       bestWeight: bestSet.gewicht,
       bestReps: bestSet.reps,
       volumen: totalSessionVol,
@@ -371,7 +365,6 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
     };
   });
 
-  // 2. Muskelketten-Volumen der letzten 14 Tage (mikrozyklische Belastung)
   const fourteenDaysAgo = new Date();
   fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
   const recentWork = userGymData.filter((g: GymItem) => new Date(g.datum) >= fourteenDaysAgo);
@@ -383,12 +376,10 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
     /ruder|lat|zug|klimm|curl|bizeps|preacher/i.test(g.uebung)
   ).length;
 
-  // Gelenkbalance-Quotient (Pull / Push)
   const structuralBalanceRatio =
     pushSetsCount > 0 ? (pullSetsCount / pushSetsCount).toFixed(2) : "1.00";
   const isBalanceHarmonious = parseFloat(structuralBalanceRatio) >= 1.0;
 
-  // Spezifische Muskelgruppen (Letzte 7 Tage)
   const sevenDaysAgo = new Date();
   sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
   const weekSets = userGymData.filter((g: GymItem) => new Date(g.datum) >= sevenDaysAgo);
@@ -400,7 +391,6 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
   ).length;
   const armSets = weekSets.filter((g: GymItem) => /curl|trizeps|preacher/i.test(g.uebung)).length;
 
-  // 3. Strikte Overload-Diagnostik
   const getObjectiveProgressStatus = () => {
     if (chartData.length < 2) {
       return {
@@ -445,7 +435,6 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
 
   const progressDiagnostic = getObjectiveProgressStatus();
 
-  // 4. Lifetime-Tonnage und Spitzenwerte
   const allTimePR = chartData.length > 0 ? Math.max(...chartData.map((c: any) => c.oneRepMax)) : 0;
   const maxSessionVolume =
     chartData.length > 0 ? Math.max(...chartData.map((c: any) => c.volumen)) : 0;
@@ -454,7 +443,6 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
   const progressPercent =
     previous1RM > 0 ? (((current1RM - previous1RM) / previous1RM) * 100).toFixed(1) : "0.0";
 
-  // 5. Trainingshistorie nach Sessions
   const allSessionsMap = userGymData.reduce(
     (acc: any, curr: GymItem) => {
       if (!acc[curr.datum]) acc[curr.datum] = { datum: curr.datum, sets: [] as GymItem[] };
@@ -494,6 +482,71 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
       };
     });
 
+  // Global Strength Index (MCI) FIX: Ebenfalls auf strict match === angepasst
+  const allUserDatesAsc = Array.from(new Set(userGymData.map((g: GymItem) => g.datum))).sort(
+    (a: any, b: any) => new Date(a).getTime() - new Date(b).getTime()
+  );
+  const globalStrengthHistory = allUserDatesAsc
+    .map((currentDateStr) => {
+      let totalComposite1RM = 0;
+      let exerciseCount = 0;
+      CORE_COMPOUNDS.forEach((comp) => {
+        const normComp = normalizeExerciseName(comp.name);
+        const pastSets = userGymData.filter(
+          (g: GymItem) =>
+            normalizeExerciseName(g.uebung) === normComp &&
+            new Date(g.datum) <= new Date(currentDateStr as string)
+        );
+        if (pastSets.length > 0) {
+          const bestPastSet = pastSets.reduce(
+            (prev: GymItem, curr: GymItem) =>
+              calculate1RM(curr.gewicht, curr.reps) > calculate1RM(prev.gewicht, prev.reps)
+                ? curr
+                : prev,
+            pastSets[0]
+          );
+          totalComposite1RM += calculate1RM(bestPastSet.gewicht, bestPastSet.reps);
+          exerciseCount++;
+        }
+      });
+      const d = new Date(currentDateStr as string);
+      return {
+        datum: d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }),
+        rawDatum: currentDateStr,
+        compositeScore: totalComposite1RM,
+        trackedCompounds: exerciseCount
+      };
+    })
+    .filter((item) => item.compositeScore > 0);
+
+  const baselineScore =
+    globalStrengthHistory.length > 0 ? globalStrengthHistory[0].compositeScore : 0;
+  const currentCompositeScore =
+    globalStrengthHistory.length > 0
+      ? globalStrengthHistory[globalStrengthHistory.length - 1].compositeScore
+      : 0;
+  const totalCompositeGainKg = currentCompositeScore - baselineScore;
+  const totalCompositeGainPercent =
+    baselineScore > 0 ? ((totalCompositeGainKg / baselineScore) * 100).toFixed(1) : "0.0";
+
+  // Die max Checks per Gruppe (z.B. Brust, Rücken) bleiben als .includes(),
+  // weil sie alle Übungs-Varianten einer Muskelgruppe aggregieren sollen (z.B. alle Schrägbank & Bankdrücken)
+  const getMuscleMax1RM = (keyword: string) => {
+    const sets = userGymData.filter((g: GymItem) =>
+      g.uebung.toLowerCase().includes(keyword.toLowerCase())
+    );
+    if (sets.length === 0) return 0;
+    return Math.max(...sets.map((s: GymItem) => calculate1RM(s.gewicht, s.reps)));
+  };
+  const chest1RM = Math.max(getMuscleMax1RM("Bankdrücken"), getMuscleMax1RM("Schrägbank"));
+  const back1RM = Math.max(getMuscleMax1RM("Rudern"), getMuscleMax1RM("Latzug"));
+  const shoulder1RM = Math.max(getMuscleMax1RM("Schulter"), getMuscleMax1RM("Seitheben"));
+
+  // Dropdown-Liste generieren
+  const allUsedExercises = Array.from(
+    new Set([...PUSH_ROUTINE, ...PULL_ROUTINE, ...userGymData.map((g: GymItem) => g.uebung)])
+  ).sort();
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
@@ -507,14 +560,12 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
         </div>
       </div>
 
-      {/* AUDIT VIEW */}
       <GymAuditView
         activeUser={activeUser}
         gymData={userGymData.length > 0 ? userGymData : gymData}
         theme={theme}
       />
 
-      {/* WORKOUT ROUTINEN STARTEN */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div
           className={`${bgCard} flex flex-col justify-between space-y-4 rounded-2xl border p-5 transition-all hover:border-[#0A84FF]/50`}
@@ -548,7 +599,7 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
               <Activity className="h-4 w-4 text-[#32D74B]" />
             </div>
             <h3 className={`text-base font-bold ${textTitle}`}>Pull Day</h3>
-            <p className={`text-xs ${textSub} mt-1`}>5 Übungen (Rücken, Bizeps)</p>
+            <p className={`text-xs ${textSub} mt-1`}>6 Übungen (Rücken, Bizeps)</p>
           </div>
           <button
             onClick={() => workout.startWorkout("pull")}
@@ -577,7 +628,6 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
         </div>
       </div>
 
-      {/* 4 ECHTE SPORTWISSENSCHAFTLICHE METRIKEN */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className={`${bgCard} rounded-2xl border p-4`}>
           <div className="flex items-center justify-between">
@@ -654,7 +704,6 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
         </div>
       </div>
 
-      {/* DIAGNOSTIK-PANEL */}
       <div className={`${bgCard} space-y-2 rounded-2xl border p-5`}>
         <div className="flex items-center justify-between">
           <span className="font-mono text-[11px] font-bold tracking-wider text-slate-400 uppercase">
@@ -669,10 +718,8 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
         <p className={`text-xs ${textTitle} leading-relaxed`}>{progressDiagnostic.desc}</p>
       </div>
 
-      {/* HAUPTCHARTS: PROGRESSION & LASTVERTEILUNG */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         <div className="space-y-6 lg:col-span-8">
-          {/* CHART 1: 1RM UND EFFEKTIVE LASTDICHTE */}
           <div className={`${bgCard} space-y-4 rounded-3xl border p-6`}>
             <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
               <div>
@@ -686,9 +733,9 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
               <select
                 value={gymUebung}
                 onChange={(e) => setGymUebung(e.target.value)}
-                className={`text-xs font-semibold ${bgInput} rounded-xl border px-3 py-2 focus:outline-none`}
+                className={`text-xs font-semibold ${bgInput} max-w-[200px] truncate rounded-xl border px-3 py-2 focus:outline-none`}
               >
-                {[...PUSH_ROUTINE, ...PULL_ROUTINE].map((ex) => (
+                {allUsedExercises.map((ex) => (
                   <option key={ex} value={ex}>
                     {ex}
                   </option>
@@ -771,7 +818,6 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
             </div>
           </div>
 
-          {/* CHART 2: REINES VOLUMEN / TONNAGE */}
           <div className={`${bgCard} space-y-4 rounded-3xl border p-6`}>
             <div className="flex items-center justify-between">
               <div>
@@ -845,11 +891,166 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
               )}
             </div>
           </div>
+
+          {/* MCI Total Strength Index */}
+          <div
+            className={`${bgCard} space-y-5 rounded-3xl border bg-gradient-to-br p-6 ${isDarkMode ? "from-[#0A84FF]/10 via-transparent to-transparent" : "from-[#0A84FF]/5 via-transparent to-transparent"}`}
+          >
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black tracking-wider text-[#0A84FF] uppercase">
+                    MCI Total Strength Index
+                  </span>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${badgeGreen}`}>
+                    All-Time Entwicklung
+                  </span>
+                </div>
+                <h3 className={`text-lg font-extrabold ${textTitle} mt-0.5`}>
+                  Gesamtkraft & Hypertrophie-Level
+                </h3>
+                <p className={`text-xs ${textSub}`}>
+                  Kombinierter 1RM-Score über alle Hauptverbundübungen
+                </p>
+              </div>
+              <div className="flex shrink-0 items-center gap-4 rounded-2xl border border-black/5 bg-black/5 p-3 dark:border-white/5 dark:bg-white/5">
+                <div>
+                  <span
+                    className={`text-[10px] font-bold tracking-wider uppercase ${textSub} block`}
+                  >
+                    Gesamt-Score
+                  </span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="font-mono text-2xl font-black text-[#0A84FF]">
+                      {currentCompositeScore}
+                    </span>
+                    <span className={`text-xs font-bold ${textSub}`}>kg</span>
+                  </div>
+                </div>
+                <div className="h-8 w-px bg-black/10 dark:bg-white/10" />
+                <div>
+                  <span
+                    className={`text-[10px] font-bold tracking-wider uppercase ${textSub} block`}
+                  >
+                    All-Time Zuwachs
+                  </span>
+                  <div className="flex items-baseline gap-1">
+                    <span className="font-mono text-2xl font-black text-emerald-500">
+                      +{totalCompositeGainKg}
+                    </span>
+                    <span className="font-mono text-xs font-bold text-emerald-500">
+                      ({totalCompositeGainPercent}%)
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="h-[220px] w-full pt-1">
+              {globalStrengthHistory.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart
+                    data={globalStrengthHistory}
+                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                  >
+                    <defs>
+                      <linearGradient id="colorGlobalScore" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#32D74B" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#32D74B" stopOpacity={0.4} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      vertical={false}
+                      stroke={isDarkMode ? "#ffffff10" : "#00000010"}
+                    />
+                    <XAxis
+                      dataKey="datum"
+                      stroke={isDarkMode ? "#777" : "#aaa"}
+                      fontSize={11}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <YAxis
+                      domain={["dataMin - 10", "dataMax + 10"]}
+                      stroke={isDarkMode ? "#777" : "#aaa"}
+                      fontSize={11}
+                      tickLine={false}
+                      axisLine={false}
+                    />
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          const data = payload[0].payload;
+                          return (
+                            <div
+                              className={`${bgCard} space-y-1 rounded-xl border p-3 text-xs shadow-xl`}
+                            >
+                              <div className="font-bold text-slate-400">{data.rawDatum}</div>
+                              <div className="text-sm font-extrabold text-emerald-500">
+                                Composite Score: {data.compositeScore} kg
+                              </div>
+                              <div className="text-slate-400">
+                                Erfasste Hauptübungen: {data.trackedCompounds}
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="compositeScore"
+                      stroke="#32D74B"
+                      strokeWidth={3}
+                      fillOpacity={1}
+                      fill="url(#colorGlobalScore)"
+                      dot={{ r: 4, strokeWidth: 2, fill: isDarkMode ? "#100A0B" : "#FFFFFF" }}
+                      activeDot={{ r: 6 }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="flex h-full w-full items-center justify-center rounded-xl border-2 border-dashed border-slate-500/20">
+                  <span className={`text-xs ${textSub}`}>
+                    Noch nicht genügend Daten für Gesamtscore.
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-2 border-t border-black/5 pt-2 dark:border-white/5">
+              <div className={`text-[10px] font-bold ${textSub} tracking-wider uppercase`}>
+                Kraftbalance nach Muskelgruppen (1RM Peak)
+              </div>
+              <div className="grid grid-cols-3 gap-3 text-center">
+                <div className={`rounded-xl border p-2.5 ${bgItem}`}>
+                  <span className="block font-sans text-[10px] font-bold text-slate-400">
+                    Push (Brust)
+                  </span>
+                  <span className={`font-mono text-sm font-black ${textTitle}`}>{chest1RM} kg</span>
+                </div>
+                <div className={`rounded-xl border p-2.5 ${bgItem}`}>
+                  <span className="block font-sans text-[10px] font-bold text-slate-400">
+                    Pull (Rücken)
+                  </span>
+                  <span className={`font-mono text-sm font-black ${textTitle}`}>{back1RM} kg</span>
+                </div>
+                <div className={`rounded-xl border p-2.5 ${bgItem}`}>
+                  <span className="block font-sans text-[10px] font-bold text-slate-400">
+                    Schultern
+                  </span>
+                  <span className={`font-mono text-sm font-black ${textTitle}`}>
+                    {shoulder1RM} kg
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* RECHTE SPALTE: WOCHEN-VOLUMEN & HISTORIE */}
         <div className="space-y-6 lg:col-span-4">
-          {/* HYPERTROPHIE SATZ-KORRIDOR (MEV / MAV) */}
           <div className={`${bgCard} space-y-4 rounded-3xl border p-6`}>
             <div className="flex items-center justify-between">
               <div>
@@ -904,7 +1105,6 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
             </div>
           </div>
 
-          {/* HISTORIE DER LETZTEN WORKOUTS */}
           <div className={`${bgCard} space-y-4 rounded-3xl border p-6`}>
             <div className="flex items-center justify-between">
               <div>
