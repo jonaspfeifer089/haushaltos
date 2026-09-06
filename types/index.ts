@@ -97,6 +97,7 @@ export const PUSH_ROUTINE = [
 export const PULL_ROUTINE = [
   "Sitzendes Rudern am Kabelzug - V-Griff (Kabel)",
   "Latzug (Kabel)",
+  "Breites Rudern an Latzug-Stange",
   "Incline Curl sitzend (Kurzhantel)",
   "Hammer Curl (Kurzhantel)",
   "Preacher Curl (Langhantel)"

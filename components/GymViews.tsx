@@ -264,18 +264,28 @@ export function ActiveWorkoutView({ activeUser, gymData, workout, theme }: any) 
               </div>
               <div className="border-t border-white/10 pt-2">
                 <span className="mb-2 block text-[10px] font-bold tracking-wider text-gray-400 uppercase">
-                  Routine-Katalog:
+                  Routine-Katalog & Deine Historie:
                 </span>
                 <div className="flex max-h-48 flex-wrap gap-1.5 overflow-y-auto pr-1">
-                  {[...PUSH_ROUTINE, ...PULL_ROUTINE].map((exName, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => workout.addExerciseToActiveWorkout(exName)}
-                      className="truncate rounded-lg border border-white/5 bg-[#121214] px-2.5 py-1.5 text-left text-[11px] text-gray-200 hover:bg-[#28282D]"
-                    >
-                      + {exName}
-                    </button>
-                  ))}
+                  {Array.from(
+                    new Set([
+                      ...PUSH_ROUTINE,
+                      ...PULL_ROUTINE,
+                      ...(gymData || [])
+                        .filter((g: GymItem) => g.username === activeUser)
+                        .map((g: GymItem) => g.uebung)
+                    ])
+                  )
+                    .sort()
+                    .map((exName: any, idx: number) => (
+                      <button
+                        key={idx}
+                        onClick={() => workout.addExerciseToActiveWorkout(exName)}
+                        className="truncate rounded-lg border border-white/5 bg-[#121214] px-2.5 py-1.5 text-left text-[11px] text-gray-200 transition-colors hover:bg-[#28282D]"
+                      >
+                        + {exName}
+                      </button>
+                    ))}
                 </div>
               </div>
             </div>
