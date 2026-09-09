@@ -33,12 +33,10 @@ import {
 } from "../lib/mciEngine";
 
 export function ActiveWorkoutView({ activeUser, gymData, workout, theme }: any) {
-  // FIX: Alle IDs des AKTUELLEN Workouts sammeln
   const activeSetIds = new Set(
     workout.activeExercises.flatMap((ex: any) => ex.sets.map((s: any) => s.id))
   );
 
-  // FIX: Für die Referenzwerte (Ziele & "Vorherige") nutzen wir strikt nur die ECHTE Historie (ohne aktuelle Live-Eingaben)
   const historicalGymData = (gymData || []).filter(
     (g: any) => g.username === activeUser && !activeSetIds.has(g.id)
   );
@@ -145,7 +143,6 @@ export function ActiveWorkoutView({ activeUser, gymData, workout, theme }: any) 
 
               <div className="space-y-2.5">
                 {ex.sets.map((s: any) => {
-                  // FIX: Greift nun auf historicalGymData anstatt auf gymData zu
                   const targetInfo = getNextSetTarget(ex.name, s.set, historicalGymData);
                   return (
                     <div
@@ -270,25 +267,31 @@ export function ActiveWorkoutView({ activeUser, gymData, workout, theme }: any) 
                   Routine-Katalog & Deine Historie:
                 </span>
                 <div className="flex max-h-48 flex-wrap gap-1.5 overflow-y-auto pr-1">
-                  {Array.from(
-                    new Set([
+                  {/* FIX: Duplikate-Bereinigung mit Normalize */}
+                  {(() => {
+                    const exMap = new Map<string, string>();
+                    [
                       ...PUSH_ROUTINE,
                       ...PULL_ROUTINE,
                       ...(gymData || [])
                         .filter((g: GymItem) => g.username === activeUser)
                         .map((g: GymItem) => g.uebung)
-                    ])
-                  )
-                    .sort()
-                    .map((exName: any, idx: number) => (
-                      <button
-                        key={idx}
-                        onClick={() => workout.addExerciseToActiveWorkout(exName)}
-                        className="truncate rounded-lg border border-white/5 bg-[#121214] px-2.5 py-1.5 text-left text-[11px] text-gray-200 transition-colors hover:bg-[#28282D]"
-                      >
-                        + {exName}
-                      </button>
-                    ))}
+                    ].forEach((ex) => {
+                      const norm = normalizeExerciseName(ex);
+                      if (norm && !exMap.has(norm)) exMap.set(norm, ex);
+                    });
+                    return Array.from(exMap.values())
+                      .sort((a, b) => a.localeCompare(b, "de"))
+                      .map((exName: string, idx: number) => (
+                        <button
+                          key={idx}
+                          onClick={() => workout.addExerciseToActiveWorkout(exName)}
+                          className="truncate rounded-lg border border-white/5 bg-[#121214] px-2.5 py-1.5 text-left text-[11px] text-gray-200 transition-colors hover:bg-[#28282D]"
+                        >
+                          + {exName}
+                        </button>
+                      ));
+                  })()}
                 </div>
               </div>
             </div>
@@ -332,42 +335,45 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
     {} as Record<string, { datum: string; sets: GymItem[] }>
   );
 
-  const chartData = Object.values(exerciseSessionsMap).map((session: any) => {
-    const validSets = session.sets.filter((s: GymItem) => s.gewicht > 0 && s.reps > 0);
-    const bestSet = validSets.reduce(
-      (prev: GymItem, curr: GymItem) => {
-        const rmCurr = calculate1RM(curr.gewicht, curr.reps);
-        const rmPrev = calculate1RM(prev.gewicht, prev.reps);
-        return rmCurr > rmPrev ? curr : prev;
-      },
-      validSets[0] || { gewicht: 0, reps: 0 }
-    );
+  const chartData = Object.values(exerciseSessionsMap)
+    .map((session: any) => {
+      const validSets = session.sets.filter((s: GymItem) => s.gewicht > 0 && s.reps > 0);
+      const bestSet = validSets.reduce(
+        (prev: GymItem, curr: GymItem) => {
+          const rmCurr = calculate1RM(curr.gewicht, curr.reps);
+          const rmPrev = calculate1RM(prev.gewicht, prev.reps);
+          return rmCurr > rmPrev ? curr : prev;
+        },
+        validSets[0] || { gewicht: 0, reps: 0 }
+      );
 
-    let sum1RM = 0;
-    validSets.forEach((s: GymItem) => (sum1RM += calculate1RM(s.gewicht, s.reps)));
-    const avg1RM = validSets.length > 0 ? Math.round(sum1RM / validSets.length) : 0;
+      let sum1RM = 0;
+      validSets.forEach((s: GymItem) => (sum1RM += calculate1RM(s.gewicht, s.reps)));
+      const avg1RM = validSets.length > 0 ? Math.round(sum1RM / validSets.length) : 0;
 
-    const totalSessionVol = validSets.reduce(
-      (sum: number, s: GymItem) => sum + s.gewicht * s.reps,
-      0
-    );
-    const totalReps = validSets.reduce((sum: number, s: GymItem) => sum + s.reps, 0);
-    const avgLoadPerRep = totalReps > 0 ? Number((totalSessionVol / totalReps).toFixed(1)) : 0;
-    const max1RM = calculate1RM(bestSet.gewicht, bestSet.reps);
-    const d = new Date(session.datum);
+      const totalSessionVol = validSets.reduce(
+        (sum: number, s: GymItem) => sum + s.gewicht * s.reps,
+        0
+      );
+      const totalReps = validSets.reduce((sum: number, s: GymItem) => sum + s.reps, 0);
+      const avgLoadPerRep = totalReps > 0 ? Number((totalSessionVol / totalReps).toFixed(1)) : 0;
+      const max1RM = calculate1RM(bestSet.gewicht, bestSet.reps);
+      const d = new Date(session.datum);
 
-    return {
-      datum: d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }),
-      rawDatum: session.datum,
-      oneRepMax: max1RM,
-      avg1RM: avg1RM,
-      bestWeight: bestSet.gewicht,
-      bestReps: bestSet.reps,
-      volumen: totalSessionVol,
-      avgIntensity: avgLoadPerRep,
-      setCount: validSets.length
-    };
-  });
+      return {
+        datum: d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }),
+        rawDatum: session.datum,
+        oneRepMax: max1RM,
+        avg1RM: avg1RM,
+        bestWeight: bestSet.gewicht,
+        bestReps: bestSet.reps,
+        volumen: totalSessionVol,
+        avgIntensity: avgLoadPerRep,
+        setCount: validSets.length
+      };
+    })
+    // FIX: Komplett leere oder abgebrochene Einheiten (0 Volumen) aus den Charts entfernen
+    .filter((data) => data.volumen > 0 && data.oneRepMax > 0);
 
   const fourteenDaysAgo = new Date();
   fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
@@ -543,9 +549,19 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
   const back1RM = Math.max(getMuscleMax1RM("Rudern"), getMuscleMax1RM("Latzug"));
   const shoulder1RM = Math.max(getMuscleMax1RM("Schulter"), getMuscleMax1RM("Seitheben"));
 
-  const allUsedExercises = Array.from(
-    new Set([...PUSH_ROUTINE, ...PULL_ROUTINE, ...userGymData.map((g: GymItem) => g.uebung)])
-  ).sort();
+  // FIX: Dropdown-Duplikate über Map filtern
+  const allUsedExercises = (() => {
+    const exMap = new Map<string, string>();
+    [...PUSH_ROUTINE, ...PULL_ROUTINE, ...userGymData.map((g: GymItem) => g.uebung)].forEach(
+      (ex) => {
+        const norm = normalizeExerciseName(ex);
+        if (norm && !exMap.has(norm)) {
+          exMap.set(norm, ex);
+        }
+      }
+    );
+    return Array.from(exMap.values()).sort((a, b) => a.localeCompare(b, "de"));
+  })();
 
   return (
     <div className="space-y-6">
