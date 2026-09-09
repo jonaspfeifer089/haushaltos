@@ -33,6 +33,16 @@ import {
 } from "../lib/mciEngine";
 
 export function ActiveWorkoutView({ activeUser, gymData, workout, theme }: any) {
+  // FIX: Alle IDs des AKTUELLEN Workouts sammeln
+  const activeSetIds = new Set(
+    workout.activeExercises.flatMap((ex: any) => ex.sets.map((s: any) => s.id))
+  );
+
+  // FIX: Für die Referenzwerte (Ziele & "Vorherige") nutzen wir strikt nur die ECHTE Historie (ohne aktuelle Live-Eingaben)
+  const historicalGymData = (gymData || []).filter(
+    (g: any) => g.username === activeUser && !activeSetIds.has(g.id)
+  );
+
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden bg-black font-sans text-white">
       <main className="flex h-full flex-1 flex-col overflow-y-auto">
@@ -135,11 +145,8 @@ export function ActiveWorkoutView({ activeUser, gymData, workout, theme }: any) 
 
               <div className="space-y-2.5">
                 {ex.sets.map((s: any) => {
-                  const targetInfo = getNextSetTarget(
-                    ex.name,
-                    s.set,
-                    gymData.filter((g: any) => g.username === activeUser)
-                  );
+                  // FIX: Greift nun auf historicalGymData anstatt auf gymData zu
+                  const targetInfo = getNextSetTarget(ex.name, s.set, historicalGymData);
                   return (
                     <div
                       key={s.id}
@@ -310,10 +317,8 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
   const userGymData = (gymData || []).filter((g: GymItem) => g.username === activeUser);
   const activeExerciseName = gymUebung.trim() || PUSH_ROUTINE[0];
 
-  // FIX: Normalisieren für exakten Match
   const activeExerciseNorm = normalizeExerciseName(activeExerciseName);
 
-  // FIX: Strikter Match `===` anstelle von `.includes()`
   const exerciseSets = userGymData
     .filter((g: GymItem) => normalizeExerciseName(g.uebung) === activeExerciseNorm)
     .sort((a: GymItem, b: GymItem) => new Date(a.datum).getTime() - new Date(b.datum).getTime());
@@ -338,7 +343,6 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
       validSets[0] || { gewicht: 0, reps: 0 }
     );
 
-    // NEU: Das Durchschnittliche 1RM über alle Sätze berechnen
     let sum1RM = 0;
     validSets.forEach((s: GymItem) => (sum1RM += calculate1RM(s.gewicht, s.reps)));
     const avg1RM = validSets.length > 0 ? Math.round(sum1RM / validSets.length) : 0;
@@ -356,7 +360,7 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
       datum: d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" }),
       rawDatum: session.datum,
       oneRepMax: max1RM,
-      avg1RM: avg1RM, // <-- Neuer, stabilisierter Wert für die Flächen-Kurve
+      avg1RM: avg1RM,
       bestWeight: bestSet.gewicht,
       bestReps: bestSet.reps,
       volumen: totalSessionVol,
@@ -482,7 +486,6 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
       };
     });
 
-  // Global Strength Index (MCI) FIX: Ebenfalls auf strict match === angepasst
   const allUserDatesAsc = Array.from(new Set(userGymData.map((g: GymItem) => g.datum))).sort(
     (a: any, b: any) => new Date(a).getTime() - new Date(b).getTime()
   );
@@ -529,8 +532,6 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
   const totalCompositeGainPercent =
     baselineScore > 0 ? ((totalCompositeGainKg / baselineScore) * 100).toFixed(1) : "0.0";
 
-  // Die max Checks per Gruppe (z.B. Brust, Rücken) bleiben als .includes(),
-  // weil sie alle Übungs-Varianten einer Muskelgruppe aggregieren sollen (z.B. alle Schrägbank & Bankdrücken)
   const getMuscleMax1RM = (keyword: string) => {
     const sets = userGymData.filter((g: GymItem) =>
       g.uebung.toLowerCase().includes(keyword.toLowerCase())
@@ -542,7 +543,6 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
   const back1RM = Math.max(getMuscleMax1RM("Rudern"), getMuscleMax1RM("Latzug"));
   const shoulder1RM = Math.max(getMuscleMax1RM("Schulter"), getMuscleMax1RM("Seitheben"));
 
-  // Dropdown-Liste generieren
   const allUsedExercises = Array.from(
     new Set([...PUSH_ROUTINE, ...PULL_ROUTINE, ...userGymData.map((g: GymItem) => g.uebung)])
   ).sort();
@@ -797,7 +797,6 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
                       }}
                     />
 
-                    {/* Die Haupt-Fläche: Durchschnittliche Performance aller Sätze (stabil, zeigt echte Ausdauer/Volumen-Progression) */}
                     <Area
                       type="monotone"
                       dataKey="avg1RM"
@@ -809,7 +808,6 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
                       activeDot={{ r: 6 }}
                     />
 
-                    {/* Die gestrichelte Linie darüber: Der absolute Topsatz des Tages */}
                     <Area
                       type="monotone"
                       dataKey="oneRepMax"
@@ -905,7 +903,6 @@ export function GymDashboardView({ activeUser, gymData, workout, theme }: any) {
             </div>
           </div>
 
-          {/* MCI Total Strength Index */}
           <div
             className={`${bgCard} space-y-5 rounded-3xl border bg-gradient-to-br p-6 ${isDarkMode ? "from-[#0A84FF]/10 via-transparent to-transparent" : "from-[#0A84FF]/5 via-transparent to-transparent"}`}
           >

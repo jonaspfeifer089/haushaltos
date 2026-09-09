@@ -14,7 +14,6 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
 
   const saveTimeoutRef = useRef<Record<string, NodeJS.Timeout>>({});
 
-  // Workout-Timer
   useEffect(() => {
     let interval: any;
     if (isWorkoutActive) {
@@ -23,7 +22,6 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
     return () => clearInterval(interval);
   }, [isWorkoutActive]);
 
-  // Lokale Persistenz im Browser für Refresh-Schutz
   useEffect(() => {
     if (isWorkoutActive) {
       localStorage.setItem(
@@ -35,7 +33,6 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
     }
   }, [isWorkoutActive, isWorkoutMinimized, activeExercises, workoutDauer]);
 
-  // Session beim ersten Rendern wiederherstellen
   useEffect(() => {
     const saved = localStorage.getItem("haushalt_active_workout");
     if (saved) {
@@ -53,13 +50,11 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
     }
   }, []);
 
-  // Live-Sync in Supabase (Debounced)
   const syncSetToSupabase = useCallback(
     (exerciseName: string, setObj: any) => {
       const kgVal = parseFloat(setObj.kg);
       const repsVal = parseInt(setObj.reps, 10);
 
-      // Nur synchronisieren, wenn mindestens ein numerischer Wert vorliegt
       if (isNaN(kgVal) && isNaN(repsVal)) return;
 
       const today = new Date().toISOString().split("T")[0];
@@ -91,8 +86,6 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
               }
               return [...prev, payload];
             });
-          } else {
-            console.error("Supabase Live-Save Fehler:", error);
           }
         } catch (err) {
           console.error("Netzwerkfehler beim Auto-Save:", err);
@@ -112,6 +105,7 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
           : ["Bankdrücken (Langhantel)"];
 
     const builtExercises = exerciseNames.map((name) => {
+      // Vor dem Start gibt es noch keine live-IDs, hier reicht der normale Filter
       const userGymSets = gymData.filter((g) => g.username === activeUser);
       const previousSets = getPreviousSetsForExercise(name, userGymSets);
 
@@ -143,8 +137,14 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
       prev.map((ex) => {
         if (ex.id !== exerciseId) return ex;
         const nextSetNum = ex.sets.length + 1;
-        const userGymSets = gymData.filter((g) => g.username === activeUser);
-        const previousSets = getPreviousSetsForExercise(ex.name, userGymSets);
+
+        // FIX: Live-Sätze aus der Historien-Suche herausfiltern
+        const activeSetIds = new Set(prev.flatMap((e) => e.sets.map((s: any) => s.id)));
+        const historicalGymSets = gymData.filter(
+          (g) => g.username === activeUser && !activeSetIds.has(g.id)
+        );
+
+        const previousSets = getPreviousSetsForExercise(ex.name, historicalGymSets);
         const lastMatchingSet = previousSets.find((s) => s.setnum === nextSetNum);
         const prevText = lastMatchingSet
           ? `${lastMatchingSet.gewicht}kg × ${lastMatchingSet.reps}`
@@ -169,7 +169,6 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
   };
 
   const removeSetFromExercise = async (exerciseId: string, setId: string) => {
-    // Falls der Satz schon in Supabase war, dort auch löschen
     await supabase.from("gym").delete().eq("id", setId);
     setGymData((prev: GymItem[]) => prev.filter((item) => item.id !== setId));
 
@@ -189,8 +188,14 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
 
   const addExerciseToActiveWorkout = (name: string) => {
     if (!name.trim()) return;
-    const userGymSets = gymData.filter((g) => g.username === activeUser);
-    const previousSets = getPreviousSetsForExercise(name.trim(), userGymSets);
+
+    // FIX: Live-Sätze aus der Historien-Suche herausfiltern
+    const activeSetIds = new Set(activeExercises.flatMap((e) => e.sets.map((s: any) => s.id)));
+    const historicalGymSets = gymData.filter(
+      (g) => g.username === activeUser && !activeSetIds.has(g.id)
+    );
+
+    const previousSets = getPreviousSetsForExercise(name.trim(), historicalGymSets);
 
     const sets = [1, 2, 3].map((setNum) => {
       const lastMatchingSet =
@@ -226,7 +231,6 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
         const nextSets = ex.sets.map((s: any) => {
           if (s.id !== setId) return s;
           const updated = { ...s, [field]: value };
-          // Live synchronisieren
           syncSetToSupabase(ex.name, updated);
           return updated;
         });
@@ -242,7 +246,6 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
         const nextSets = ex.sets.map((s: any) => {
           if (s.id !== setId) return s;
           const updated = { ...s, done: !s.done };
-          // Wenn angehakt wird und Werte da sind, sofort flushen
           syncSetToSupabase(ex.name, updated);
           return updated;
         });
@@ -259,7 +262,6 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
       ex.sets.forEach((s: any) => {
         const kgVal = parseFloat(s.kg);
         const repsVal = parseInt(s.reps, 10);
-        // Speichern wenn angehakt ODER wenn gültige Werte eingetragen sind
         if ((s.done || (!isNaN(kgVal) && !isNaN(repsVal))) && repsVal > 0) {
           completedSets.push({
             id: s.id,
@@ -281,7 +283,6 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
       return;
     }
 
-    // Finale Sicherung aller Sätze in Supabase
     for (const set of completedSets) {
       await supabase.from("gym").upsert(set, { onConflict: "id" });
     }
@@ -297,7 +298,6 @@ export function useWorkoutSession(activeUser: string, gymData: GymItem[], setGym
     localStorage.removeItem("haushalt_active_workout");
     toast.success(`Workout mit ${completedSets.length} Sätzen erfolgreich gesichert! 🏋️‍♂️`);
 
-    // Notification versenden
     const totalVolume = completedSets.reduce((sum, s) => sum + s.gewicht * s.reps, 0);
     const appUrl =
       typeof window !== "undefined" ? window.location.origin : "https://haushaltos.vercel.app";
