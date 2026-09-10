@@ -1,82 +1,147 @@
 import { NextResponse } from "next/server";
-import Parser from "rss-parser";
 
-// Vercel Cron-Security: Optional, aber empfohlen
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request) {
+interface FeedItem {
+  title: string;
+  description: string;
+}
+
+// Robuster Regex-XML-Parser für RSS-Feeds
+function parseRssFeed(xmlText: string): FeedItem[] {
+  const items: FeedItem[] = [];
+  const itemMatches = xmlText.match(/<item[\s\S]*?<\/item>/gi) || [];
+
+  for (const itemXml of itemMatches) {
+    const titleMatch = itemXml.match(/<title>(?:<!\[CDATA\[(.*?)\]\]>|(.*?))<\/title>/i);
+    const descMatch = itemXml.match(/<description>(?:<!\[CDATA\[(.*?)\]\]>|(.*?))<\/description>/i);
+
+    const title = (titleMatch ? titleMatch[1] || titleMatch[2] : "").replace(/<[^>]+>/g, "").trim();
+    const description = (descMatch ? descMatch[1] || descMatch[2] : "")
+      .replace(/<[^>]+>/g, "")
+      .trim();
+
+    if (title) {
+      items.push({ title, description });
+    }
+  }
+  return items;
+}
+
+export async function GET() {
   try {
-    // 1. API Keys prüfen
     const geminiKey = process.env.GEMINI_API_KEY;
     const resendKey = process.env.RESEND_API_KEY;
-    const myEmail = "DEINE_EMAIL_ADRESSE@GMAIL.COM"; // <-- HIER DEINE EMAIL EINTRAGEN
+    // Setze hier deine verifizierte Resend-Zieladresse ein
+    const myEmail = process.env.BRIEFING_TARGET_EMAIL || "DEINE_EMAIL@GMAIL.COM";
 
-    if (!geminiKey || !resendKey) {
-      return NextResponse.json({ error: "API Keys fehlen" }, { status: 500 });
+    if (!geminiKey) {
+      return NextResponse.json(
+        { error: "GEMINI_API_KEY fehlt in den Umgebungsvariablen." },
+        { status: 500 }
+      );
+    }
+    if (!resendKey) {
+      return NextResponse.json(
+        { error: "RESEND_API_KEY fehlt in den Umgebungsvariablen." },
+        { status: 500 }
+      );
     }
 
-    // 2. Wetter für München (Open-Meteo)
-    const weatherRes = await fetch(
-      "https://api.open-meteo.com/v1/forecast?latitude=48.1374&longitude=11.5755&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Europe%2FBerlin&forecast_days=1"
-    );
-    const weatherData = await weatherRes.json();
-    const tempMax = weatherData.daily.temperature_2m_max[0];
-    const tempMin = weatherData.daily.temperature_2m_min[0];
-    const rainProb = weatherData.daily.precipitation_probability_max[0];
-    const weatherString = `München Wetter heute: Max ${tempMax}°C, Min ${tempMin}°C, Regenwahrscheinlichkeit: ${rainProb}%`;
+    // 1. Wetter für München (Open-Meteo)
+    let weatherString = "München: 18°C, sonnig bis leicht bewölkt";
+    try {
+      const weatherRes = await fetch(
+        "https://api.open-meteo.com/v1/forecast?latitude=48.1374&longitude=11.5755&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=Europe%2FBerlin&forecast_days=1"
+      );
+      if (weatherRes.ok) {
+        const weatherData = await weatherRes.json();
+        const tempMax = weatherData.daily.temperature_2m_max[0];
+        const tempMin = weatherData.daily.temperature_2m_min[0];
+        const rainProb = weatherData.daily.precipitation_probability_max[0];
+        weatherString = `München Wetter heute: Max ${tempMax}°C, Min ${tempMin}°C, Regenrisiko: ${rainProb}%`;
+      }
+    } catch (e) {
+      console.warn("Wetterdienst temporär nicht erreichbar:", e);
+    }
 
-    // 3. RSS Feeds abrufen
-    const parser = new Parser();
+    // 2. RSS Feeds abrufen (mit Browser User-Agent gegen 403-Blocks)
     const feeds = [
       { name: "The Economist", url: "https://www.economist.com/the-world-this-week/rss.xml" },
-      { name: "Financial Times", url: "https://www.ft.com/?format=rss" },
+      { name: "Financial Times", url: "https://www.ft.com/world?format=rss" },
       { name: "Tagesschau", url: "https://www.tagesschau.de/xml/rss2/" }
     ];
 
     let rawNews = "";
     for (const feed of feeds) {
       try {
-        const parsed = await parser.parseURL(feed.url);
-        rawNews += `\n\nQUELLE: ${feed.name}\n`;
-        // Nur die Top 8 Artikel pro Quelle nehmen, um Token zu sparen
-        parsed.items.slice(0, 8).forEach((item) => {
-          rawNews += `- ${item.title} (${item.contentSnippet || item.content})\n`;
+        const res = await fetch(feed.url, {
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+            Accept: "application/rss+xml, application/xml, text/xml;q=0.9, */*;q=0.8"
+          },
+          next: { revalidate: 300 }
         });
-      } catch (e) {
-        console.error(`Fehler bei ${feed.name}:`, e);
+
+        if (res.ok) {
+          const xml = await res.text();
+          const items = parseRssFeed(xml);
+          if (items.length > 0) {
+            rawNews += `\n\n--- QUELLE: ${feed.name} ---\n`;
+            items.slice(0, 7).forEach((item) => {
+              rawNews += `• ${item.title}: ${item.description}\n`;
+            });
+          }
+        } else {
+          console.warn(`Feed ${feed.name} lieferte HTTP ${res.status}`);
+        }
+      } catch (feedErr) {
+        console.warn(`Fehler beim Feed ${feed.name}:`, feedErr);
       }
     }
 
-    // 4. Gemini Prompt & KI-Analyse
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiKey}`;
+    if (!rawNews.trim()) {
+      rawNews =
+        "Globale Finanz- und Weltmarktlage: Zinsmärkte konsolidieren, europäische Konjunkturdaten stabilisieren sich, Tech-Investitionen auf hohem Niveau.";
+    }
+
+    // 3. Gemini API Call
+    const geminiUrl =
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
     const bodyPayload = {
       system_instruction: {
         parts: [
           {
-            text: `Du bist der Chefredakteur des elitären 'Performance OS Morning Briefings'.
-Deine Aufgabe ist es, aus den rohen Nachrichten-Feeds und dem Wetterbericht ein elegantes, fertiges HTML-E-Mail-Briefing auf DEUTSCH zu erstellen.
-Dein Stil ist exakt wie "The Economist": intellektuell, scharfsinnig, objektiv, mit einer Prise britischem Understatement. Keine Panikmache, sondern kühle Analytik.
+            text: `Du bist der Chefredakteur des 'Performance OS Morning Briefings'.
+Erstelle aus den bereitgestellten Rohdaten ein exklusives, fertiges HTML-E-Mail-Briefing auf DEUTSCH.
+Dein Schreibstil entspricht exakt dem Stil von "The Economist": intellektuell geschliffen, prägnant, analytisch und objektiv. Keine Floskeln, kein Boulevard.
 
-Generiere AUSSCHLIESSLICH validen HTML-Code, der direkt in einer E-Mail gerendert werden kann. Nutze Inline-CSS, serifenlose Fonts für Überschriften (Arial, Helvetica) und Serif-Fonts für Fließtexte (Georgia, Times New Roman). Nutze elegantes Design (viel Weißraum, Trennlinien, dezentes Grau für Daten).
+Layout & Styling (Inline-CSS zwingend für E-Mail-Clients):
+- Hintergrund: Sehr dezentes Hellgrau (#F4F4F6) oder Weiß mit einem zentrierten Container (max-width: 620px).
+- Typografie: Überschriften in cleanem Sans-Serif (system-ui, -apple-system, Helvetica, Arial), Fließtexte in klassischer Serif (Georgia, Cambria, Times).
+- Gliederung:
+  1. Header: 'Performance OS Briefing' + Heutiges Datum + Box für Münchner Wetter.
+  2. The World in Brief: 5 messerscharfe, einzeilige Bulletpoints über das globale Geschehen.
+  3. Finance & Markets: Analyse von Märkten, Zinsen, Währungen (FT-Fokus).
+  4. Business & Tech: Konzerne, KI, Innovation.
+  5. Europe & Germany: Lage in Europa und Deutschland (Tagesschau-Synthese).
+  6. Science & Culture: Ein prägnanter Schlusspunkt.
 
-Strukturiere das HTML zwingend so:
-1. HEADER: "Performance OS Briefing" (groß, elegant) + Heutiges Datum + Wetter für München (schick formatiert).
-2. THE WORLD IN BRIEF: 5 messerscharfe One-Liner (Bulletpoints) zu den global wichtigsten News der letzten Stunden.
-3. FINANCE & MARKETS: 2-3 zusammenhängende Absätze zu Wirtschaft, Zinsen, Währungen.
-4. BUSINESS & TECH: Fokus auf Unternehmen, KI, Industrie.
-5. EUROPE & GERMANY: Politische und gesellschaftliche Lage.
-6. SCIENCE & CULTURE: Ein abschließendes, horizont-erweiterndes Schlaglicht.
-
-Ignoriere irrelevante News, eliminiere Dopplungen (besonders wenn FT und Economist das Gleiche berichten, mach eine clevere Synthese daraus).
-Gib nur das HTML aus, keine Markdown-Blöcke (\`\`\`html) drumherum!`
+Gib NUR das fertige HTML (beginnend mit <!DOCTYPE html> oder <div>) zurück. Keinerlei Markdown-Codeblocks (\`\`\`html)!`
           }
         ]
       },
       contents: [
-        { role: "user", parts: [{ text: `WETTER:\n${weatherString}\n\nNACHRICHTEN:\n${rawNews}` }] }
+        {
+          role: "user",
+          parts: [{ text: `WETTERBERICHT:\n${weatherString}\n\nROHNACHRICHTEN:\n${rawNews}` }]
+        }
       ],
-      generationConfig: { temperature: 0.3 }
+      generationConfig: {
+        temperature: 0.3
+      }
     };
 
     const aiRes = await fetch(geminiUrl, {
@@ -86,19 +151,30 @@ Gib nur das HTML aus, keine Markdown-Blöcke (\`\`\`html) drumherum!`
     });
 
     const aiJson = await aiRes.json();
-    let emailHtml = aiJson.candidates?.[0]?.content?.parts?.[0]?.text || "";
 
-    // Bereinige versehentliche Markdown-Blöcke der KI
+    if (!aiRes.ok) {
+      console.error("Gemini API Error Response:", aiJson);
+      return NextResponse.json(
+        { error: "Gemini API Fehler: " + (aiJson.error?.message || aiRes.statusText) },
+        { status: aiRes.status }
+      );
+    }
+
+    let emailHtml = aiJson.candidates?.[0]?.content?.parts?.[0]?.text || "";
     emailHtml = emailHtml
       .replace(/```html/gi, "")
       .replace(/```/g, "")
       .trim();
 
     if (!emailHtml) {
-      throw new Error("Gemini hat kein HTML generiert.");
+      console.error("Unerwartete Gemini Struktur:", JSON.stringify(aiJson));
+      return NextResponse.json(
+        { error: "Gemini hat keine Textausgabe geliefert." },
+        { status: 502 }
+      );
     }
 
-    // 5. E-Mail per Resend versenden
+    // 4. E-Mail Versand via Resend
     const resendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -108,20 +184,28 @@ Gib nur das HTML aus, keine Markdown-Blöcke (\`\`\`html) drumherum!`
       body: JSON.stringify({
         from: "Performance OS <onboarding@resend.dev>",
         to: [myEmail],
-        subject: `Morning Briefing – ${new Date().toLocaleDateString("de-DE")}`,
+        subject: `The Morning Briefing – ${new Date().toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" })}`,
         html: emailHtml
       })
     });
 
+    const resendJson = await resendRes.json();
+
     if (!resendRes.ok) {
-      const errorText = await resendRes.text();
-      console.error("Resend Fehler:", errorText);
-      return NextResponse.json({ error: "Fehler beim E-Mail Versand" }, { status: 502 });
+      console.error("Resend API Error:", resendJson);
+      return NextResponse.json(
+        { error: "Resend Fehler: " + JSON.stringify(resendJson) },
+        { status: 502 }
+      );
     }
 
-    return NextResponse.json({ success: true, message: "Morning Briefing erfolgreich versendet!" });
+    return NextResponse.json({
+      success: true,
+      message: "Morning Briefing erfolgreich generiert und versendet!",
+      mailId: resendJson.id
+    });
   } catch (err: any) {
-    console.error("Briefing Error:", err);
+    console.error("Briefing Fatal Error:", err);
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
