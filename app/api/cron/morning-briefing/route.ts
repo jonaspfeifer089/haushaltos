@@ -30,8 +30,8 @@ function parseRssFeed(xmlText: string): FeedItem[] {
 
 export async function GET() {
   try {
-    const geminiKey = process.env.GEMINI_API_KEY;
-    const resendKey = process.env.RESEND_API_KEY;
+    const geminiKey = process.env.GEMINI_API_KEY?.trim();
+    const resendKey = process.env.RESEND_API_KEY?.trim();
     // Setze hier deine verifizierte Resend-Zieladresse ein
     const myEmail = process.env.BRIEFING_TARGET_EMAIL || "DEINE_EMAIL@GMAIL.COM";
 
@@ -106,9 +106,8 @@ export async function GET() {
         "Globale Finanz- und Weltmarktlage: Zinsmärkte konsolidieren, europäische Konjunkturdaten stabilisieren sich, Tech-Investitionen auf hohem Niveau.";
     }
 
-    // 3. Gemini API Call
-    const geminiUrl =
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+    // 3. Gemini API Call (Key sowohl in URL als auch im Header für maximale Kompatibilität)
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(geminiKey)}`;
 
     const bodyPayload = {
       system_instruction: {
@@ -146,7 +145,10 @@ Gib NUR das fertige HTML (beginnend mit <!DOCTYPE html> oder <div>) zurück. Kei
 
     const aiRes = await fetch(geminiUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": geminiKey
+      },
       body: JSON.stringify(bodyPayload)
     });
 
