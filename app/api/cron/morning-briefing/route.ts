@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60; // Erhöht das Vercel-Timeout auf bis zu 60s für AI-Generierung
 
 interface FeedItem {
   title: string;
@@ -118,7 +119,10 @@ export async function GET() {
     ];
 
     if (!geminiKey || !resendKey) {
-      return NextResponse.json({ error: "API Keys fehlen." }, { status: 500 });
+      return NextResponse.json(
+        { error: "API Keys fehlen in den Umgebungsvariablen." },
+        { status: 500 }
+      );
     }
 
     const todayFormatted = new Intl.DateTimeFormat("de-DE", {
@@ -129,7 +133,7 @@ export async function GET() {
       year: "numeric"
     }).format(new Date());
 
-    // 1. Wetter München
+    // 1. Wetter München (Open-Meteo & QuickChart)
     let weatherSummary = "18°C · Heiter";
     let weatherChartUrl = "";
     try {
@@ -244,8 +248,9 @@ export async function GET() {
       rawNews = "Märkte stabilisieren sich bei moderater Handelsaktivität.";
     }
 
-    // 4. Gemini Pipeline mit modernem Dashboard-Prompt
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${encodeURIComponent(geminiKey)}`;
+    // 4. Gemini Pipeline mit automatischem Retry & Fallback
+    const primaryModel = "gemini-3.6-flash";
+    const fallbackModel = "gemini-flash-latest";
 
     const bodyPayload = {
       system_instruction: {
@@ -253,51 +258,50 @@ export async function GET() {
           {
             text: `Du bist der Executive Editor des 'Performance OS Morning Briefings'.
 Erstelle aus den Daten ein visuell atemberaubendes, hochmodernes HTML-E-Mail-Briefing auf DEUTSCH.
-Dein Look ist NICHT langweilig-akademisch, sondern wie ein Premium-Tech-Dashboard (Linear/Apple/Monocle): ultramodern, aufgeräumt, typografisch perfekt, keine Textwände!
+Look: Ultramodern, wie ein kuratiertes Tech-Dashboard (Linear/Apple/Monocle). Keine endlosen Textwände.
 
 STRIKTE DESIGN-RICHTLINIEN (Inline-CSS):
 - Base Font: font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
-- Background Canvas: #0F172A (dunkler Hintergrund für die E-Mail-App außen)
+- Background Canvas: #0F172A (dunkler Hintergrund für Clients)
 - Main Container: max-width: 600px; margin: 24px auto; background: #FFFFFF; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.15);
 
-STRUKTUR DER SEKTIONEN:
+STRUKTUR:
 1. HEADER:
    Dunkler Header-Block (background: #0B1120; padding: 24px 24px 20px 24px; color: #FFFFFF):
-   - Oben kleine Leiste: Ein grüner Punkt <span style="display:inline-block; width:8px; height:8px; background:#10B981; border-radius:50%; margin-right:6px;"></span> <span style="color:#94A3B8; font-size:11px; letter-spacing:1px; text-transform:uppercase; font-weight:600;">DAILY EXECUTIVE REPORT</span>
-   - Große Überschrift: <h1 style="font-size: 22px; font-weight: 700; margin: 8px 0 2px 0; letter-spacing: -0.5px; color:#F8FAFC;">Morning Briefing</h1>
-   - Untertitel: <p style="font-size: 13px; color: #94A3B8; margin: 0;">${todayFormatted}</p>
+   - Status: <span style="display:inline-block; width:8px; height:8px; background:#10B981; border-radius:50%; margin-right:6px;"></span> <span style="color:#94A3B8; font-size:11px; letter-spacing:1px; text-transform:uppercase; font-weight:600;">DAILY EXECUTIVE REPORT</span>
+   - Titel: <h1 style="font-size: 22px; font-weight: 700; margin: 8px 0 2px 0; letter-spacing: -0.5px; color:#F8FAFC;">Morning Briefing</h1>
+   - Datum: <p style="font-size: 13px; color: #94A3B8; margin: 0;">${todayFormatted}</p>
 
 2. AGENDA & TAGESSTRUKTUR (Cards):
    (padding: 24px;)
-   Erstelle eine elegante Card für die Kalendereinträge:
-   - Bei Geburtstagen (wie z.B. Martin): Ein auffälliges Badge <span style="background:#FDF2F8; color:#DB2777; font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px; border:1px solid #FBCFE8;">🎉 GEBURTSTAG</span> daneben.
-   - Normale Termine als schicke Liste mit Zeitstempel in fett (#0F172A) und Eventname (#475569).
-   - Darunter 1 knapper Satz als 'Executive Focus' für den Tag.
+   - Geburtstage mit auffälligem Badge: <span style="background:#FDF2F8; color:#DB2777; font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px; border:1px solid #FBCFE8;">🎉 GEBURTSTAG</span>
+   - Normale Termine als klare Liste mit Uhrzeit in fett (#0F172A).
+   - Darunter 1 fokussierter Satz zum Tagesfokus.
 
 3. WETTER MÜNCHEN:
-   Ein abgerundeter grauer Kasten (background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px 16px; margin-bottom: 24px;):
-   - Textzeile mit München-Wetter: <strong>München</strong> · ${weatherSummary}
+   Abgerundete Card (background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 8px; padding: 14px 16px; margin-bottom: 24px;):
+   - Textzeile: <strong>München</strong> · ${weatherSummary}
    - Eingebettetes Diagramm: <img src="${weatherChartUrl}" alt="Wetterverlauf" style="width: 100%; max-width: 550px; height: auto; border-radius: 6px; margin-top: 10px; display: block;" />
 
 4. THE EXECUTIVE SCAN (Top 3 Signals des Tages):
-   Statt 10 Mini-Punkte wähle die TOP 3 wichtigsten globalen Geschehnisse.
-   Formatiere JEDES Signal so:
+   3 wichtigste Geschehnisse. Jedes Signal exakt so formatieren:
    <div style="margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #F1F5F9;">
-     <div style="font-size: 15px; font-weight: 700; color: #0F172A; margin-bottom: 4px;">[Schlagzeile mit Substanz]</div>
-     <div style="font-size: 13.5px; color: #475569; line-height: 1.55; margin-bottom: 8px;">[Präziser Kontext in max. 2 Sätzen]</div>
+     <div style="font-size: 15px; font-weight: 700; color: #0F172A; margin-bottom: 4px;">[Schlagzeile]</div>
+     <div style="font-size: 13.5px; color: #475569; line-height: 1.55; margin-bottom: 8px;">[Kontext in max. 2 Sätzen]</div>
      <div style="background: #F0F9FF; border-left: 3px solid #0EA5E9; padding: 6px 10px; border-radius: 0 4px 4px 0; font-size: 12.5px; color: #0369A1; line-height: 1.45;">
-       <strong>IMPLIKATION:</strong> [Konkrete Auswirkung / Was das für Märkte, Tech oder Strategie bedeutet]
+       <strong>IMPLIKATION:</strong> [Konkreter Hebel / Relevanz]
      </div>
    </div>
 
 5. PERSPECTIVE / DEEP DIVE:
-   Ein einzelner, tiefgründiger Absatz im Stil von 'The Economist' zur globalen Wirtschaftslage oder Technologiedynamik. Schließe auch diesen mit einer eleganten Mini-Implikationsbox ab.
+   Ein pointierter Absatz im Stil von 'The Economist' zur Marktdynamik, abgeschlossen mit einer Mini-Implikationsbox.
 
 6. FOOTER:
-   Subtiler Footer (text-align: center; padding: 18px; background: #F8FAFC; border-top: 1px solid #E2E8F0; font-size: 11px; color: #94A3B8;):
-   Performance OS · Automatisierter Executive Intelligence Dienst
+   <div style="text-align: center; padding: 18px; background: #F8FAFC; border-top: 1px solid #E2E8F0; font-size: 11px; color: #94A3B8;">
+     Performance OS · Automatisierter Executive Intelligence Dienst
+   </div>
 
-Gib NUR das fertige HTML zurück. Absolut keine Markdown-Backticks (\`\`\`html)!`
+Gib NUR das fertige HTML zurück. Keine Markdown-Backticks (\`\`\`html)!`
           }
         ]
       },
@@ -316,7 +320,10 @@ Gib NUR das fertige HTML zurück. Absolut keine Markdown-Backticks (\`\`\`html)!
       }
     };
 
-    const aiRes = await fetch(geminiUrl, {
+    let targetModel = primaryModel;
+    let geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${encodeURIComponent(geminiKey)}`;
+
+    let aiRes = await fetch(geminiUrl, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -325,9 +332,30 @@ Gib NUR das fertige HTML zurück. Absolut keine Markdown-Backticks (\`\`\`html)!
       body: JSON.stringify(bodyPayload)
     });
 
+    // Automatischer Retry & Fallback bei 503 (Overloaded) oder 429 (Rate Limit)
+    if (aiRes.status === 503 || aiRes.status === 429) {
+      console.warn(
+        `Gemini ${targetModel} meldet ${aiRes.status}. Starte Retry mit Fallback-Modell ${fallbackModel}...`
+      );
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+
+      targetModel = fallbackModel;
+      geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${encodeURIComponent(geminiKey)}`;
+
+      aiRes = await fetch(geminiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": geminiKey
+        },
+        body: JSON.stringify(bodyPayload)
+      });
+    }
+
     const aiJson = await aiRes.json();
 
     if (!aiRes.ok) {
+      console.error("Gemini API Error:", aiJson);
       return NextResponse.json(
         { error: "Gemini API Fehler: " + (aiJson.error?.message || aiRes.statusText) },
         { status: aiRes.status }
@@ -370,7 +398,7 @@ Gib NUR das fertige HTML zurück. Absolut keine Markdown-Backticks (\`\`\`html)!
 
     return NextResponse.json({
       success: true,
-      message: "Modernes Executive Briefing erfolgreich versendet!",
+      message: "Morning Briefing erfolgreich generiert und zugestellt!",
       mailId: resendJson.id
     });
   } catch (err: any) {
