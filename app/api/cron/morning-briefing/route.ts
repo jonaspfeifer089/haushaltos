@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60; // Erhöht das Vercel-Timeout auf bis zu 60s für AI-Generierung
+export const maxDuration = 60; // Bis zu 60s Execution-Time für Vercel Pro/Hobby
 
 interface FeedItem {
   title: string;
@@ -248,10 +248,7 @@ export async function GET() {
       rawNews = "Märkte stabilisieren sich bei moderater Handelsaktivität.";
     }
 
-    // 4. Gemini Pipeline mit automatischem Retry & Fallback
-    const primaryModel = "gemini-3.6-flash";
-    const fallbackModel = "gemini-flash-latest";
-
+    // 4. Payload & Gemini Pipeline
     const bodyPayload = {
       system_instruction: {
         parts: [
@@ -274,7 +271,7 @@ STRUKTUR:
 
 2. AGENDA & TAGESSTRUKTUR (Cards):
    (padding: 24px;)
-   - Geburtstage mit auffälligem Badge: <span style="background:#FDF2F8; color:#DB2777; font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px; border:1px solid #FBCFE8;">🎉 GEBURTSTAG</span>
+   - Geburtstage mit auffälligem Badge hervorheben: <span style="background:#FDF2F8; color:#DB2777; font-size:11px; font-weight:700; padding:3px 8px; border-radius:6px; border:1px solid #FBCFE8;">🎉 GEBURTSTAG</span>
    - Normale Termine als klare Liste mit Uhrzeit in fett (#0F172A).
    - Darunter 1 fokussierter Satz zum Tagesfokus.
 
@@ -320,56 +317,61 @@ Gib NUR das fertige HTML zurück. Keine Markdown-Backticks (\`\`\`html)!`
       }
     };
 
-    let targetModel = primaryModel;
-    let geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${encodeURIComponent(geminiKey)}`;
+    // Kaskadierende Modell-Pipeline (fängt High-Demand- und 503-Fehler ab)
+    const modelCandidates = [
+      "gemini-3.6-flash",
+      "gemini-3.5-flash",
+      "gemini-3.1-flash-lite",
+      "gemini-flash-latest"
+    ];
 
-    let aiRes = await fetch(geminiUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": geminiKey
-      },
-      body: JSON.stringify(bodyPayload)
-    });
+    let emailHtml = "";
+    let lastErrorMsg = "";
 
-    // Automatischer Retry & Fallback bei 503 (Overloaded) oder 429 (Rate Limit)
-    if (aiRes.status === 503 || aiRes.status === 429) {
-      console.warn(
-        `Gemini ${targetModel} meldet ${aiRes.status}. Starte Retry mit Fallback-Modell ${fallbackModel}...`
-      );
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+    for (const modelName of modelCandidates) {
+      const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${encodeURIComponent(geminiKey)}`;
 
-      targetModel = fallbackModel;
-      geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${targetModel}:generateContent?key=${encodeURIComponent(geminiKey)}`;
+      try {
+        console.log(`Starte Gemini-Generierung mit Modell: ${modelName}...`);
+        const aiRes = await fetch(geminiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": geminiKey
+          },
+          body: JSON.stringify(bodyPayload)
+        });
 
-      aiRes = await fetch(geminiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": geminiKey
-        },
-        body: JSON.stringify(bodyPayload)
-      });
+        const aiJson = await aiRes.json();
+
+        if (aiRes.ok) {
+          const rawText = aiJson.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          emailHtml = rawText
+            .replace(/```html/gi, "")
+            .replace(/```/g, "")
+            .trim();
+          if (emailHtml) {
+            console.log(`Erfolgreich generiert mit: ${modelName}`);
+            break;
+          }
+        } else {
+          lastErrorMsg = aiJson.error?.message || aiRes.statusText;
+          console.warn(
+            `Modell ${modelName} abgewiesen (${aiRes.status}): ${lastErrorMsg}. Versuche Fallback...`
+          );
+          await new Promise((resolve) => setTimeout(resolve, 800));
+        }
+      } catch (reqErr: any) {
+        lastErrorMsg = reqErr.message;
+        console.warn(`Netzwerk-Exception bei Modell ${modelName}:`, reqErr);
+      }
     }
-
-    const aiJson = await aiRes.json();
-
-    if (!aiRes.ok) {
-      console.error("Gemini API Error:", aiJson);
-      return NextResponse.json(
-        { error: "Gemini API Fehler: " + (aiJson.error?.message || aiRes.statusText) },
-        { status: aiRes.status }
-      );
-    }
-
-    let emailHtml = aiJson.candidates?.[0]?.content?.parts?.[0]?.text || "";
-    emailHtml = emailHtml
-      .replace(/```html/gi, "")
-      .replace(/```/g, "")
-      .trim();
 
     if (!emailHtml) {
-      return NextResponse.json({ error: "Gemini lieferte keinen Inhalt." }, { status: 502 });
+      return NextResponse.json(
+        { error: `Alle AI-Modelle derzeit überlastet. Letzter Fehler: ${lastErrorMsg}` },
+        { status: 503 }
+      );
     }
 
     // 5. E-Mail Versand via Resend
