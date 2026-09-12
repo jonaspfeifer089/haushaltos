@@ -1,15 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {
-  Lock,
-  ShieldCheck,
-  Trash2,
-  Check,
-  Calendar,
-  ChevronDown,
-  ChevronRight,
-  Plus,
-  Globe
-} from "lucide-react";
+import { Lock, Trash2, Check, ChevronDown, ChevronRight, Plus, Globe } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { toast } from "sonner";
 
@@ -67,7 +57,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
   const [fokusMonat, setFokusMonat] = useState<number>(8);
   const [zielDatum, setZielDatum] = useState<string>("2026-08-31");
 
-  // 1:1 INITIAL-WERTE AUS DEM SCREENSHOT
+  // Sonderausgaben
   const [sonderausgaben, setSonderausgaben] = useState<Sonderausgabe[]>([
     { id: "1", was: "Miete", hoehe: 380.0, wann: "2026-09-01" },
     { id: "2", was: "Geburtstagsgeschenk Lena", hoehe: 200.0, wann: "2026-09-05" },
@@ -86,26 +76,19 @@ export function FinanceView({ theme }: FinanceViewProps) {
     b1: "2026-08-26"
   });
 
-  // Inputs
+  // Inputs Finanzen
   const [neuWas, setNeuWas] = useState("");
   const [neuHoehe, setNeuHoehe] = useState<string>("");
   const [neuWann, setNeuWann] = useState("2026-08-26");
   const [neuBWas, setNeuBWas] = useState("");
   const [neuBHoehe, setNeuBHoehe] = useState<string>("");
 
-  // Wishlist State
+  // Wishlist State (Notion-Style)
   const [wishlist, setWishlist] = useState<WishlistItem[]>([]);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     "Produktivität/Home": true,
     Lifestyle: true
   });
-  const [newWishTitle, setNewWishTitle] = useState("");
-  const [newWishCat, setNewWishCat] = useState("Produktivität/Home");
-  const [newWishSubcat, setNewWishSubcat] = useState("");
-  const [newWishUrl, setNewWishUrl] = useState("");
-  const [newWishImg, setNewWishImg] = useState("");
-  const [newWishDesc, setNewWishDesc] = useState("");
-  const [showAddModal, setShowAddModal] = useState(false);
 
   // -------------------------------------------------------------
   // SUPABASE: LADEN
@@ -263,9 +246,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
     return boni[m] || 0.0;
   };
 
-  // -------------------------------------------------------------
-  // SIMULATION (1:1 PYTHON/STREAMLIT LOGIK)
-  // -------------------------------------------------------------
   const simulationsMonate: { jahr: number; monat: number }[] = [
     ...[8, 9, 10, 11, 12].map((m) => ({ jahr: 2026, monat: m })),
     ...[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => ({ jahr: 2027, monat: m }))
@@ -299,20 +279,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
     };
   });
 
-  let simSaldo = aktuellerSaldo;
-  const heute = new Date("2026-08-26");
-  const targetDateObj = new Date(zielDatum);
-
-  sonderausgaben.forEach((item) => {
-    const itemDate = new Date(item.wann);
-    if (itemDate >= heute && itemDate <= targetDateObj) {
-      simSaldo -= item.hoehe;
-    }
-  });
-  if (targetDateObj >= new Date("2026-08-31")) {
-    simSaldo += fixEinnahmen;
-  }
-
   const handleAddAusgabe = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!neuWas || !neuHoehe) return;
@@ -328,9 +294,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
     setNeuWas("");
     setNeuHoehe("");
     toast.success("Ausgabe gespeichert");
-    await supabase
-      .from("sonderausgaben")
-      .insert({ id: item.id, was: item.was, hoehe: item.hoehe, wann: item.wann, status: "Offen" });
+    await supabase.from("sonderausgaben").insert({ ...item, status: "Offen" });
   };
 
   const handleDeleteAusgabe = async (id: string, asDone = false) => {
@@ -354,15 +318,13 @@ export function FinanceView({ theme }: FinanceViewProps) {
     setNeuBWas("");
     setNeuBHoehe("");
     toast.success("Auf die Wunschliste gesetzt 📝");
-    await supabase
-      .from("sonderausgaben")
-      .insert({ id: item.id, was: item.was, hoehe: item.hoehe, wann: null, status: "Offen" });
+    await supabase.from("sonderausgaben").insert({ ...item, wann: null, status: "Offen" });
   };
 
   const handlePlanBacklog = async (item: BacklogItem) => {
     const planDate = backlogDates[item.id] || "2026-08-26";
     setSonderausgaben((p) =>
-      [...p, { id: item.id, was: item.was, hoehe: item.hoehe, wann: planDate }].sort(
+      [...p, { ...item, wann: planDate }].sort(
         (a, b) => new Date(a.wann).getTime() - new Date(b.wann).getTime()
       )
     );
@@ -377,37 +339,17 @@ export function FinanceView({ theme }: FinanceViewProps) {
     await supabase.from("sonderausgaben").delete().eq("id", id);
   };
 
-  const toggleWishCheck = async (id: string, current: boolean) => {
-    setWishlist((prev) => prev.map((w) => (w.id === id ? { ...w, completed: !current } : w)));
-    await supabase.from("wishlist_items").update({ completed: !current }).eq("id", id);
-  };
+  // -------------------------------------------------------------
+  // NOTION-STYLE WISHLIST FUNKTIONEN
+  // -------------------------------------------------------------
 
   const toggleSection = (sec: string) => {
     setOpenSections((prev) => ({ ...prev, [sec]: !prev[sec] }));
   };
 
-  const handleAddWishItem = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newWishTitle) return;
-    const newItem: WishlistItem = {
-      id: crypto.randomUUID(),
-      category: newWishCat,
-      subcategory: newWishSubcat || undefined,
-      title: newWishTitle,
-      completed: false,
-      embed_title: newWishTitle,
-      embed_desc: newWishDesc || undefined,
-      embed_url: newWishUrl || undefined,
-      embed_img: newWishImg || undefined
-    };
-    setWishlist((prev) => [...prev, newItem]);
-    setNewWishTitle("");
-    setNewWishUrl("");
-    setNewWishImg("");
-    setNewWishDesc("");
-    setShowAddModal(false);
-    toast.success("Wunsch hinzugefügt ✨");
-    await supabase.from("wishlist_items").insert(newItem);
+  const toggleWishCheck = async (id: string, current: boolean) => {
+    setWishlist((prev) => prev.map((w) => (w.id === id ? { ...w, completed: !current } : w)));
+    await supabase.from("wishlist_items").update({ completed: !current }).eq("id", id);
   };
 
   const handleDeleteWish = async (id: string) => {
@@ -415,12 +357,70 @@ export function FinanceView({ theme }: FinanceViewProps) {
     await supabase.from("wishlist_items").delete().eq("id", id);
   };
 
-  // 3 KLARE FARBEN
+  const updateWishTitleLocal = (id: string, newTitle: string) => {
+    setWishlist((prev) => prev.map((w) => (w.id === id ? { ...w, title: newTitle } : w)));
+  };
+
+  const saveWishTitleDB = async (id: string, newTitle: string) => {
+    await supabase.from("wishlist_items").update({ title: newTitle }).eq("id", id);
+  };
+
+  const handleWishKeyDown = async (
+    e: React.KeyboardEvent<HTMLInputElement>,
+    item: WishlistItem
+  ) => {
+    // ENTER: Neue Zeile darunter einfügen
+    if (e.key === "Enter") {
+      e.preventDefault();
+      const newItem: WishlistItem = {
+        id: crypto.randomUUID(),
+        category: item.category,
+        subcategory: item.subcategory,
+        title: "",
+        completed: false
+      };
+
+      setWishlist((prev) => {
+        const idx = prev.findIndex((w) => w.id === item.id);
+        const next = [...prev];
+        next.splice(idx + 1, 0, newItem);
+        return next;
+      });
+
+      await supabase.from("wishlist_items").insert(newItem);
+
+      // Auto-Focus in die neue Zeile
+      setTimeout(() => document.getElementById(`wish-input-${newItem.id}`)?.focus(), 10);
+    }
+
+    // BACKSPACE: Leere Zeile löschen
+    if (e.key === "Backspace" && item.title === "") {
+      e.preventDefault();
+      handleDeleteWish(item.id);
+    }
+  };
+
+  const addNewEmptyWish = async (category: string, subcategory?: string) => {
+    const newItem: WishlistItem = {
+      id: crypto.randomUUID(),
+      category,
+      subcategory,
+      title: "",
+      completed: false
+    };
+    setWishlist((prev) => [...prev, newItem]);
+    if (!openSections[category]) {
+      toggleSection(category);
+    }
+    await supabase.from("wishlist_items").insert(newItem);
+    setTimeout(() => document.getElementById(`wish-input-${newItem.id}`)?.focus(), 50);
+  };
+
+  // Farben für Diagramm
   const colorEingang = isDarkMode ? "#2EC4B6" : "#028090";
   const colorAusgaben = isDarkMode ? "#E76F51" : "#3D405B";
   const colorBudget = isDarkMode ? "#82CBEE" : "#003566";
 
-  // Chart
   const maxCashflow = 2200;
   const maxBudget = 16000;
   const chartHeight = 220;
@@ -439,8 +439,81 @@ export function FinanceView({ theme }: FinanceViewProps) {
     );
     return { x, y, val: p.freiVerfuegbar };
   });
-
   const linePoints = points.map((pt) => `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(" ");
+
+  // -------------------------------------------------------------
+  // RENDER HILFSFUNKTIONEN FÜR NOTION ITEMS
+  // -------------------------------------------------------------
+  const renderWishItem = (item: WishlistItem) => (
+    <div key={item.id} className="group relative flex items-center gap-3 py-1.5 pl-6">
+      <button
+        onClick={() => toggleWishCheck(item.id, item.completed)}
+        className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
+          item.completed ? "border-[#5B8C5A] bg-[#5B8C5A] text-white" : "border-slate-400"
+        }`}
+      >
+        {item.completed && <Check className="h-3 w-3 stroke-[3]" />}
+      </button>
+
+      <input
+        id={`wish-input-${item.id}`}
+        type="text"
+        value={item.title}
+        onChange={(e) => updateWishTitleLocal(item.id, e.target.value)}
+        onBlur={(e) => saveWishTitleDB(item.id, e.target.value)}
+        onKeyDown={(e) => handleWishKeyDown(e, item)}
+        placeholder="Eintrag..."
+        className={`w-full border-none bg-transparent text-sm transition-all outline-none focus:ring-0 ${
+          item.completed ? "line-through opacity-40" : textTitle
+        }`}
+      />
+
+      <button
+        onClick={() => handleDeleteWish(item.id)}
+        className="absolute right-2 opacity-0 transition-opacity group-hover:opacity-100 hover:text-rose-400"
+      >
+        <Trash2 className="h-3.5 w-3.5 text-slate-400" />
+      </button>
+    </div>
+  );
+
+  const renderWishBookmark = (item: WishlistItem) => (
+    <div key={item.id} className="group relative py-2 pr-4 pl-12">
+      <div
+        className={`flex overflow-hidden rounded-xl border ${bgItem} transition-all hover:border-blue-400/30`}
+      >
+        <div className="flex flex-1 flex-col justify-center p-4">
+          <input
+            id={`wish-input-${item.id}`}
+            type="text"
+            value={item.title}
+            onChange={(e) => updateWishTitleLocal(item.id, e.target.value)}
+            onBlur={(e) => saveWishTitleDB(item.id, e.target.value)}
+            onKeyDown={(e) => handleWishKeyDown(e, item)}
+            className={`w-full border-none bg-transparent text-sm font-bold outline-none focus:ring-0 ${textTitle}`}
+          />
+          <span className={`mt-0.5 text-xs ${textSub}`}>{item.embed_desc}</span>
+          <div className="mt-2 flex items-center gap-1 text-[10px] text-blue-400">
+            <Globe className="h-3 w-3" />
+            <a href={item.embed_url} target="_blank" rel="noreferrer" className="hover:underline">
+              {item.embed_url}
+            </a>
+          </div>
+        </div>
+        {item.embed_img && (
+          <div className="h-28 w-28 shrink-0 bg-slate-200">
+            <img src={item.embed_img} alt={item.title} className="h-full w-full object-cover" />
+          </div>
+        )}
+      </div>
+      <button
+        onClick={() => handleDeleteWish(item.id)}
+        className="absolute top-6 right-6 opacity-0 transition-opacity group-hover:opacity-100 hover:text-rose-400"
+      >
+        <Trash2 className="h-4 w-4 text-slate-400" />
+      </button>
+    </div>
+  );
 
   if (!isAuthenticated) {
     return (
@@ -477,15 +550,13 @@ export function FinanceView({ theme }: FinanceViewProps) {
 
   return (
     <div className="space-y-10">
-      {/* 1. TOP KONTROLLZENTRUM & TAKTISCHER AUSBLICK */}
+      {/* 1. TOP KONTROLLZENTRUM */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
-        {/* LINKE SPALTE */}
         <div className="space-y-6 lg:col-span-4">
           <div className={`${bgCard} space-y-4 rounded-2xl border p-5 shadow-sm`}>
             <h3 className={`text-xs font-bold tracking-wider uppercase ${textTitle}`}>
               KONTROLLZENTRUM
             </h3>
-
             <div className="space-y-1.5 border-b border-[#E8E2D9] pb-4 dark:border-white/[0.08]">
               <label className={`text-xs font-medium ${textSub}`}>Aktueller Kontostand (€)</label>
               <input
@@ -500,7 +571,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 className={`w-full rounded-xl border ${bgInput} p-2 font-mono text-sm font-semibold focus:outline-none`}
               />
             </div>
-
             <div className="space-y-3 border-b border-[#E8E2D9] pb-4 dark:border-white/[0.08]">
               <h4 className={`text-xs font-semibold ${textTitle}`}>Target-Prognose</h4>
               <div>
@@ -534,7 +604,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 </select>
               </div>
             </div>
-
             <form onSubmit={handleAddAusgabe} className="space-y-3">
               <h4 className={`text-xs font-semibold ${textTitle}`}>Sonderausgabe planen</h4>
               <input
@@ -570,16 +639,13 @@ export function FinanceView({ theme }: FinanceViewProps) {
           </div>
         </div>
 
-        {/* RECHTE SPALTE */}
         <div className="space-y-6 lg:col-span-8">
           <div>
             <h2 className={`text-lg font-bold ${textTitle}`}>Taktischer Ausblick (2026 - 2027)</h2>
             <p className={`mt-0.5 text-xs ${textSub}`}>
-              {`Frei verfügbares Budget nach allen Abzügen bis zum nächsten Gehaltseingang.`}
+              Frei verfügbares Budget nach allen Abzügen bis zum nächsten Gehaltseingang.
             </p>
           </div>
-
-          {/* 1:1 EXAKTE MATRIX-TABELLE */}
           <div
             className={`overflow-x-auto rounded-2xl border ${isDarkMode ? "border-white/[0.08] bg-[#140C0E]" : "border-[#E8E2D9] bg-[#FFFFFF]"} shadow-xs`}
           >
@@ -687,187 +753,11 @@ export function FinanceView({ theme }: FinanceViewProps) {
               </tbody>
             </table>
           </div>
-
-          {/* DIAGRAMM */}
-          <div className={`${bgCard} space-y-3 rounded-2xl border p-5 shadow-sm`}>
-            <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
-              <h3 className={`text-xs font-bold tracking-wider uppercase ${textTitle}`}>
-                VERLAUF & LIQUIDITÄTS-KURVE
-              </h3>
-              <div className="flex items-center gap-4 text-[11px] font-semibold">
-                <div className="flex items-center gap-1.5">
-                  <span
-                    className="h-2.5 w-2.5 rounded-sm"
-                    style={{ backgroundColor: colorEingang }}
-                  />
-                  <span className={textTitle}>Eingang</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span
-                    className="h-2.5 w-2.5 rounded-sm"
-                    style={{ backgroundColor: colorAusgaben }}
-                  />
-                  <span className={textTitle}>Ausgaben</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <span
-                    className="h-1.5 w-4 rounded-full"
-                    style={{ backgroundColor: colorBudget }}
-                  />
-                  <span style={{ color: colorBudget }} className="font-bold">
-                    Freies Budget
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="relative pt-2">
-              <div className="flex">
-                <div
-                  className={`flex h-48 flex-col justify-between pr-2 text-right font-mono text-[9px] font-bold ${textSub}`}
-                >
-                  <span>2.0k</span>
-                  <span>1.5k</span>
-                  <span>1.0k</span>
-                  <span>0.5k</span>
-                  <span>0</span>
-                </div>
-
-                <div
-                  className={`relative h-48 flex-1 border-b border-l ${isDarkMode ? "border-white/[0.08]" : "border-black/[0.08]"} overflow-hidden`}
-                >
-                  <svg
-                    viewBox={`0 0 ${svgWidth} ${chartHeight}`}
-                    preserveAspectRatio="none"
-                    className="h-full w-full"
-                  >
-                    {/* Hilfslinien */}
-                    <line
-                      x1="0"
-                      y1="12"
-                      x2={svgWidth}
-                      y2="12"
-                      stroke="currentColor"
-                      className="opacity-10"
-                      strokeDasharray="3 3"
-                    />
-                    <line
-                      x1="0"
-                      y1={chartHeight * 0.25}
-                      x2={svgWidth}
-                      y2={chartHeight * 0.25}
-                      stroke="currentColor"
-                      className="opacity-10"
-                      strokeDasharray="3 3"
-                    />
-                    <line
-                      x1="0"
-                      y1={chartHeight * 0.5}
-                      x2={svgWidth}
-                      y2={chartHeight * 0.5}
-                      stroke="currentColor"
-                      className="opacity-10"
-                      strokeDasharray="3 3"
-                    />
-                    <line
-                      x1="0"
-                      y1={chartHeight * 0.75}
-                      x2={svgWidth}
-                      y2={chartHeight * 0.75}
-                      stroke="currentColor"
-                      className="opacity-10"
-                      strokeDasharray="3 3"
-                    />
-
-                    {/* MAXIMAL BREITE BALKEN */}
-                    {prognoseListe.map((p, idx) => {
-                      const xCenter = paddingLeft + idx * slotWidth;
-                      // Dynamisch maximale Breite (ca. 18-20px pro Balken)
-                      const barW = Math.max(16, Math.floor(slotWidth * 0.42));
-                      const gap = 2;
-
-                      const hIn = (p.gehaltEnde / maxCashflow) * (chartHeight - 12);
-                      const yIn = chartHeight - hIn;
-
-                      const hOut = (p.ausgabenGesamt / maxCashflow) * (chartHeight - 12);
-                      const yOut = chartHeight - hOut;
-
-                      return (
-                        <g key={idx}>
-                          {/* Eingang (Breit & Petrol) */}
-                          <rect
-                            x={xCenter - barW - gap / 2}
-                            y={yIn}
-                            width={barW}
-                            height={hIn}
-                            fill={colorEingang}
-                            rx={3}
-                          />
-                          {/* Ausgaben (Breit & Schiefer) */}
-                          <rect
-                            x={xCenter + gap / 2}
-                            y={yOut}
-                            width={barW}
-                            height={hOut}
-                            fill={colorAusgaben}
-                            rx={3}
-                          />
-                        </g>
-                      );
-                    })}
-
-                    {/* Budget-Linie */}
-                    <polyline
-                      fill="none"
-                      stroke={colorBudget}
-                      strokeWidth="2.5"
-                      points={linePoints}
-                    />
-
-                    {/* Datenpunkte */}
-                    {points.map((pt, idx) => (
-                      <circle
-                        key={idx}
-                        cx={pt.x}
-                        cy={pt.y}
-                        r="4"
-                        fill={colorBudget}
-                        stroke={isDarkMode ? "#140C0E" : "#FFFFFF"}
-                        strokeWidth="2"
-                      />
-                    ))}
-                  </svg>
-                </div>
-
-                <div
-                  className="flex h-48 flex-col justify-between pl-2 text-left font-mono text-[9px] font-bold"
-                  style={{ color: colorBudget }}
-                >
-                  <span>16k</span>
-                  <span>12k</span>
-                  <span>8k</span>
-                  <span>4k</span>
-                  <span>0</span>
-                </div>
-              </div>
-
-              <div
-                className={`mt-2 flex justify-between pr-8 pl-6 font-mono text-[9px] font-bold ${textSub}`}
-              >
-                {prognoseListe
-                  .filter((_, i) => i % 2 === 0)
-                  .map((p, i) => (
-                    <span key={i}>{p.jahr === 2026 ? `Sep '26` : `${p.monat}. '27`}</span>
-                  ))}
-              </div>
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* 2. GEPLANTE SONDERBUDGETS & BACKLOG (1:1 IDENTISCHES DESIGN) */}
+      {/* 2. GEPLANTE SONDERBUDGETS & BACKLOG */}
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-2">
-        {/* SONDERBUDGETS (LINKS) */}
         <div className={`${bgCard} space-y-4 rounded-2xl border p-5 shadow-sm`}>
           <div className="flex items-center justify-between">
             <h3 className={`text-xs font-bold tracking-wider uppercase ${textTitle}`}>
@@ -877,7 +767,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
               {sonderausgaben.length} Posten
             </span>
           </div>
-
           <div className="space-y-2.5">
             {sonderausgaben.map((item) => (
               <div
@@ -913,13 +802,8 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 </div>
               </div>
             ))}
-            {sonderausgaben.length === 0 && (
-              <p className={`p-4 text-center text-xs ${textSub}`}>Keine Sonderausgaben geplant.</p>
-            )}
           </div>
         </div>
-
-        {/* BACKLOG (RECHTS) */}
         <div className={`${bgCard} space-y-4 rounded-2xl border p-5 shadow-sm`}>
           <div>
             <h3 className={`text-xs font-bold tracking-wider uppercase ${textTitle}`}>
@@ -927,7 +811,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
             </h3>
             <p className={`text-[11px] ${textSub}`}>Wünsche notieren und bei Bedarf einplanen.</p>
           </div>
-
           <form onSubmit={handleAddBacklog} className="grid grid-cols-12 gap-2">
             <input
               type="text"
@@ -950,7 +833,6 @@ export function FinanceView({ theme }: FinanceViewProps) {
               Hinzufügen
             </button>
           </form>
-
           <div className="space-y-2.5 pt-1">
             {backlog.map((item) => (
               <div
@@ -985,15 +867,12 @@ export function FinanceView({ theme }: FinanceViewProps) {
                 </div>
               </div>
             ))}
-            {backlog.length === 0 && (
-              <p className={`p-4 text-center text-xs ${textSub}`}>Backlog ist leer.</p>
-            )}
           </div>
         </div>
       </div>
 
       {/* 3. NOTION-STYLE WISHLIST */}
-      <div className="space-y-6 border-t border-[#E8E2D9] pt-6 dark:border-white/[0.08]">
+      <div className="space-y-6 border-t border-[#E8E2D9] pt-6 pb-24 dark:border-white/[0.08]">
         <div className="flex items-center justify-between">
           <div>
             <h2 className={`text-xl font-bold tracking-tight ${textTitle}`}>
@@ -1004,7 +883,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
             </p>
           </div>
           <button
-            onClick={() => setShowAddModal(true)}
+            onClick={() => addNewEmptyWish("Produktivität/Home")}
             className={`flex h-8 items-center gap-1.5 rounded-xl px-3 text-xs font-bold ${buttonPrimary}`}
           >
             <Plus className="h-3.5 w-3.5" /> Neuer Eintrag
@@ -1012,6 +891,7 @@ export function FinanceView({ theme }: FinanceViewProps) {
         </div>
 
         <div className="space-y-4">
+          {/* Kategorie 1: Produktivität/Home */}
           <div className={`${bgCard} space-y-3 rounded-2xl border p-5 shadow-sm`}>
             <div
               onClick={() => toggleSection("Produktivität/Home")}
@@ -1029,34 +909,17 @@ export function FinanceView({ theme }: FinanceViewProps) {
             </div>
 
             {openSections["Produktivität/Home"] && (
-              <div className="space-y-2 pt-1 pl-6">
+              <div className="space-y-0.5 pt-1">
                 {wishlist
                   .filter((w) => w.category === "Produktivität/Home")
-                  .map((item) => (
-                    <div key={item.id} className="group flex items-center justify-between">
-                      <label className="flex cursor-pointer items-center gap-2.5 text-xs font-medium">
-                        <input
-                          type="checkbox"
-                          checked={item.completed}
-                          onChange={() => toggleWishCheck(item.id, item.completed)}
-                          className="h-4 w-4 cursor-pointer rounded border-slate-300 text-[#005377] focus:ring-0"
-                        />
-                        <span className={item.completed ? "line-through opacity-50" : textTitle}>
-                          {item.title}
-                        </span>
-                      </label>
-                      <button
-                        onClick={() => handleDeleteWish(item.id)}
-                        className="text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-rose-500"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </div>
-                  ))}
+                  .map((item) =>
+                    item.embed_url ? renderWishBookmark(item) : renderWishItem(item)
+                  )}
               </div>
             )}
           </div>
 
+          {/* Kategorie 2: Lifestyle */}
           <div className={`${bgCard} space-y-4 rounded-2xl border p-5 shadow-sm`}>
             <div
               onClick={() => toggleSection("Lifestyle")}
@@ -1075,224 +938,43 @@ export function FinanceView({ theme }: FinanceViewProps) {
 
             {openSections["Lifestyle"] && (
               <div className="space-y-5 pt-1 pl-4">
-                <div className="space-y-3">
-                  <div className="flex items-center gap-2">
+                {/* Subkategorie: Oberteile */}
+                <div className="space-y-1">
+                  <div className="mb-2 flex items-center gap-2">
                     <span className="text-sm">🎽</span>
                     <h4 className={`text-xs font-bold ${textTitle}`}>Oberteile:</h4>
                   </div>
-
-                  <div className="space-y-3 pl-4">
+                  <div className="space-y-0.5 pl-1">
                     {wishlist
                       .filter(
                         (w) =>
                           w.category === "Lifestyle" &&
                           (w.subcategory === "Oberteile" || !w.subcategory)
                       )
-                      .map((item) => (
-                        <div key={item.id} className="space-y-2">
-                          <div className="group flex items-center justify-between">
-                            <label className="flex cursor-pointer items-center gap-2.5 text-xs font-medium">
-                              <input
-                                type="checkbox"
-                                checked={item.completed}
-                                onChange={() => toggleWishCheck(item.id, item.completed)}
-                                className="h-4 w-4 cursor-pointer rounded border-slate-300 text-[#005377] focus:ring-0"
-                              />
-                              <span
-                                className={item.completed ? "line-through opacity-50" : textTitle}
-                              >
-                                {item.title}
-                              </span>
-                            </label>
-                            <button
-                              onClick={() => handleDeleteWish(item.id)}
-                              className="text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-rose-500"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </button>
-                          </div>
-
-                          {item.embed_url && (
-                            <a
-                              href={item.embed_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={`ml-6 flex items-stretch justify-between overflow-hidden rounded-xl border transition-all hover:border-[#005377]/50 ${
-                                isDarkMode
-                                  ? "border-white/[0.08] bg-black/20"
-                                  : "border-[#E8E2D9] bg-[#FAF8F5]"
-                              }`}
-                            >
-                              <div className="flex flex-1 flex-col justify-between space-y-1 p-3.5">
-                                <div>
-                                  <h5 className={`line-clamp-1 text-xs font-bold ${textTitle}`}>
-                                    {item.embed_title || item.title}
-                                  </h5>
-                                  {item.embed_desc && (
-                                    <p className={`mt-0.5 line-clamp-1 text-[11px] ${textSub}`}>
-                                      {item.embed_desc}
-                                    </p>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-1.5 pt-1 text-[10px] text-slate-400">
-                                  <Globe className="h-3 w-3" />
-                                  <span className="line-clamp-1 font-mono">{item.embed_url}</span>
-                                </div>
-                              </div>
-
-                              {item.embed_img && (
-                                <div className="h-24 w-36 shrink-0 overflow-hidden bg-slate-200 dark:bg-slate-800">
-                                  <img
-                                    src={item.embed_img}
-                                    alt={item.title}
-                                    className="h-full w-full object-cover"
-                                  />
-                                </div>
-                              )}
-                            </a>
-                          )}
-                        </div>
-                      ))}
+                      .map((item) =>
+                        item.embed_url ? renderWishBookmark(item) : renderWishItem(item)
+                      )}
                   </div>
                 </div>
 
-                <div className="space-y-2 pt-2">
-                  <div className="flex items-center gap-2">
+                {/* Subkategorie: Hosen */}
+                <div className="space-y-1 pt-2">
+                  <div className="mb-2 flex items-center gap-2">
                     <span className="text-sm">👖</span>
                     <h4 className={`text-xs font-bold ${textTitle}`}>Hosen:</h4>
                   </div>
-
-                  <div className="space-y-2 pl-4">
+                  <div className="space-y-0.5 pl-1">
                     {wishlist
                       .filter((w) => w.category === "Lifestyle" && w.subcategory === "Hosen")
-                      .map((item) => (
-                        <div key={item.id} className="group flex items-center justify-between">
-                          <label className="flex cursor-pointer items-center gap-2.5 text-xs font-medium">
-                            <input
-                              type="checkbox"
-                              checked={item.completed}
-                              onChange={() => toggleWishCheck(item.id, item.completed)}
-                              className="h-4 w-4 cursor-pointer rounded border-slate-300 text-[#005377] focus:ring-0"
-                            />
-                            <span
-                              className={item.completed ? "line-through opacity-50" : textTitle}
-                            >
-                              {item.title}
-                            </span>
-                          </label>
-                          <button
-                            onClick={() => handleDeleteWish(item.id)}
-                            className="text-slate-400 opacity-0 transition-opacity group-hover:opacity-100 hover:text-rose-500"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ))}
+                      .map((item) =>
+                        item.embed_url ? renderWishBookmark(item) : renderWishItem(item)
+                      )}
                   </div>
                 </div>
               </div>
             )}
           </div>
         </div>
-
-        {showAddModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-xs">
-            <div
-              className={`w-full max-w-md space-y-4 rounded-2xl border p-6 shadow-2xl ${bgCard}`}
-            >
-              <h3 className={`text-sm font-bold tracking-wider uppercase ${textTitle}`}>
-                Neuen Wunsch / Bookmark hinzufügen
-              </h3>
-
-              <form onSubmit={handleAddWishItem} className="space-y-3 text-xs">
-                <div>
-                  <label className={textSub}>Titel / Posten *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="z. B. Hose sand Slim Leg Tapered"
-                    value={newWishTitle}
-                    onChange={(e) => setNewWishTitle(e.target.value)}
-                    className={`mt-1 w-full rounded-xl border p-2 ${bgInput}`}
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className={textSub}>Kategorie</label>
-                    <select
-                      value={newWishCat}
-                      onChange={(e) => setNewWishCat(e.target.value)}
-                      className={`mt-1 w-full rounded-xl border p-2 ${bgInput}`}
-                    >
-                      <option value="Produktivität/Home">⚙️ Produktivität/Home</option>
-                      <option value="Lifestyle">🚤 Lifestyle</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className={textSub}>Unterkategorie</label>
-                    <input
-                      type="text"
-                      placeholder="z. B. Oberteile, Hosen"
-                      value={newWishSubcat}
-                      onChange={(e) => setNewWishSubcat(e.target.value)}
-                      className={`mt-1 w-full rounded-xl border p-2 ${bgInput}`}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className={textSub}>Beschreibung / Material (Optional)</label>
-                  <input
-                    type="text"
-                    placeholder="z. B. 100% Leinen / Di Sondrio"
-                    value={newWishDesc}
-                    onChange={(e) => setNewWishDesc(e.target.value)}
-                    className={`mt-1 w-full rounded-xl border p-2 ${bgInput}`}
-                  />
-                </div>
-
-                <div>
-                  <label className={textSub}>Produkt-Link / URL (Optional)</label>
-                  <input
-                    type="url"
-                    placeholder="https://suitsupply.com/..."
-                    value={newWishUrl}
-                    onChange={(e) => setNewWishUrl(e.target.value)}
-                    className={`mt-1 w-full rounded-xl border p-2 ${bgInput}`}
-                  />
-                </div>
-
-                <div>
-                  <label className={textSub}>Bild-URL (Thumbnail)</label>
-                  <input
-                    type="url"
-                    placeholder="https://..."
-                    value={newWishImg}
-                    onChange={(e) => setNewWishImg(e.target.value)}
-                    className={`mt-1 w-full rounded-xl border p-2 ${bgInput}`}
-                  />
-                </div>
-
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddModal(false)}
-                    className={`rounded-xl border px-3 py-2 text-xs font-semibold ${bgItem}`}
-                  >
-                    Abbrechen
-                  </button>
-                  <button
-                    type="submit"
-                    className={`rounded-xl px-4 py-2 text-xs font-bold ${buttonPrimary}`}
-                  >
-                    Speichern
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
