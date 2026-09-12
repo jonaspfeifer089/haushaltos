@@ -46,7 +46,7 @@ interface FinanceViewProps {
 export function FinanceView({ theme }: FinanceViewProps) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [pinInput, setPinInput] = useState("");
-  const SECRET_PIN = "1234";
+  const SECRET_PIN = "07570";
 
   const {
     bgCard,
