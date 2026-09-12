@@ -37,9 +37,26 @@ export function ActiveWorkoutView({ activeUser, gymData, workout, theme }: any) 
     workout.activeExercises.flatMap((ex: any) => ex.sets.map((s: any) => s.id))
   );
 
-  const historicalGymData = (gymData || []).filter(
-    (g: any) => g.username === activeUser && !activeSetIds.has(g.id)
+  // FIX: Startzeitpunkt einmalig berechnen (useState umgeht die ESLint "Impure Function" Warnung)
+  const [workoutStartTime] = useState(
+    () => new Date(Date.now() - (workout.workoutDauer || 0) * 1000)
   );
+
+  const historicalGymData = (gymData || []).filter((g: any) => {
+    // 1. Nur Daten des aktiven Nutzers
+    if (g.username !== activeUser) return false;
+
+    // 2. ID-Fallback-Prüfung
+    if (activeSetIds.has(g.id)) return false;
+
+    // 3. STRICT BOUNDARY:
+    // Schließt alle DB-Einträge aus, deren 'created_at' Zeitstempel nach dem Start deines Workouts liegt.
+    if (g.created_at && new Date(g.created_at) >= workoutStartTime) {
+      return false;
+    }
+
+    return true;
+  });
 
   return (
     <div className="flex h-[100dvh] w-full overflow-hidden bg-black font-sans text-white">
