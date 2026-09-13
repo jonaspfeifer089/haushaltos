@@ -146,7 +146,7 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
 
             <div className="space-y-2">
               <h2 className="font-serif text-2xl tracking-wide text-[#F7D6D9] italic sm:text-3xl">
-                for lucky girl Lena
+                für Lena
               </h2>
 
               <div className="flex items-center justify-center gap-2">
@@ -221,10 +221,10 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
                   <div className="relative z-10 mt-2 flex items-start justify-between sm:mt-0">
                     <div className="space-y-1">
                       <h3 className="mt-1 font-serif text-2xl leading-none font-bold text-[#5C1A21] sm:mt-2 sm:text-4xl">
-                        PILATES
+                        PILATES Personal Training
                       </h3>
                       <p className="text-[7px] font-bold tracking-[0.3em] text-[#5C1A21]/70 uppercase sm:text-[10px]">
-                        1-on-1 Personal Session
+                        Probetraining mit Einweisung & Trainer
                       </p>
                     </div>
                     <span className="pt-1 font-mono text-[8px] font-bold text-[#5C1A21]/40 sm:text-[10px]">
@@ -239,12 +239,12 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
                           Date
                         </p>
                         <p className="font-mono text-[9px] font-bold text-[#5C1A21] sm:text-xs">
-                          OPEN
+                          bis 09/2027 einlösbar
                         </p>
                       </div>
                       <div>
                         <p className="mb-0.5 text-[6px] font-bold tracking-widest text-[#5C1A21]/40 uppercase sm:text-[8px]">
-                          Guest
+                          Für
                         </p>
                         <p className="font-serif text-[11px] font-bold text-[#5C1A21] italic sm:text-sm">
                           Lena
@@ -252,8 +252,10 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
                       </div>
                     </div>
                     <p className="max-w-[90%] text-[8px] leading-relaxed font-medium text-[#5C1A21]/80 sm:text-[10px]">
-                      Ein exklusives Personal Training. Zeit für dich, für deine Balance und einen
-                      starken Core.
+                      That&apos;s what a Munich Bee needs!
+                    </p>
+                    <p className="max-w-[90%] text-[6px] leading-relaxed font-medium text-[#5C1A21]/80 sm:text-[10px]">
+                      *Einlösbar im Pilates Studio Purite München Schwabing
                     </p>
                   </div>
                 </div>
