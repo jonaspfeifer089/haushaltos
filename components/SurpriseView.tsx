@@ -8,13 +8,14 @@ interface SurpriseViewProps {
 }
 
 // --- EIGENE BILD-STICKER-KOMPONENTEN ---
+// "backface-visibility:hidden" verhindert den spiegelverkehrten "Durchbluten"-Fehler
 // "pointer-events-none" verhindert, dass die Sticker den Klick auf die Karte blockieren
 
 const Sticker1 = ({ className }: { className?: string }) => (
   <img
     src="/stickers/Sticker1.png"
     alt="Yoga Figur"
-    className={`pointer-events-none object-contain drop-shadow-lg ${className}`}
+    className={`pointer-events-none object-contain drop-shadow-lg [backface-visibility:hidden] ${className}`}
   />
 );
 
@@ -22,7 +23,7 @@ const Sticker2 = ({ className }: { className?: string }) => (
   <img
     src="/stickers/Sticker2.png"
     alt="Snoopy Matcha"
-    className={`pointer-events-none object-contain drop-shadow-xl ${className}`}
+    className={`pointer-events-none object-contain drop-shadow-xl [backface-visibility:hidden] ${className}`}
   />
 );
 
@@ -30,7 +31,7 @@ const Sticker3 = ({ className }: { className?: string }) => (
   <img
     src="/stickers/Sticker3.png"
     alt="To Do Pilates"
-    className={`pointer-events-none object-contain drop-shadow-xl ${className}`}
+    className={`pointer-events-none object-contain drop-shadow-xl [backface-visibility:hidden] ${className}`}
   />
 );
 
@@ -38,7 +39,23 @@ const Sticker4 = ({ className }: { className?: string }) => (
   <img
     src="/stickers/Sticker4.png"
     alt="Cherry Reformer"
-    className={`pointer-events-none object-contain drop-shadow-xl ${className}`}
+    className={`pointer-events-none object-contain drop-shadow-xl [backface-visibility:hidden] ${className}`}
+  />
+);
+
+const Sticker5 = ({ className }: { className?: string }) => (
+  <img
+    src="/stickers/Sticker5.png"
+    alt="Tulips Envelope"
+    className={`pointer-events-none object-contain drop-shadow-xl [backface-visibility:hidden] ${className}`}
+  />
+);
+
+const Sticker6 = ({ className }: { className?: string }) => (
+  <img
+    src="/stickers/Sticker6.png"
+    alt="Dachshund Hearts"
+    className={`pointer-events-none object-contain drop-shadow-xl [backface-visibility:hidden] ${className}`}
   />
 );
 
@@ -140,10 +157,13 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
               className="relative h-[180px] w-[350px] cursor-pointer select-none [transform-style:preserve-3d] sm:h-[240px] sm:w-[550px]"
               onClick={() => setIsFlipped(!isFlipped)}
             >
-              {/* === VORDERSEITE (DUNKELGRÜN MIT TYPOGRAFIE & SNOOPY) === */}
+              {/* === VORDERSEITE (DUNKELGRÜN MIT TYPOGRAFIE, SNOOPY & TULPEN) === */}
               <div className="absolute inset-0 flex flex-col items-center justify-center overflow-visible rounded-xl bg-[#113022] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-[#F7F4EB]/20 [backface-visibility:hidden]">
-                {/* Großer Snoopy Sticker oben rechts */}
-                <Sticker2 className="absolute -top-10 -right-6 z-20 w-32 rotate-[12deg] sm:-top-16 sm:-right-8 sm:w-48" />
+                {/* RIESIGER Snoopy Sticker oben rechts */}
+                <Sticker2 className="absolute -top-12 -right-8 z-20 w-40 rotate-[12deg] sm:-top-20 sm:-right-12 sm:w-60" />
+
+                {/* Tulpen-Umschlag unten links */}
+                <Sticker5 className="absolute -bottom-6 -left-6 z-20 w-32 rotate-[-15deg] sm:-bottom-10 sm:-left-8 sm:w-48" />
 
                 {/* Die diagonale Typografie */}
                 <div className="pointer-events-none mt-2 flex w-full -rotate-6 flex-col px-8 sm:-rotate-[8deg] sm:px-12">
@@ -171,11 +191,14 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
 
               {/* === RÜCKSEITE (HELLES CREME TICKET & STICKER) === */}
               <div className="absolute inset-0 flex [transform:rotateY(180deg)] overflow-visible rounded-xl bg-[#F7F4EB] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-black/5 [backface-visibility:hidden]">
-                {/* Pilates-To-Do Sticker weit nach links außen gezogen */}
-                <Sticker3 className="absolute -top-10 -left-6 z-30 w-28 rotate-[-12deg] sm:-top-14 sm:-left-12 sm:w-40" />
+                {/* Pilates-To-Do Sticker extrem weit nach oben links gezogen, P bleibt lesbar */}
+                <Sticker3 className="absolute -top-12 -left-8 z-30 w-28 rotate-[-12deg] sm:-top-20 sm:-left-12 sm:w-40" />
 
-                {/* Kirschen-Reformer unten rechts über der Abrisskante */}
-                <Sticker4 className="absolute right-[15%] -bottom-6 z-30 w-32 rotate-[8deg] sm:right-[18%] sm:-bottom-10 sm:w-48" />
+                {/* Kirschen-Reformer ganz unten rechts in die Ecke der Karte platziert */}
+                <Sticker4 className="absolute -right-4 -bottom-6 z-30 w-32 rotate-[5deg] sm:-right-6 sm:-bottom-8 sm:w-48" />
+
+                {/* Dackel mit Herzballons - rollt oben mittig über die Abrisskante */}
+                <Sticker6 className="absolute -top-5 right-[20%] z-30 w-24 rotate-[4deg] sm:-top-8 sm:right-[22%] sm:w-36" />
 
                 {/* Stanzungen (Cutouts) */}
                 <div className="absolute -top-4 right-[25%] z-20 h-8 w-8 rounded-full bg-[#09150F] shadow-inner" />
