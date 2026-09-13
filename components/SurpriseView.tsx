@@ -7,52 +7,39 @@ interface SurpriseViewProps {
   theme: any;
 }
 
-// --- EIGENE SVG-STICKER-KOMPONENTEN ---
+// --- EIGENE BILD-STICKER-KOMPONENTEN ---
+// Die "pointer-events-none" Klasse verhindert, dass die Sticker den Klick auf die Karte blockieren
 
-const SparkleSticker = ({ className }: { className?: string }) => (
-  <div className={`drop-shadow-md ${className}`}>
-    <svg viewBox="0 0 100 100" className="h-full w-full">
-      <path
-        d="M50 5 C50 30 70 50 95 50 C70 50 50 70 50 95 C50 70 30 50 5 50 C30 50 50 30 50 5 Z"
-        fill="#462B28"
-        stroke="#F7D6D9"
-        strokeWidth="8"
-        strokeLinejoin="round"
-      />
-    </svg>
-  </div>
+const Sticker1 = ({ className }: { className?: string }) => (
+  <img
+    src="/stickers/Sticker1.png"
+    alt="Yoga Figur"
+    className={`pointer-events-none object-contain drop-shadow-lg ${className}`}
+  />
 );
 
-const HeartSticker = ({ className }: { className?: string }) => (
-  <div
-    className={`flex items-center justify-center rounded-full border-[3px] border-[#F7D6D9] bg-[#F7F4EB] px-3 py-1.5 drop-shadow-md sm:border-[4px] sm:px-4 sm:py-2 ${className}`}
-  >
-    <span className="flex items-center gap-1.5 font-sans text-[10px] font-black tracking-widest text-[#462B28] sm:text-sm">
-      I <Heart className="h-3 w-3 fill-[#462B28] text-[#462B28] sm:h-4 sm:w-4" /> LENA
-    </span>
-  </div>
+const Sticker2 = ({ className }: { className?: string }) => (
+  <img
+    src="/stickers/Sticker2.png"
+    alt="Snoopy Matcha"
+    className={`pointer-events-none object-contain drop-shadow-lg ${className}`}
+  />
 );
 
-const LuckyGirlSticker = ({ className }: { className?: string }) => (
-  <div
-    className={`flex items-center rounded-full border-[3px] border-[#F7D6D9] bg-[#462B28] px-3 py-1 shadow-lg sm:border-[4px] sm:px-5 sm:py-1.5 ${className}`}
-  >
-    <span className="font-serif text-[10px] font-bold whitespace-nowrap text-[#F7F4EB] italic sm:text-sm">
-      lucky girl
-    </span>
-  </div>
+const Sticker3 = ({ className }: { className?: string }) => (
+  <img
+    src="/stickers/Sticker3.png"
+    alt="To Do Pilates"
+    className={`pointer-events-none object-contain drop-shadow-lg ${className}`}
+  />
 );
 
-const GoToPilatesSticker = ({ className }: { className?: string }) => (
-  <div
-    className={`flex flex-col items-center justify-center rounded-2xl border-[3px] border-[#F7F4EB] bg-[#F7D6D9] px-3 py-2 text-[#462B28] shadow-lg sm:rounded-3xl sm:border-[4px] sm:px-4 sm:py-3 ${className}`}
-  >
-    <span className="text-center text-[8px] leading-tight font-black tracking-widest whitespace-nowrap uppercase sm:text-[10px]">
-      Go To
-      <br />
-      Pilates
-    </span>
-  </div>
+const Sticker4 = ({ className }: { className?: string }) => (
+  <img
+    src="/stickers/Sticker4.png"
+    alt="Cherry Reformer"
+    className={`pointer-events-none object-contain drop-shadow-lg ${className}`}
+  />
 );
 
 // -------------------------------------------------------------------
@@ -99,7 +86,7 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
   };
 
   return (
-    // HINTERGRUND: Extrem dunkles, edles Waldgrün (fast Schwarz), damit das Ticket leuchtet
+    // HINTERGRUND: Extrem dunkles, edles Waldgrün
     <div className="relative flex min-h-[85vh] w-full flex-col items-center justify-center overflow-hidden rounded-3xl bg-[#09150F]">
       {/* Ambient-Schatten */}
       <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
@@ -153,13 +140,13 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
               className="relative h-[180px] w-[350px] cursor-pointer select-none [transform-style:preserve-3d] sm:h-[240px] sm:w-[550px]"
               onClick={() => setIsFlipped(!isFlipped)}
             >
-              {/* === VORDERSEITE (DUNKELGRÜN MIT QUER VERTEILTER TYPOGRAFIE) === */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden rounded-xl bg-[#113022] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-[#F7F4EB]/20 [backface-visibility:hidden]">
-                {/* Sticker (Vorderseite) - Süß, aber elegant integriert */}
-                <HeartSticker className="absolute top-4 right-6 z-20 rotate-[12deg] sm:top-6 sm:right-8" />
-                <SparkleSticker className="absolute bottom-6 left-8 z-20 h-6 w-6 rotate-[-15deg] opacity-90 sm:h-10 sm:w-10" />
+              {/* === VORDERSEITE (DUNKELGRÜN MIT TYPOGRAFIE & STICKERN) === */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center overflow-visible rounded-xl bg-[#113022] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-[#F7F4EB]/20 [backface-visibility:hidden]">
+                {/* Sticker (Vorderseite) */}
+                <Sticker2 className="absolute -top-5 right-2 z-20 w-20 rotate-[12deg] sm:-top-8 sm:right-4 sm:w-28" />
+                <Sticker1 className="absolute -bottom-4 left-4 z-20 w-16 rotate-[-10deg] sm:-bottom-6 sm:left-8 sm:w-24" />
 
-                {/* Die diagonale, wunderschöne Typografie */}
+                {/* Die diagonale Typografie */}
                 <div className="pointer-events-none mt-2 flex w-full -rotate-6 flex-col px-8 sm:-rotate-[8deg] sm:px-12">
                   <span className="ml-[5%] self-start font-serif text-xl tracking-tight text-[#F7F4EB] sm:text-3xl">
                     it&apos;s a
@@ -175,7 +162,7 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
                   </span>
                 </div>
 
-                <div className="pointer-events-none absolute bottom-4 flex flex-col items-center gap-1.5 opacity-50 sm:bottom-5">
+                <div className="pointer-events-none absolute bottom-3 flex flex-col items-center gap-1.5 opacity-50 sm:bottom-5">
                   <RefreshCcw className="h-3 w-3 animate-pulse text-[#F7F4EB]" />
                   <span className="text-[7px] font-bold tracking-widest text-[#F7F4EB] uppercase sm:text-[8px]">
                     Tap to turn
@@ -183,19 +170,19 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
                 </div>
               </div>
 
-              {/* === RÜCKSEITE (HELLES CREME TICKET) === */}
-              <div className="absolute inset-0 flex [transform:rotateY(180deg)] overflow-hidden rounded-xl bg-[#F7F4EB] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-black/5 [backface-visibility:hidden]">
-                {/* Sticker (Rückseite) - Brechen über die Abrisskante */}
-                <LuckyGirlSticker className="absolute -top-3 left-6 z-30 rotate-[-8deg] sm:-top-4 sm:left-10" />
-                <GoToPilatesSticker className="absolute -bottom-2 left-[65%] z-30 -translate-x-1/2 rotate-[10deg] sm:-bottom-4 sm:left-[70%]" />
+              {/* === RÜCKSEITE (HELLES CREME TICKET & STICKER) === */}
+              <div className="absolute inset-0 flex [transform:rotateY(180deg)] overflow-visible rounded-xl bg-[#F7F4EB] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-black/5 [backface-visibility:hidden]">
+                {/* Sticker (Rückseite) - Brechen cool über die Kante */}
+                <Sticker3 className="absolute -top-6 left-2 z-30 w-24 rotate-[-8deg] sm:-top-8 sm:left-6 sm:w-32" />
+                <Sticker4 className="absolute right-[18%] -bottom-5 z-30 w-24 rotate-[12deg] sm:right-[20%] sm:-bottom-8 sm:w-36" />
 
-                {/* Stanzungen (Cutouts) - Farbe des App-Hintergrunds, damit es transparent wirkt */}
+                {/* Stanzungen (Cutouts) */}
                 <div className="absolute -top-4 right-[25%] z-20 h-8 w-8 rounded-full bg-[#09150F] shadow-inner" />
                 <div className="absolute right-[25%] -bottom-4 z-20 h-8 w-8 rounded-full bg-[#09150F] shadow-inner" />
 
                 {/* Linker Bereich (75%) */}
-                <div className="relative flex w-[75%] flex-col justify-between rounded-l-xl border-r-2 border-dashed border-[#5C1A21]/30 p-5 sm:p-7">
-                  <div className="mt-2 flex items-start justify-between sm:mt-0">
+                <div className="relative flex w-[75%] flex-col justify-between overflow-hidden rounded-l-xl border-r-2 border-dashed border-[#5C1A21]/30 p-5 sm:p-7">
+                  <div className="relative z-10 mt-2 flex items-start justify-between sm:mt-0">
                     <div className="space-y-1">
                       <h3 className="font-serif text-2xl leading-none font-bold text-[#5C1A21] sm:text-4xl">
                         PILATES
@@ -209,7 +196,7 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
                     </span>
                   </div>
 
-                  <div className="mb-2 space-y-3 sm:mb-0 sm:space-y-4">
+                  <div className="relative z-10 mb-2 space-y-3 sm:mb-0 sm:space-y-4">
                     <div className="flex gap-6 sm:gap-10">
                       <div>
                         <p className="mb-0.5 text-[6px] font-bold tracking-widest text-[#5C1A21]/40 uppercase sm:text-[8px]">
@@ -236,7 +223,7 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
                 </div>
 
                 {/* Abrisskante (Rechts 25%) */}
-                <div className="flex w-[25%] flex-col items-center justify-between rounded-r-xl bg-[#F7F4EB] p-4 sm:p-6">
+                <div className="relative z-10 flex w-[25%] flex-col items-center justify-between overflow-hidden rounded-r-xl bg-[#F7F4EB] p-4 sm:p-6">
                   <span className="mt-6 origin-center -rotate-90 font-serif text-[10px] whitespace-nowrap text-[#5C1A21]/70 italic sm:mt-8 sm:text-xs">
                     Happy Birthday
                   </span>
