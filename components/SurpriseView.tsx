@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Heart, RefreshCcw } from "lucide-react";
+import { Heart, RefreshCcw, Sparkles } from "lucide-react";
 import confetti from "canvas-confetti";
 
 interface SurpriseViewProps {
@@ -9,34 +9,42 @@ interface SurpriseViewProps {
 
 // --- EIGENE BILD-STICKER-KOMPONENTEN ---
 const Sticker2 = ({ className }: { className?: string }) => (
-  <img
+  <motion.img
+    animate={{ rotate: [11, 13, 11] }}
+    transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
     src="/stickers/Sticker2.png"
     alt="Snoopy Matcha"
-    className={`pointer-events-none object-contain drop-shadow-xl ${className}`}
+    className={`pointer-events-none object-contain drop-shadow-2xl ${className}`}
   />
 );
 
 const Sticker3 = ({ className }: { className?: string }) => (
-  <img
+  <motion.img
+    animate={{ rotate: [-15, -12, -15] }}
+    transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
     src="/stickers/Sticker3.png"
     alt="To Do Pilates"
-    className={`pointer-events-none object-contain drop-shadow-xl ${className}`}
+    className={`pointer-events-none object-contain drop-shadow-2xl ${className}`}
   />
 );
 
 const Sticker4 = ({ className }: { className?: string }) => (
-  <img
+  <motion.img
+    animate={{ rotate: [4, 7, 4], y: [0, -2, 0] }}
+    transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
     src="/stickers/Sticker4.png"
     alt="Cherry Reformer"
-    className={`pointer-events-none object-contain drop-shadow-xl ${className}`}
+    className={`pointer-events-none object-contain drop-shadow-2xl ${className}`}
   />
 );
 
 const Sticker5 = ({ className }: { className?: string }) => (
-  <img
+  <motion.img
+    animate={{ rotate: [-16, -13, -16] }}
+    transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
     src="/stickers/Sticker5.png"
     alt="Tulips Envelope"
-    className={`pointer-events-none object-contain drop-shadow-xl ${className}`}
+    className={`pointer-events-none object-contain drop-shadow-2xl ${className}`}
   />
 );
 
@@ -45,9 +53,9 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
   const [isFlipped, setIsFlipped] = useState(false);
 
   const handleReveal = () => {
-    const duration = 3 * 1000;
+    const duration = 3.5 * 1000;
     const animationEnd = Date.now() + duration;
-    const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 100 };
+    const defaults = { startVelocity: 35, spread: 360, ticks: 70, zIndex: 100 };
 
     const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
 
@@ -58,178 +66,236 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
         return clearInterval(interval);
       }
 
-      const particleCount = 50 * (timeLeft / duration);
-      const aestheticColors = ["#113022", "#5C1A21", "#F7D6D9", "#F7F4EB", "#D4AF37"];
+      const particleCount = 45 * (timeLeft / duration);
+      const aestheticColors = ["#1B4332", "#5C1A21", "#F7D6D9", "#F8F5EE", "#D4AF37", "#FFB5A7"];
 
       confetti(
         Object.assign({}, defaults, {
           particleCount,
-          origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 },
+          origin: { x: randomInRange(0.1, 0.35), y: Math.random() - 0.2 },
           colors: aestheticColors
         })
       );
       confetti(
         Object.assign({}, defaults, {
           particleCount,
-          origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 },
+          origin: { x: randomInRange(0.65, 0.9), y: Math.random() - 0.2 },
           colors: aestheticColors
         })
       );
-    }, 250);
+    }, 220);
 
     setIsRevealed(true);
   };
 
   return (
-    <div className="relative flex min-h-[85vh] w-full flex-col items-center justify-center overflow-hidden rounded-3xl bg-radial from-[#0F2A1D] via-[#081710] to-[#040B07]">
-      {/* Dynamische Mesh-Glows */}
+    // DYNAMISCHER HINTERGRUND
+    <div className="relative flex min-h-[85vh] w-full flex-col items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-b from-[#081710] via-[#040E0A] to-[#020705]">
+      {/* 1. WEICHE, ANIMIERTE MESH-GLOWS */}
       <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
         <motion.div
           animate={{
-            x: [0, 50, -20, 0],
+            x: [0, 40, -20, 0],
             y: [0, -30, 20, 0],
-            scale: [1, 1.2, 0.9, 1]
+            scale: [1, 1.25, 0.95, 1]
           }}
-          transition={{ duration: 16, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -top-[15%] -left-[10%] h-[550px] w-[550px] rounded-full bg-[#1B4332]/45 blur-[120px]"
+          transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute -top-[20%] -left-[10%] h-[600px] w-[600px] rounded-full bg-[#1B4332]/40 blur-[130px]"
         />
 
         <motion.div
           animate={{
-            x: [0, -40, 30, 0],
-            y: [0, 40, -20, 0],
-            scale: [1, 1.15, 1.05, 1]
+            x: [0, -35, 25, 0],
+            y: [0, 35, -25, 0],
+            scale: [1, 1.2, 1, 1]
           }}
           transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -right-[10%] -bottom-[15%] h-[500px] w-[500px] rounded-full bg-[#F7D6D9]/20 blur-[130px]"
+          className="absolute -right-[10%] -bottom-[20%] h-[550px] w-[550px] rounded-full bg-[#F7D6D9]/15 blur-[140px]"
         />
 
         <motion.div
           animate={{
-            scale: [0.9, 1.25, 0.9],
-            opacity: [0.15, 0.3, 0.15]
+            scale: [0.9, 1.2, 0.9],
+            opacity: [0.1, 0.25, 0.1]
           }}
-          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-[30%] left-[25%] h-[420px] w-[420px] rounded-full bg-[#D4AF37]/15 blur-[140px]"
+          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute top-[25%] left-[30%] h-[400px] w-[400px] rounded-full bg-[#D4AF37]/10 blur-[120px]"
         />
+      </div>
+
+      {/* 2. ZARTE STERNENSTAUB-LICHTPUNKTE */}
+      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+        {[
+          { left: "15%", top: "80%", delay: 0, duration: 8 },
+          { left: "30%", top: "90%", delay: 2, duration: 10 },
+          { left: "55%", top: "85%", delay: 1, duration: 9 },
+          { left: "75%", top: "75%", delay: 3, duration: 11 },
+          { left: "88%", top: "88%", delay: 0.5, duration: 7 }
+        ].map((pt, i) => (
+          <motion.div
+            key={i}
+            initial={{ opacity: 0, y: 0 }}
+            animate={{
+              opacity: [0, 0.8, 0],
+              y: [-20, -320],
+              scale: [0.8, 1.4, 0.8]
+            }}
+            transition={{
+              duration: pt.duration,
+              repeat: Infinity,
+              delay: pt.delay,
+              ease: "linear"
+            }}
+            style={{ left: pt.left, top: pt.top }}
+            className="absolute flex items-center justify-center"
+          >
+            <div className="h-1.5 w-1.5 rounded-full bg-[#F7D6D9] shadow-[0_0_8px_#F7D6D9] blur-[0.5px]" />
+          </motion.div>
+        ))}
       </div>
 
       <div className="relative z-10 flex w-full flex-col items-center px-4">
         {!isRevealed ? (
-          // --- STARTBILDSCHIRM ---
+          // --- STARTBILDSCHIRM MIT NERVÖS-ZAPPELNDEM BUTTON ---
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="flex flex-col items-center space-y-8 text-center"
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="flex flex-col items-center space-y-7 text-center select-none"
           >
             <div className="relative">
+              {/* Zappelnder/pulsierender Hintergrund-Glow (Herzschlag) */}
               <motion.div
-                animate={{ scale: [1, 1.2, 1], opacity: [0.4, 0.85, 0.4] }}
-                transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
-                className="absolute inset-0 rounded-full bg-[#F7D6D9]/30 blur-2xl"
+                animate={{
+                  scale: [1, 1.35, 1.1, 1.4, 1],
+                  opacity: [0.35, 0.85, 0.5, 0.9, 0.35]
+                }}
+                transition={{
+                  repeat: Infinity,
+                  duration: 2.8,
+                  ease: "easeInOut",
+                  times: [0, 0.15, 0.3, 0.45, 1]
+                }}
+                className="absolute -inset-3 rounded-full bg-[#F7D6D9]/30 blur-2xl"
               />
-              <button
+
+              {/* Der nervös vibrierende Button */}
+              <motion.button
                 onClick={handleReveal}
-                className="group relative flex h-24 w-24 items-center justify-center rounded-full border-2 border-[#F7D6D9]/50 bg-[#113022]/90 shadow-[0_0_50px_rgba(247,214,217,0.3)] backdrop-blur-md transition-all hover:scale-110 hover:border-[#F7D6D9]"
+                animate={{
+                  rotate: [0, -4, 4, -4, 3, -1, 0, 0, 0],
+                  scale: [1, 1.05, 1, 1.07, 1, 1, 1, 1, 1],
+                  x: [0, -1.5, 1.5, -1, 1, 0, 0, 0, 0]
+                }}
+                transition={{
+                  duration: 2.6,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                  times: [0, 0.08, 0.16, 0.24, 0.32, 0.4, 0.5, 0.8, 1]
+                }}
+                whileHover={{ scale: 1.15, rotate: 0 }}
+                whileTap={{ scale: 0.92 }}
+                className="group relative flex h-24 w-24 items-center justify-center rounded-full border border-[#F7D6D9]/50 bg-[#113022]/90 shadow-[0_15px_35px_rgba(0,0,0,0.5),0_0_40px_rgba(247,214,217,0.25)] backdrop-blur-xl transition-colors duration-300 hover:border-[#F7D6D9]"
               >
-                <Heart className="h-8 w-8 fill-[#F7D6D9] text-[#F7D6D9] transition-transform group-hover:scale-110" />
-              </button>
+                <Heart className="h-9 w-9 fill-[#F7D6D9] text-[#F7D6D9] transition-transform duration-200 group-hover:scale-110" />
+              </motion.button>
             </div>
+
             <div className="space-y-2">
-              <h2 className="font-serif text-2xl text-[#F7D6D9] italic">for lucky girl Lena</h2>
-              <p className="text-xs font-bold tracking-[0.2em] text-[#F7F4EB]/60 uppercase">
-                Tap to open
-              </p>
+              <h2 className="font-serif text-2xl tracking-wide text-[#F7D6D9] italic sm:text-3xl">
+                for lucky girl Lena
+              </h2>
+
+              <motion.div
+                animate={{ y: [0, -2, 0] }}
+                transition={{ repeat: Infinity, duration: 2.6, times: [0, 0.18, 0.4] }}
+                className="flex items-center justify-center gap-2"
+              >
+                <Sparkles className="h-3 w-3 animate-pulse text-[#D4AF37]" />
+                <p className="text-[11px] font-bold tracking-[0.25em] text-[#F8F5EE]/60 uppercase">
+                  Tap to unwrap
+                </p>
+                <Sparkles className="h-3 w-3 animate-pulse text-[#D4AF37]" />
+              </motion.div>
             </div>
           </motion.div>
         ) : (
-          // --- DER GUTSCHEIN (QUERFORMAT) ---
-          <div className="flex flex-col items-center [perspective:1200px]">
+          // --- DER GUTSCHEIN (QUERFORMAT MIT SCHWEBENDEM FLOATING-EFFEKT) ---
+          <motion.div
+            animate={{ y: [0, -6, 0], rotateZ: [-0.3, 0.3, -0.3] }}
+            transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
+            className="flex flex-col items-center [perspective:1400px]"
+          >
             <motion.div
-              initial={{ opacity: 0, scale: 0, rotateZ: -180, rotateY: -720 }}
+              initial={{ opacity: 0, scale: 0.2, rotateZ: -160, rotateY: -720 }}
               animate={{ opacity: 1, scale: 1, rotateZ: 0, rotateY: isFlipped ? 180 : 0 }}
-              transition={{ type: "spring", stiffness: 45, damping: 14, mass: 1.1 }}
+              transition={{ type: "spring", stiffness: 50, damping: 15, mass: 1.1 }}
               className="relative h-[180px] w-[350px] cursor-pointer select-none [transform-style:preserve-3d] sm:h-[240px] sm:w-[550px]"
               onClick={() => setIsFlipped(!isFlipped)}
             >
-              {/* === VORDERSEITE: DUNKELGRÜN MIT LETTERPRESS/PRÄGE-EFFEKT === */}
+              {/* === VORDERSEITE === */}
               <div
-                className={`absolute inset-0 flex flex-col items-center justify-center overflow-visible rounded-xl bg-[#113022] shadow-[0_25px_60px_rgba(0,0,0,0.65),inset_0_1px_1px_rgba(255,255,255,0.15),inset_0_-2px_4px_rgba(0,0,0,0.5)] ring-1 ring-[#F7F4EB]/25 transition-opacity duration-200 [backface-visibility:hidden] ${
+                className={`absolute inset-0 flex flex-col items-center justify-center overflow-visible rounded-2xl bg-[#113022] shadow-[0_30px_70px_rgba(0,0,0,0.7),0_0_40px_rgba(17,48,34,0.3)] ring-1 ring-white/20 transition-opacity duration-200 [backface-visibility:hidden] ${
                   isFlipped ? "pointer-events-none opacity-0" : "opacity-100"
                 }`}
               >
-                {/* HIER STICKER-GRÖSSEN VORDERSEITE ANPASSEN (z. B. w-40 sm:w-60) */}
-                <Sticker2 className="absolute -top-12 -right-8 z-20 w-40 rotate-[12deg] sm:-top-20 sm:-right-12 sm:w-60" />
-                <Sticker5 className="absolute -bottom-6 -left-6 z-20 w-32 rotate-[-15deg] sm:-bottom-10 sm:-left-8 sm:w-48" />
+                {/* Wandernder feiner Lichtschimmer */}
+                <motion.div
+                  animate={{ x: ["-100%", "200%"] }}
+                  transition={{ duration: 5, repeat: Infinity, repeatDelay: 3, ease: "easeInOut" }}
+                  className="pointer-events-none absolute inset-0 z-10 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-white/[0.08] to-transparent"
+                />
 
-                {/* Diagonale Typografie mit Letterpress-Tiefprägung */}
+                {/* Sticker Vorderseite */}
+                <Sticker2 className="absolute -top-12 -right-8 z-20 w-40 sm:-top-20 sm:-right-12 sm:w-60" />
+                <Sticker5 className="absolute -bottom-6 -left-6 z-20 w-32 sm:-bottom-10 sm:-left-8 sm:w-48" />
+
+                {/* Diagonale Typografie */}
                 <div className="pointer-events-none mt-2 flex w-full -rotate-6 flex-col px-8 sm:-rotate-[8deg] sm:px-12">
-                  <span
-                    style={{
-                      textShadow: "0 -1px 1px rgba(0,0,0,0.8), 0 1px 1px rgba(247,214,217,0.3)"
-                    }}
-                    className="ml-[5%] self-start font-serif text-xl tracking-tight text-[#F7F4EB] sm:text-3xl"
-                  >
+                  <span className="ml-[5%] self-start font-serif text-xl tracking-tight text-[#F8F5EE] sm:text-3xl">
                     it&apos;s a
                   </span>
-                  <span
-                    style={{
-                      textShadow: "0 -2px 3px rgba(0,0,0,0.9), 0 1.5px 1px rgba(255,255,255,0.4)"
-                    }}
-                    className="-ml-[15%] self-center font-serif text-5xl leading-tight text-[#F7D6D9] italic sm:-ml-[20%] sm:text-[5.5rem]"
-                  >
+                  <span className="-ml-[15%] self-center font-serif text-5xl leading-tight text-[#F7D6D9] italic sm:-ml-[20%] sm:text-[5.5rem]">
                     gift
                   </span>
-                  <span
-                    style={{
-                      textShadow: "0 -1px 1px rgba(0,0,0,0.8), 0 1px 1px rgba(247,214,217,0.3)"
-                    }}
-                    className="mt-0 ml-[15%] self-center font-serif text-lg tracking-tight text-[#F7F4EB] sm:mt-2 sm:ml-[25%] sm:text-2xl"
-                  >
+                  <span className="mt-0 ml-[15%] self-center font-serif text-lg tracking-tight text-[#F8F5EE] sm:mt-2 sm:ml-[25%] sm:text-2xl">
                     to have
                   </span>
-                  <span
-                    style={{
-                      textShadow: "0 -2px 3px rgba(0,0,0,0.9), 0 1.5px 1px rgba(255,255,255,0.4)"
-                    }}
-                    className="mr-[5%] self-end font-serif text-4xl leading-none text-[#F7D6D9] italic sm:text-[4.5rem]"
-                  >
+                  <span className="mr-[5%] self-end font-serif text-4xl leading-none text-[#F7D6D9] italic sm:text-[4.5rem]">
                     you.
                   </span>
                 </div>
 
-                <div className="pointer-events-none absolute bottom-3 flex flex-col items-center gap-1.5 opacity-60 sm:bottom-5">
-                  <RefreshCcw className="h-3 w-3 animate-pulse text-[#F7F4EB]" />
-                  <span className="text-[7px] font-bold tracking-widest text-[#F7F4EB] uppercase sm:text-[8px]">
+                <div className="pointer-events-none absolute bottom-3 flex items-center gap-2 opacity-60 sm:bottom-4">
+                  <RefreshCcw
+                    className="h-3 w-3 animate-spin text-[#F8F5EE]"
+                    style={{ animationDuration: "6s" }}
+                  />
+                  <span className="text-[8px] font-bold tracking-[0.25em] text-[#F8F5EE] uppercase">
                     Tap to turn
                   </span>
                 </div>
               </div>
 
-              {/* === RÜCKSEITE: CREME TICKET MIT PAPIER-KANTENPRÄGUNG === */}
+              {/* === RÜCKSEITE === */}
               <div
-                className={`absolute inset-0 flex [transform:rotateY(180deg)] overflow-visible rounded-xl bg-[#F7F4EB] shadow-[0_25px_60px_rgba(0,0,0,0.65),inset_0_1px_2px_rgba(255,255,255,0.9),inset_0_-2px_4px_rgba(70,43,40,0.12)] ring-1 ring-black/5 transition-opacity duration-200 [backface-visibility:hidden] ${
+                className={`absolute inset-0 flex [transform:rotateY(180deg)] overflow-visible rounded-2xl bg-[#F8F5EE] shadow-[0_30px_70px_rgba(0,0,0,0.7)] ring-1 ring-black/10 transition-opacity duration-200 [backface-visibility:hidden] ${
                   isFlipped ? "opacity-100" : "pointer-events-none opacity-0"
                 }`}
               >
-                {/* HIER STICKER-GRÖSSEN RÜCKSEITE ANPASSEN */}
-                <Sticker3 className="absolute -top-16 -left-10 z-30 w-32 rotate-[-14deg] sm:-top-24 sm:-left-16 sm:w-44" />
-                <Sticker4 className="absolute -right-6 -bottom-8 z-30 w-3 rotate-[6deg] sm:-right-8 sm:-bottom-10 sm:w-44" />
+                {/* Sticker Rückseite */}
+                <Sticker3 className="absolute -top-16 -left-10 z-30 w-32 sm:-top-24 sm:-left-16 sm:w-44" />
+                <Sticker4 className="absolute -right-6 -bottom-8 z-30 w-36 sm:-right-8 sm:-bottom-10 sm:w-52" />
 
-                {/* Stanzungen mit eingeprägtem Innenschatten */}
-                <div className="absolute -top-4 right-[25%] z-20 h-8 w-8 rounded-full bg-[#081710] shadow-[inset_0_-2px_3px_rgba(0,0,0,0.7)]" />
-                <div className="absolute right-[25%] -bottom-4 z-20 h-8 w-8 rounded-full bg-[#081710] shadow-[inset_0_2px_3px_rgba(0,0,0,0.7)]" />
+                {/* Stanzungen (Cutouts) */}
+                <div className="absolute -top-4 right-[25%] z-20 h-8 w-8 rounded-full bg-[#040E0A] shadow-inner" />
+                <div className="absolute right-[25%] -bottom-4 z-20 h-8 w-8 rounded-full bg-[#040E0A] shadow-inner" />
 
-                {/* Linker Bereich (75%) mit geprägter Schrift */}
-                <div className="relative flex w-[75%] flex-col justify-between overflow-hidden rounded-l-xl border-r-2 border-dashed border-[#5C1A21]/30 p-5 sm:p-7">
+                {/* Linker Bereich (75%) */}
+                <div className="relative flex w-[75%] flex-col justify-between overflow-hidden rounded-l-2xl border-r-2 border-dashed border-[#5C1A21]/25 p-5 sm:p-7">
                   <div className="relative z-10 mt-2 flex items-start justify-between sm:mt-0">
                     <div className="space-y-1">
-                      <h3
-                        style={{
-                          textShadow: "0 1px 0 rgba(255,255,255,0.8), 0 -1px 1px rgba(92,26,33,0.3)"
-                        }}
-                        className="mt-1 font-serif text-2xl leading-none font-bold text-[#5C1A21] sm:mt-2 sm:text-4xl"
-                      >
+                      <h3 className="mt-1 font-serif text-2xl leading-none font-bold text-[#5C1A21] sm:mt-2 sm:text-4xl">
                         PILATES
                       </h3>
                       <p className="text-[7px] font-bold tracking-[0.3em] text-[#5C1A21]/70 uppercase sm:text-[10px]">
@@ -268,13 +334,13 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
                 </div>
 
                 {/* Abrisskante (Rechts 25%) */}
-                <div className="relative z-10 flex w-[25%] flex-col items-center justify-between overflow-hidden rounded-r-xl bg-[#F7F4EB] p-4 sm:p-6">
+                <div className="relative z-10 flex w-[25%] flex-col items-center justify-between overflow-hidden rounded-r-2xl bg-[#F8F5EE] p-4 sm:p-6">
                   <span className="mt-6 origin-center -rotate-90 font-serif text-[10px] whitespace-nowrap text-[#5C1A21]/70 italic sm:mt-8 sm:text-xs">
                     Happy Birthday
                   </span>
 
-                  {/* Barcode mit dezenter Rillen-Tiefenoptik */}
-                  <div className="flex h-10 w-full items-end justify-center gap-[2px] pb-1 opacity-70 sm:h-14 sm:gap-[3px]">
+                  {/* Minimalistischer Barcode */}
+                  <div className="flex h-10 w-full items-end justify-center gap-[2px] pb-1 opacity-75 sm:h-14 sm:gap-[3px]">
                     <div className="w-1 bg-[#5C1A21]"></div>
                     <div className="w-0.5 bg-[#5C1A21]"></div>
                     <div className="w-1.5 bg-[#5C1A21]"></div>
@@ -292,7 +358,7 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
                 </div>
               </div>
             </motion.div>
-          </div>
+          </motion.div>
         )}
       </div>
     </div>
