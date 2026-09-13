@@ -26,6 +26,8 @@ import { toast } from "sonner";
 import { supabase } from "../lib/supabaseClient";
 import { TrendingUp } from "lucide-react";
 import { FinanceView } from "../components/FinanceView";
+import { SurpriseView } from "../components/SurpriseView";
+import { Gift } from "lucide-react";
 import { SleepCalculator } from "../components/SleepCalculator";
 
 import {
@@ -646,6 +648,18 @@ export default function DashboardPage() {
               theme={themeProps}
             />
           )}
+
+          {/* ECHTER APPLE KALENDER VIEW */}
+          {activeTab === "kalender" && (
+            <KalenderView
+              currentDate={currentDate}
+              getEventsForDate={getEventsForDate}
+              theme={themeProps}
+            />
+          )}
+
+          {/* DAS GEHEIME GEBURTSTAGS-GESCHENK */}
+          {activeTab === "surprise" && <SurpriseView theme={themeProps} />}
         </div>
       </main>
 
@@ -747,6 +761,18 @@ export default function DashboardPage() {
                 <span>Einkauf hinzufügen</span>
                 <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#502419] text-white">
                   <ShoppingCart className="h-4 w-4" />
+                </div>
+              </button>
+              <button
+                onClick={() => {
+                  setActiveTab("surprise");
+                  setIsFabOpen(false);
+                }}
+                className={`flex items-center gap-2.5 rounded-xl border px-3.5 py-2 shadow-lg ${themeProps.bgCard} ${themeProps.textTitle} text-xs font-bold transition-all hover:scale-105`}
+              >
+                <span>Für Lena</span>
+                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-rose-500 text-white">
+                  <Gift className="h-4 w-4" />
                 </div>
               </button>
             </motion.div>
