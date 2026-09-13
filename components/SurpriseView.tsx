@@ -40,8 +40,6 @@ const Sticker5 = ({ className }: { className?: string }) => (
   />
 );
 
-// -------------------------------------------------------------------
-
 export function SurpriseView({ theme }: SurpriseViewProps) {
   const [isRevealed, setIsRevealed] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -83,7 +81,6 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
   };
 
   return (
-    // HINTERGRUND: Extrem dunkles, edles Waldgrün
     <div className="relative flex min-h-[85vh] w-full flex-col items-center justify-center overflow-hidden rounded-3xl bg-[#09150F]">
       {/* Ambient-Schatten */}
       <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
@@ -137,8 +134,12 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
               className="relative h-[180px] w-[350px] cursor-pointer select-none [transform-style:preserve-3d] sm:h-[240px] sm:w-[550px]"
               onClick={() => setIsFlipped(!isFlipped)}
             >
-              {/* === VORDERSEITE (DUNKELGRÜN - BACKFACE HIDDEN) === */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center overflow-visible rounded-xl bg-[#113022] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-[#F7F4EB]/20 [backface-visibility:hidden]">
+              {/* === VORDERSEITE === */}
+              <div
+                className={`absolute inset-0 flex flex-col items-center justify-center overflow-visible rounded-xl bg-[#113022] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-[#F7F4EB]/20 transition-opacity duration-200 [backface-visibility:hidden] ${
+                  isFlipped ? "pointer-events-none opacity-0" : "opacity-100"
+                }`}
+              >
                 <Sticker2 className="absolute -top-12 -right-8 z-20 w-40 rotate-[12deg] sm:-top-20 sm:-right-12 sm:w-60" />
                 <Sticker5 className="absolute -bottom-6 -left-6 z-20 w-32 rotate-[-15deg] sm:-bottom-10 sm:-left-8 sm:w-48" />
 
@@ -165,13 +166,17 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
                 </div>
               </div>
 
-              {/* === RÜCKSEITE (CREME TICKET - BACKFACE HIDDEN & 180 DEG ROTATED) === */}
-              <div className="absolute inset-0 flex [transform:rotateY(180deg)] overflow-visible rounded-xl bg-[#F7F4EB] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-black/5 [backface-visibility:hidden]">
-                {/* Oben links: Hände mit To-Do List */}
-                <Sticker3 className="absolute -top-12 -left-8 z-30 w-28 rotate-[-12deg] sm:-top-20 sm:-left-12 sm:w-40" />
+              {/* === RÜCKSEITE === */}
+              <div
+                className={`absolute inset-0 flex [transform:rotateY(180deg)] overflow-visible rounded-xl bg-[#F7F4EB] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-black/5 transition-opacity duration-200 [backface-visibility:hidden] ${
+                  isFlipped ? "opacity-100" : "pointer-events-none opacity-0"
+                }`}
+              >
+                {/* Oben links: Hände mit To-Do List - deutlich höher gesetzt */}
+                <Sticker3 className="absolute -top-16 -left-10 z-30 w-32 rotate-[-14deg] sm:-top-24 sm:-left-16 sm:w-44" />
 
                 {/* Unten rechts: Reformer-Kirsche ganz in der Ecke */}
-                <Sticker4 className="absolute -right-4 -bottom-6 z-30 w-32 rotate-[5deg] sm:-right-6 sm:-bottom-8 sm:w-48" />
+                <Sticker4 className="absolute -right-6 -bottom-8 z-30 w-36 rotate-[6deg] sm:-right-8 sm:-bottom-10 sm:w-52" />
 
                 {/* Stanzungen (Cutouts) */}
                 <div className="absolute -top-4 right-[25%] z-20 h-8 w-8 rounded-full bg-[#09150F] shadow-inner" />
