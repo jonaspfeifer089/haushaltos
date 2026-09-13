@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { Dumbbell, Heart, Sparkles, RefreshCcw, Smile } from "lucide-react";
+import { Heart, RefreshCcw } from "lucide-react";
 import confetti from "canvas-confetti";
 
 interface SurpriseViewProps {
@@ -12,7 +12,7 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
   const [isFlipped, setIsFlipped] = useState(false);
 
   const handleReveal = () => {
-    // Konfetti passend zur Ästhetik: Creme, Altrosa, Bordeaux, Flaschengrün, Dunkelbraun
+    // Edles Konfetti: Creme, Bordeaux, Flaschengrün, Gold, Dunkelbraun
     const duration = 3 * 1000;
     const animationEnd = Date.now() + duration;
     const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 100 };
@@ -27,7 +27,7 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
       }
 
       const particleCount = 50 * (timeLeft / duration);
-      const aestheticColors = ["#F7F4EB", "#E6C1C1", "#5C1A21", "#113022", "#462B28"];
+      const aestheticColors = ["#F7F4EB", "#5C1A21", "#113022", "#D4AF37", "#462B28"];
 
       confetti(
         Object.assign({}, defaults, {
@@ -49,25 +49,25 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
   };
 
   return (
-    // HINTERGRUND: Sanftes Creme-Beige, passend zur Karte
+    // HINTERGRUND: Sanftes Creme-Beige
     <div className="relative flex min-h-[85vh] w-full flex-col items-center justify-center overflow-hidden rounded-3xl bg-[#EBE7DF]">
-      {/* Sanfte Ambient-Schatten im Hintergrund (Grün & Rosa) */}
+      {/* Sanfte Ambient-Schatten im Hintergrund */}
       <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
         <motion.div
           animate={{ x: [0, 30, 0], y: [0, 20, 0], scale: [1, 1.1, 1] }}
           transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -top-[10%] -left-[10%] h-[400px] w-[400px] rounded-full bg-[#113022]/10 blur-[100px]"
+          className="absolute -top-[10%] -left-[10%] h-[400px] w-[400px] rounded-full bg-[#113022]/5 blur-[100px]"
         />
         <motion.div
           animate={{ x: [0, -30, 0], y: [0, -20, 0], scale: [1, 1.2, 1] }}
           transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -right-[10%] bottom-[10%] h-[400px] w-[400px] rounded-full bg-[#E6C1C1]/30 blur-[100px]"
+          className="absolute -right-[10%] bottom-[10%] h-[400px] w-[400px] rounded-full bg-[#5C1A21]/10 blur-[100px]"
         />
       </div>
 
       <div className="relative z-10 flex w-full flex-col items-center px-4">
         {!isRevealed ? (
-          // --- STARTBILDSCHIRM (Brief-Siegel Vibe) ---
+          // --- STARTBILDSCHIRM (Minimalistisches Siegel) ---
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -81,105 +81,123 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
               />
               <button
                 onClick={handleReveal}
-                className="group relative flex h-28 w-28 items-center justify-center rounded-full border-4 border-[#F7F4EB] bg-[#113022] shadow-[0_10px_30px_rgba(17,48,34,0.3)] transition-all hover:scale-110"
+                className="group relative flex h-24 w-24 items-center justify-center rounded-full border-4 border-[#F7F4EB] bg-[#113022] shadow-[0_10px_30px_rgba(17,48,34,0.3)] transition-all hover:scale-110"
               >
-                <Heart className="h-10 w-10 fill-[#F7F4EB] text-[#F7F4EB] transition-transform group-hover:scale-110" />
+                <Heart className="h-8 w-8 fill-[#F7F4EB] text-[#F7F4EB] transition-transform group-hover:scale-110" />
               </button>
             </div>
             <div className="space-y-2">
               <h2 className="font-serif text-2xl text-[#462B28] italic">for lucky girl Lena</h2>
-              <p className="text-sm font-medium tracking-widest text-[#462B28]/60 uppercase">
+              <p className="text-xs font-bold tracking-[0.2em] text-[#462B28]/50 uppercase">
                 Tap to open
               </p>
             </div>
           </motion.div>
         ) : (
-          // --- DER GUTSCHEIN (3D FLIP CARD) ---
-          <div className="flex flex-col items-center space-y-8 [perspective:1200px]">
+          // --- DER GUTSCHEIN (3D FLIP TICKET IM QUERFORMAT) ---
+          <div className="flex flex-col items-center [perspective:1200px]">
             <motion.div
               initial={{ opacity: 0, scale: 0, rotateZ: -180, rotateY: -720 }}
               animate={{ opacity: 1, scale: 1, rotateZ: 0, rotateY: isFlipped ? 180 : 0 }}
               transition={{ type: "spring", stiffness: 45, damping: 14, mass: 1.1 }}
               onClick={() => setIsFlipped(!isFlipped)}
-              className="relative h-[500px] w-[340px] cursor-pointer [transform-style:preserve-3d]"
+              // Querformat-Dimensionen: Responsive für Mobile (350x180) und Desktop (550x240)
+              className="relative h-[180px] w-[350px] cursor-pointer [transform-style:preserve-3d] sm:h-[240px] sm:w-[550px]"
             >
-              {/* VORDERSEITE (Exakt wie Bild 2: Creme & Bordeaux Typografie) */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center rounded-3xl bg-[#F7F4EB] p-8 shadow-2xl ring-1 shadow-[#462B28]/20 ring-black/5 [backface-visibility:hidden]">
-                {/* Typografie angelehnt an "it's a gift to have you" */}
-                <div className="flex w-full flex-col items-start pl-4 leading-[0.85] text-[#5C1A21]">
-                  <span className="ml-2 font-serif text-3xl tracking-tight">it&apos;s a</span>
-                  <span className="-ml-1 font-serif text-[5.5rem] italic drop-shadow-sm">gift</span>
-                  <span className="mt-1 ml-10 font-serif text-[1.7rem] tracking-tight">
-                    to have
-                  </span>
-                  <span className="ml-16 font-serif text-[4.5rem] italic drop-shadow-sm">you.</span>
-                </div>
+              {/* VORDERSEITE: Das edle "Ticket" */}
+              <div className="absolute inset-0 flex overflow-hidden rounded-xl bg-[#F7F4EB] shadow-2xl ring-1 shadow-[#462B28]/20 ring-black/5 [backface-visibility:hidden]">
+                {/* Stanzungen (Cutouts) oben und unten für den typischen Ticket-Look */}
+                <div className="absolute -top-4 right-[25%] h-8 w-8 rounded-full bg-[#EBE7DF] shadow-inner" />
+                <div className="absolute right-[25%] -bottom-4 h-8 w-8 rounded-full bg-[#EBE7DF] shadow-inner" />
 
-                {/* Libra Studio Logo Vibe */}
-                <div className="absolute bottom-10 flex flex-col items-center opacity-80">
-                  <div className="mb-2 flex h-6 w-6 items-center justify-center rounded-full border border-[#5C1A21]">
-                    <div className="h-1 w-1 rounded-full bg-[#5C1A21]" />
+                {/* Hauptteil des Tickets (Links 75%) */}
+                <div className="flex w-[75%] flex-col justify-between border-r-2 border-dashed border-[#5C1A21]/30 p-5 sm:p-7">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1">
+                      <h3 className="font-serif text-2xl leading-none font-bold text-[#5C1A21] sm:text-4xl">
+                        PILATES
+                      </h3>
+                      <p className="text-[8px] font-bold tracking-[0.3em] text-[#5C1A21]/70 uppercase sm:text-[10px]">
+                        1-on-1 Personal Session
+                      </p>
+                    </div>
+                    <span className="font-mono text-[8px] font-bold text-[#5C1A21]/40 sm:text-[10px]">
+                      Nº 001
+                    </span>
                   </div>
-                  <span className="font-serif text-[10px] tracking-[0.3em] text-[#5C1A21] uppercase">
-                    Lena Pilates
-                  </span>
+
+                  <div className="space-y-3 sm:space-y-4">
+                    <div className="flex gap-6 sm:gap-10">
+                      <div>
+                        <p className="mb-0.5 text-[7px] font-bold tracking-widest text-[#5C1A21]/40 uppercase sm:text-[8px]">
+                          Date
+                        </p>
+                        <p className="font-mono text-[10px] font-bold text-[#5C1A21] sm:text-xs">
+                          OPEN
+                        </p>
+                      </div>
+                      <div>
+                        <p className="mb-0.5 text-[7px] font-bold tracking-widest text-[#5C1A21]/40 uppercase sm:text-[8px]">
+                          Guest
+                        </p>
+                        <p className="font-serif text-[11px] font-bold text-[#5C1A21] italic sm:text-sm">
+                          Lena
+                        </p>
+                      </div>
+                    </div>
+                    <p className="max-w-[90%] text-[8px] leading-relaxed font-medium text-[#5C1A21]/80 sm:text-[10px]">
+                      Ein exklusives Personal Training. Zeit für dich, für deine Balance und einen
+                      starken Core.
+                    </p>
+                  </div>
                 </div>
 
-                <div className="absolute top-6 right-6 flex items-center gap-1.5 opacity-40">
-                  <RefreshCcw className="h-3 w-3 animate-pulse text-[#5C1A21]" />
+                {/* Abrisskante des Tickets (Rechts 25%) */}
+                <div className="flex w-[25%] flex-col items-center justify-between bg-[#F7F4EB] p-4 sm:p-6">
+                  <span className="mt-6 origin-center -rotate-90 font-serif text-[10px] whitespace-nowrap text-[#5C1A21]/70 italic sm:mt-8 sm:text-xs">
+                    Happy Birthday
+                  </span>
+
+                  {/* Minimalistischer Barcode */}
+                  <div className="flex h-10 w-full items-end justify-center gap-[2px] pb-1 opacity-70 sm:h-14 sm:gap-[3px]">
+                    <div className="w-1 bg-[#5C1A21]"></div>
+                    <div className="w-0.5 bg-[#5C1A21]"></div>
+                    <div className="w-1.5 bg-[#5C1A21]"></div>
+                    <div className="w-0.5 bg-[#5C1A21]"></div>
+                    <div className="w-1 bg-[#5C1A21]"></div>
+                    <div className="w-2 bg-[#5C1A21]"></div>
+                    <div className="w-0.5 bg-[#5C1A21]"></div>
+                    <div className="w-1 bg-[#5C1A21]"></div>
+                    <div className="w-1.5 bg-[#5C1A21]"></div>
+                  </div>
+
+                  <span className="font-mono text-[6px] font-bold tracking-[0.2em] text-[#5C1A21]/50 sm:text-[7px]">
+                    CORE-26
+                  </span>
                 </div>
               </div>
 
-              {/* RÜCKSEITE (Dunkelgrün wie das Kuvert + Bild 1 Sticker Ästhetik) */}
-              <div className="absolute inset-0 flex [transform:rotateY(180deg)] flex-col items-center justify-center rounded-3xl bg-[#113022] p-8 shadow-2xl ring-4 ring-[#F7F4EB] [backface-visibility:hidden]">
-                {/* --- STICKER AUS BILD 1 --- */}
-                {/* Sticker 1: lucky girl */}
-                <div className="absolute -top-4 -right-2 z-10 flex rotate-12 items-center gap-1 rounded-full border-4 border-[#F7F4EB] bg-[#462B28] px-4 py-1.5 text-[#E6C1C1] shadow-lg">
-                  <span className="font-serif text-sm font-bold italic">lucky girl</span>
-                  <Sparkles className="h-3 w-3" />
-                </div>
-
-                {/* Sticker 2: GO TO PILATES */}
-                <div className="absolute top-16 -left-5 z-10 -rotate-6 rounded-[2rem] border-4 border-[#F7F4EB] bg-[#E6C1C1] px-4 py-3 text-[#462B28] shadow-lg">
-                  <span className="block text-center text-xs leading-none font-black tracking-widest uppercase">
-                    Go To
-                    <br />
-                    Pilates
+              {/* RÜCKSEITE: Die poetische Typografie (Flaschengrün) */}
+              <div className="absolute inset-0 flex [transform:rotateY(180deg)] flex-col items-center justify-center rounded-xl bg-[#113022] p-8 shadow-2xl ring-1 ring-black/10 [backface-visibility:hidden]">
+                {/* Wunderschöne, verschachtelte Typografie wie im grünen Kuvert */}
+                <div className="mt-2 flex w-full flex-col items-center leading-[0.85] text-[#F7F4EB]">
+                  <span className="font-serif text-xl tracking-tight sm:text-2xl">it&apos;s a</span>
+                  <span className="font-serif text-4xl text-[#E6C1C1] italic drop-shadow-sm sm:text-6xl">
+                    gift
+                  </span>
+                  <span className="mt-1 font-serif text-lg tracking-tight sm:mt-2 sm:text-xl">
+                    to have
+                  </span>
+                  <span className="font-serif text-3xl italic drop-shadow-sm sm:text-5xl">
+                    you.
                   </span>
                 </div>
 
-                {/* Sticker 3: aria s. -> lena. */}
-                <div className="absolute bottom-20 -left-4 z-10 flex -rotate-12 items-center gap-1.5 rounded-[2rem] border-4 border-[#F7F4EB] bg-[#462B28] px-4 py-2 text-[#F7F4EB] shadow-lg">
-                  <Heart className="h-3 w-3 fill-[#F7F4EB]" />
-                  <span className="text-sm font-bold tracking-wide">lena.</span>
-                </div>
-
-                {/* Sticker 4: Dumbbell Icon */}
-                <div className="absolute -right-3 bottom-6 z-10 rotate-12 rounded-full border-4 border-[#462B28] bg-[#F7F4EB] p-3 text-[#462B28] shadow-lg">
-                  <Dumbbell className="h-5 w-5 fill-[#462B28]" />
-                </div>
-                {/* ------------------------- */}
-
-                {/* Content der Karte */}
-                <div className="relative z-0 mt-8 text-center">
-                  <h3 className="mb-6 font-serif text-3xl text-[#F7F4EB] italic">Gutschein</h3>
-
-                  <div className="space-y-3">
-                    <p className="text-sm font-bold tracking-[0.2em] text-[#E6C1C1] uppercase">
-                      Pilates Probetraining
-                    </p>
-                    <div className="mx-auto my-4 h-px w-12 bg-[#E6C1C1]/30" />
-                    <p className="px-2 text-xs leading-relaxed font-medium text-[#F7F4EB]/90">
-                      Ein exklusives 1-on-1 Workout mit Personal Trainer. Zeit für dich, deinen Body
-                      & Mind.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="absolute bottom-8 w-full text-center">
-                  <p className="text-[10px] font-bold tracking-widest text-[#E6C1C1]/60 uppercase">
-                    Happy Birthday ♡
-                  </p>
+                <div className="absolute bottom-4 flex flex-col items-center gap-1.5 opacity-40 sm:bottom-6">
+                  <RefreshCcw className="h-3 w-3 animate-pulse text-[#F7F4EB]" />
+                  <span className="text-[7px] font-bold tracking-widest text-[#F7F4EB] uppercase sm:text-[8px]">
+                    Tap to turn
+                  </span>
                 </div>
               </div>
             </motion.div>
