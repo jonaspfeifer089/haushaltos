@@ -8,17 +8,6 @@ interface SurpriseViewProps {
 }
 
 // --- EIGENE BILD-STICKER-KOMPONENTEN ---
-// "backface-visibility:hidden" verhindert den spiegelverkehrten "Durchbluten"-Fehler
-// "pointer-events-none" verhindert, dass die Sticker den Klick auf die Karte blockieren
-
-const Sticker1 = ({ className }: { className?: string }) => (
-  <img
-    src="/stickers/Sticker1.png"
-    alt="Yoga Figur"
-    className={`pointer-events-none object-contain drop-shadow-lg [backface-visibility:hidden] ${className}`}
-  />
-);
-
 const Sticker2 = ({ className }: { className?: string }) => (
   <img
     src="/stickers/Sticker2.png"
@@ -51,14 +40,6 @@ const Sticker5 = ({ className }: { className?: string }) => (
   />
 );
 
-const Sticker6 = ({ className }: { className?: string }) => (
-  <img
-    src="/stickers/Sticker6.png"
-    alt="Dachshund Hearts"
-    className={`pointer-events-none object-contain drop-shadow-xl [backface-visibility:hidden] ${className}`}
-  />
-);
-
 // -------------------------------------------------------------------
 
 export function SurpriseView({ theme }: SurpriseViewProps) {
@@ -80,7 +61,6 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
       }
 
       const particleCount = 50 * (timeLeft / duration);
-      // Farben: Flaschengrün, Bordeaux, Altrosa, Creme, Gold
       const aestheticColors = ["#113022", "#5C1A21", "#F7D6D9", "#F7F4EB", "#D4AF37"];
 
       confetti(
@@ -157,15 +137,11 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
               className="relative h-[180px] w-[350px] cursor-pointer select-none [transform-style:preserve-3d] sm:h-[240px] sm:w-[550px]"
               onClick={() => setIsFlipped(!isFlipped)}
             >
-              {/* === VORDERSEITE (DUNKELGRÜN MIT TYPOGRAFIE, SNOOPY & TULPEN) === */}
+              {/* === VORDERSEITE (PERFEKT: DUNKELGRÜN, SNOOPY, TULPEN) === */}
               <div className="absolute inset-0 flex flex-col items-center justify-center overflow-visible rounded-xl bg-[#113022] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-[#F7F4EB]/20 [backface-visibility:hidden]">
-                {/* RIESIGER Snoopy Sticker oben rechts */}
                 <Sticker2 className="absolute -top-12 -right-8 z-20 w-40 rotate-[12deg] sm:-top-20 sm:-right-12 sm:w-60" />
-
-                {/* Tulpen-Umschlag unten links */}
                 <Sticker5 className="absolute -bottom-6 -left-6 z-20 w-32 rotate-[-15deg] sm:-bottom-10 sm:-left-8 sm:w-48" />
 
-                {/* Die diagonale Typografie */}
                 <div className="pointer-events-none mt-2 flex w-full -rotate-6 flex-col px-8 sm:-rotate-[8deg] sm:px-12">
                   <span className="ml-[5%] self-start font-serif text-xl tracking-tight text-[#F7F4EB] sm:text-3xl">
                     it&apos;s a
@@ -189,16 +165,13 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
                 </div>
               </div>
 
-              {/* === RÜCKSEITE (HELLES CREME TICKET & STICKER) === */}
+              {/* === RÜCKSEITE (NUR PILATES TO-DO OBEN LINKS & REFORMER UNTEN RECHTS) === */}
               <div className="absolute inset-0 flex [transform:rotateY(180deg)] overflow-visible rounded-xl bg-[#F7F4EB] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-black/5 [backface-visibility:hidden]">
-                {/* Pilates-To-Do Sticker extrem weit nach oben links gezogen, P bleibt lesbar */}
+                {/* Oben links: Hände mit To-Do List */}
                 <Sticker3 className="absolute -top-12 -left-8 z-30 w-28 rotate-[-12deg] sm:-top-20 sm:-left-12 sm:w-40" />
 
-                {/* Kirschen-Reformer ganz unten rechts in die Ecke der Karte platziert */}
+                {/* Unten rechts: Reformer-Kirsche ganz in der Ecke */}
                 <Sticker4 className="absolute -right-4 -bottom-6 z-30 w-32 rotate-[5deg] sm:-right-6 sm:-bottom-8 sm:w-48" />
-
-                {/* Dackel mit Herzballons - rollt oben mittig über die Abrisskante */}
-                <Sticker6 className="absolute -top-5 right-[20%] z-30 w-24 rotate-[4deg] sm:-top-8 sm:right-[22%] sm:w-36" />
 
                 {/* Stanzungen (Cutouts) */}
                 <div className="absolute -top-4 right-[25%] z-20 h-8 w-8 rounded-full bg-[#09150F] shadow-inner" />
