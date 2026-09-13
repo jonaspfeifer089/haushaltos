@@ -7,12 +7,61 @@ interface SurpriseViewProps {
   theme: any;
 }
 
+// --- EIGENE SVG-STICKER-KOMPONENTEN ---
+
+const SparkleSticker = ({ className }: { className?: string }) => (
+  <div className={`drop-shadow-md ${className}`}>
+    <svg viewBox="0 0 100 100" className="h-full w-full">
+      <path
+        d="M50 5 C50 30 70 50 95 50 C70 50 50 70 50 95 C50 70 30 50 5 50 C30 50 50 30 50 5 Z"
+        fill="#462B28"
+        stroke="#F7D6D9"
+        strokeWidth="8"
+        strokeLinejoin="round"
+      />
+    </svg>
+  </div>
+);
+
+const HeartSticker = ({ className }: { className?: string }) => (
+  <div
+    className={`flex items-center justify-center rounded-full border-[3px] border-[#F7D6D9] bg-[#F7F4EB] px-3 py-1.5 drop-shadow-md sm:border-[4px] sm:px-4 sm:py-2 ${className}`}
+  >
+    <span className="flex items-center gap-1.5 font-sans text-[10px] font-black tracking-widest text-[#462B28] sm:text-sm">
+      I <Heart className="h-3 w-3 fill-[#462B28] text-[#462B28] sm:h-4 sm:w-4" /> LENA
+    </span>
+  </div>
+);
+
+const LuckyGirlSticker = ({ className }: { className?: string }) => (
+  <div
+    className={`flex items-center rounded-full border-[3px] border-[#F7D6D9] bg-[#462B28] px-3 py-1 shadow-lg sm:border-[4px] sm:px-5 sm:py-1.5 ${className}`}
+  >
+    <span className="font-serif text-[10px] font-bold whitespace-nowrap text-[#F7F4EB] italic sm:text-sm">
+      lucky girl
+    </span>
+  </div>
+);
+
+const GoToPilatesSticker = ({ className }: { className?: string }) => (
+  <div
+    className={`flex flex-col items-center justify-center rounded-2xl border-[3px] border-[#F7F4EB] bg-[#F7D6D9] px-3 py-2 text-[#462B28] shadow-lg sm:rounded-3xl sm:border-[4px] sm:px-4 sm:py-3 ${className}`}
+  >
+    <span className="text-center text-[8px] leading-tight font-black tracking-widest whitespace-nowrap uppercase sm:text-[10px]">
+      Go To
+      <br />
+      Pilates
+    </span>
+  </div>
+);
+
+// -------------------------------------------------------------------
+
 export function SurpriseView({ theme }: SurpriseViewProps) {
   const [isRevealed, setIsRevealed] = useState(false);
   const [isFlipped, setIsFlipped] = useState(false);
 
   const handleReveal = () => {
-    // Edles Konfetti: Creme, Bordeaux, Flaschengrün, Gold, Dunkelbraun
     const duration = 3 * 1000;
     const animationEnd = Date.now() + duration;
     const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 100 };
@@ -27,7 +76,8 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
       }
 
       const particleCount = 50 * (timeLeft / duration);
-      const aestheticColors = ["#F7F4EB", "#5C1A21", "#113022", "#D4AF37", "#462B28"];
+      // Farben: Flaschengrün, Bordeaux, Altrosa, Creme, Gold
+      const aestheticColors = ["#113022", "#5C1A21", "#F7D6D9", "#F7F4EB", "#D4AF37"];
 
       confetti(
         Object.assign({}, defaults, {
@@ -49,25 +99,25 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
   };
 
   return (
-    // HINTERGRUND: Sanftes Creme-Beige
-    <div className="relative flex min-h-[85vh] w-full flex-col items-center justify-center overflow-hidden rounded-3xl bg-[#EBE7DF]">
-      {/* Sanfte Ambient-Schatten im Hintergrund */}
+    // HINTERGRUND: Extrem dunkles, edles Waldgrün (fast Schwarz), damit das Ticket leuchtet
+    <div className="relative flex min-h-[85vh] w-full flex-col items-center justify-center overflow-hidden rounded-3xl bg-[#09150F]">
+      {/* Ambient-Schatten */}
       <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
         <motion.div
           animate={{ x: [0, 30, 0], y: [0, 20, 0], scale: [1, 1.1, 1] }}
           transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -top-[10%] -left-[10%] h-[400px] w-[400px] rounded-full bg-[#113022]/5 blur-[100px]"
+          className="absolute top-[10%] left-[10%] h-[300px] w-[300px] rounded-full bg-[#F7D6D9]/10 blur-[120px]"
         />
         <motion.div
           animate={{ x: [0, -30, 0], y: [0, -20, 0], scale: [1, 1.2, 1] }}
           transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -right-[10%] bottom-[10%] h-[400px] w-[400px] rounded-full bg-[#5C1A21]/10 blur-[100px]"
+          className="absolute right-[10%] bottom-[20%] h-[400px] w-[400px] rounded-full bg-[#113022]/40 blur-[100px]"
         />
       </div>
 
       <div className="relative z-10 flex w-full flex-col items-center px-4">
         {!isRevealed ? (
-          // --- STARTBILDSCHIRM (Minimalistisches Siegel) ---
+          // --- STARTBILDSCHIRM ---
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -75,69 +125,102 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
           >
             <div className="relative">
               <motion.div
-                animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0.9, 0.6] }}
+                animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0.8, 0.5] }}
                 transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
-                className="absolute inset-0 rounded-full bg-[#5C1A21]/20 blur-xl"
+                className="absolute inset-0 rounded-full bg-[#F7D6D9]/20 blur-xl"
               />
               <button
                 onClick={handleReveal}
-                className="group relative flex h-24 w-24 items-center justify-center rounded-full border-4 border-[#F7F4EB] bg-[#113022] shadow-[0_10px_30px_rgba(17,48,34,0.3)] transition-all hover:scale-110"
+                className="group relative flex h-24 w-24 items-center justify-center rounded-full border-2 border-[#F7D6D9]/50 bg-[#113022]/80 shadow-[0_0_40px_-10px_rgba(247,214,217,0.2)] backdrop-blur-md transition-all hover:scale-110 hover:border-[#F7D6D9]"
               >
-                <Heart className="h-8 w-8 fill-[#F7F4EB] text-[#F7F4EB] transition-transform group-hover:scale-110" />
+                <Heart className="h-8 w-8 fill-[#F7D6D9] text-[#F7D6D9] transition-transform group-hover:scale-110" />
               </button>
             </div>
             <div className="space-y-2">
-              <h2 className="font-serif text-2xl text-[#462B28] italic">for lucky girl Lena</h2>
-              <p className="text-xs font-bold tracking-[0.2em] text-[#462B28]/50 uppercase">
+              <h2 className="font-serif text-2xl text-[#F7D6D9] italic">for lucky girl Lena</h2>
+              <p className="text-xs font-bold tracking-[0.2em] text-[#F7F4EB]/50 uppercase">
                 Tap to open
               </p>
             </div>
           </motion.div>
         ) : (
-          // --- DER GUTSCHEIN (3D FLIP TICKET IM QUERFORMAT) ---
+          // --- DER GUTSCHEIN (QUERFORMAT) ---
           <div className="flex flex-col items-center [perspective:1200px]">
             <motion.div
               initial={{ opacity: 0, scale: 0, rotateZ: -180, rotateY: -720 }}
               animate={{ opacity: 1, scale: 1, rotateZ: 0, rotateY: isFlipped ? 180 : 0 }}
               transition={{ type: "spring", stiffness: 45, damping: 14, mass: 1.1 }}
+              className="relative h-[180px] w-[350px] cursor-pointer select-none [transform-style:preserve-3d] sm:h-[240px] sm:w-[550px]"
               onClick={() => setIsFlipped(!isFlipped)}
-              // Querformat-Dimensionen: Responsive für Mobile (350x180) und Desktop (550x240)
-              className="relative h-[180px] w-[350px] cursor-pointer [transform-style:preserve-3d] sm:h-[240px] sm:w-[550px]"
             >
-              {/* VORDERSEITE: Das edle "Ticket" */}
-              <div className="absolute inset-0 flex overflow-hidden rounded-xl bg-[#F7F4EB] shadow-2xl ring-1 shadow-[#462B28]/20 ring-black/5 [backface-visibility:hidden]">
-                {/* Stanzungen (Cutouts) oben und unten für den typischen Ticket-Look */}
-                <div className="absolute -top-4 right-[25%] h-8 w-8 rounded-full bg-[#EBE7DF] shadow-inner" />
-                <div className="absolute right-[25%] -bottom-4 h-8 w-8 rounded-full bg-[#EBE7DF] shadow-inner" />
+              {/* === VORDERSEITE (DUNKELGRÜN MIT QUER VERTEILTER TYPOGRAFIE) === */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center overflow-hidden rounded-xl bg-[#113022] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-[#F7F4EB]/20 [backface-visibility:hidden]">
+                {/* Sticker (Vorderseite) - Süß, aber elegant integriert */}
+                <HeartSticker className="absolute top-4 right-6 z-20 rotate-[12deg] sm:top-6 sm:right-8" />
+                <SparkleSticker className="absolute bottom-6 left-8 z-20 h-6 w-6 rotate-[-15deg] opacity-90 sm:h-10 sm:w-10" />
 
-                {/* Hauptteil des Tickets (Links 75%) */}
-                <div className="flex w-[75%] flex-col justify-between border-r-2 border-dashed border-[#5C1A21]/30 p-5 sm:p-7">
-                  <div className="flex items-start justify-between">
+                {/* Die diagonale, wunderschöne Typografie */}
+                <div className="pointer-events-none mt-2 flex w-full -rotate-6 flex-col px-8 sm:-rotate-[8deg] sm:px-12">
+                  <span className="ml-[5%] self-start font-serif text-xl tracking-tight text-[#F7F4EB] sm:text-3xl">
+                    it&apos;s a
+                  </span>
+                  <span className="-ml-[15%] self-center font-serif text-5xl leading-tight text-[#F7D6D9] italic drop-shadow-md sm:-ml-[20%] sm:text-[5.5rem]">
+                    gift
+                  </span>
+                  <span className="mt-0 ml-[15%] self-center font-serif text-lg tracking-tight text-[#F7F4EB] sm:mt-2 sm:ml-[25%] sm:text-2xl">
+                    to have
+                  </span>
+                  <span className="mr-[5%] self-end font-serif text-4xl leading-none text-[#F7D6D9] italic drop-shadow-md sm:text-[4.5rem]">
+                    you.
+                  </span>
+                </div>
+
+                <div className="pointer-events-none absolute bottom-4 flex flex-col items-center gap-1.5 opacity-50 sm:bottom-5">
+                  <RefreshCcw className="h-3 w-3 animate-pulse text-[#F7F4EB]" />
+                  <span className="text-[7px] font-bold tracking-widest text-[#F7F4EB] uppercase sm:text-[8px]">
+                    Tap to turn
+                  </span>
+                </div>
+              </div>
+
+              {/* === RÜCKSEITE (HELLES CREME TICKET) === */}
+              <div className="absolute inset-0 flex [transform:rotateY(180deg)] overflow-hidden rounded-xl bg-[#F7F4EB] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-black/5 [backface-visibility:hidden]">
+                {/* Sticker (Rückseite) - Brechen über die Abrisskante */}
+                <LuckyGirlSticker className="absolute -top-3 left-6 z-30 rotate-[-8deg] sm:-top-4 sm:left-10" />
+                <GoToPilatesSticker className="absolute -bottom-2 left-[65%] z-30 -translate-x-1/2 rotate-[10deg] sm:-bottom-4 sm:left-[70%]" />
+
+                {/* Stanzungen (Cutouts) - Farbe des App-Hintergrunds, damit es transparent wirkt */}
+                <div className="absolute -top-4 right-[25%] z-20 h-8 w-8 rounded-full bg-[#09150F] shadow-inner" />
+                <div className="absolute right-[25%] -bottom-4 z-20 h-8 w-8 rounded-full bg-[#09150F] shadow-inner" />
+
+                {/* Linker Bereich (75%) */}
+                <div className="relative flex w-[75%] flex-col justify-between rounded-l-xl border-r-2 border-dashed border-[#5C1A21]/30 p-5 sm:p-7">
+                  <div className="mt-2 flex items-start justify-between sm:mt-0">
                     <div className="space-y-1">
                       <h3 className="font-serif text-2xl leading-none font-bold text-[#5C1A21] sm:text-4xl">
                         PILATES
                       </h3>
-                      <p className="text-[8px] font-bold tracking-[0.3em] text-[#5C1A21]/70 uppercase sm:text-[10px]">
+                      <p className="text-[7px] font-bold tracking-[0.3em] text-[#5C1A21]/70 uppercase sm:text-[10px]">
                         1-on-1 Personal Session
                       </p>
                     </div>
-                    <span className="font-mono text-[8px] font-bold text-[#5C1A21]/40 sm:text-[10px]">
+                    <span className="pt-1 font-mono text-[8px] font-bold text-[#5C1A21]/40 sm:text-[10px]">
                       Nº 001
                     </span>
                   </div>
 
-                  <div className="space-y-3 sm:space-y-4">
+                  <div className="mb-2 space-y-3 sm:mb-0 sm:space-y-4">
                     <div className="flex gap-6 sm:gap-10">
                       <div>
-                        <p className="mb-0.5 text-[7px] font-bold tracking-widest text-[#5C1A21]/40 uppercase sm:text-[8px]">
+                        <p className="mb-0.5 text-[6px] font-bold tracking-widest text-[#5C1A21]/40 uppercase sm:text-[8px]">
                           Date
                         </p>
-                        <p className="font-mono text-[10px] font-bold text-[#5C1A21] sm:text-xs">
+                        <p className="font-mono text-[9px] font-bold text-[#5C1A21] sm:text-xs">
                           OPEN
                         </p>
                       </div>
                       <div>
-                        <p className="mb-0.5 text-[7px] font-bold tracking-widest text-[#5C1A21]/40 uppercase sm:text-[8px]">
+                        <p className="mb-0.5 text-[6px] font-bold tracking-widest text-[#5C1A21]/40 uppercase sm:text-[8px]">
                           Guest
                         </p>
                         <p className="font-serif text-[11px] font-bold text-[#5C1A21] italic sm:text-sm">
@@ -152,8 +235,8 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
                   </div>
                 </div>
 
-                {/* Abrisskante des Tickets (Rechts 25%) */}
-                <div className="flex w-[25%] flex-col items-center justify-between bg-[#F7F4EB] p-4 sm:p-6">
+                {/* Abrisskante (Rechts 25%) */}
+                <div className="flex w-[25%] flex-col items-center justify-between rounded-r-xl bg-[#F7F4EB] p-4 sm:p-6">
                   <span className="mt-6 origin-center -rotate-90 font-serif text-[10px] whitespace-nowrap text-[#5C1A21]/70 italic sm:mt-8 sm:text-xs">
                     Happy Birthday
                   </span>
@@ -173,30 +256,6 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
 
                   <span className="font-mono text-[6px] font-bold tracking-[0.2em] text-[#5C1A21]/50 sm:text-[7px]">
                     CORE-26
-                  </span>
-                </div>
-              </div>
-
-              {/* RÜCKSEITE: Die poetische Typografie (Flaschengrün) */}
-              <div className="absolute inset-0 flex [transform:rotateY(180deg)] flex-col items-center justify-center rounded-xl bg-[#113022] p-8 shadow-2xl ring-1 ring-black/10 [backface-visibility:hidden]">
-                {/* Wunderschöne, verschachtelte Typografie wie im grünen Kuvert */}
-                <div className="mt-2 flex w-full flex-col items-center leading-[0.85] text-[#F7F4EB]">
-                  <span className="font-serif text-xl tracking-tight sm:text-2xl">it&apos;s a</span>
-                  <span className="font-serif text-4xl text-[#E6C1C1] italic drop-shadow-sm sm:text-6xl">
-                    gift
-                  </span>
-                  <span className="mt-1 font-serif text-lg tracking-tight sm:mt-2 sm:text-xl">
-                    to have
-                  </span>
-                  <span className="font-serif text-3xl italic drop-shadow-sm sm:text-5xl">
-                    you.
-                  </span>
-                </div>
-
-                <div className="absolute bottom-4 flex flex-col items-center gap-1.5 opacity-40 sm:bottom-6">
-                  <RefreshCcw className="h-3 w-3 animate-pulse text-[#F7F4EB]" />
-                  <span className="text-[7px] font-bold tracking-widest text-[#F7F4EB] uppercase sm:text-[8px]">
-                    Tap to turn
                   </span>
                 </div>
               </div>
