@@ -8,7 +8,7 @@ interface SurpriseViewProps {
 }
 
 // --- EIGENE BILD-STICKER-KOMPONENTEN ---
-// Die "pointer-events-none" Klasse verhindert, dass die Sticker den Klick auf die Karte blockieren
+// "pointer-events-none" verhindert, dass die Sticker den Klick auf die Karte blockieren
 
 const Sticker1 = ({ className }: { className?: string }) => (
   <img
@@ -22,7 +22,7 @@ const Sticker2 = ({ className }: { className?: string }) => (
   <img
     src="/stickers/Sticker2.png"
     alt="Snoopy Matcha"
-    className={`pointer-events-none object-contain drop-shadow-lg ${className}`}
+    className={`pointer-events-none object-contain drop-shadow-xl ${className}`}
   />
 );
 
@@ -30,7 +30,7 @@ const Sticker3 = ({ className }: { className?: string }) => (
   <img
     src="/stickers/Sticker3.png"
     alt="To Do Pilates"
-    className={`pointer-events-none object-contain drop-shadow-lg ${className}`}
+    className={`pointer-events-none object-contain drop-shadow-xl ${className}`}
   />
 );
 
@@ -38,7 +38,7 @@ const Sticker4 = ({ className }: { className?: string }) => (
   <img
     src="/stickers/Sticker4.png"
     alt="Cherry Reformer"
-    className={`pointer-events-none object-contain drop-shadow-lg ${className}`}
+    className={`pointer-events-none object-contain drop-shadow-xl ${className}`}
   />
 );
 
@@ -140,11 +140,10 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
               className="relative h-[180px] w-[350px] cursor-pointer select-none [transform-style:preserve-3d] sm:h-[240px] sm:w-[550px]"
               onClick={() => setIsFlipped(!isFlipped)}
             >
-              {/* === VORDERSEITE (DUNKELGRÜN MIT TYPOGRAFIE & STICKERN) === */}
+              {/* === VORDERSEITE (DUNKELGRÜN MIT TYPOGRAFIE & SNOOPY) === */}
               <div className="absolute inset-0 flex flex-col items-center justify-center overflow-visible rounded-xl bg-[#113022] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-[#F7F4EB]/20 [backface-visibility:hidden]">
-                {/* Sticker (Vorderseite) */}
-                <Sticker2 className="absolute -top-5 right-2 z-20 w-20 rotate-[12deg] sm:-top-8 sm:right-4 sm:w-28" />
-                <Sticker1 className="absolute -bottom-4 left-4 z-20 w-16 rotate-[-10deg] sm:-bottom-6 sm:left-8 sm:w-24" />
+                {/* Großer Snoopy Sticker oben rechts */}
+                <Sticker2 className="absolute -top-10 -right-6 z-20 w-32 rotate-[12deg] sm:-top-16 sm:-right-8 sm:w-48" />
 
                 {/* Die diagonale Typografie */}
                 <div className="pointer-events-none mt-2 flex w-full -rotate-6 flex-col px-8 sm:-rotate-[8deg] sm:px-12">
@@ -172,9 +171,11 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
 
               {/* === RÜCKSEITE (HELLES CREME TICKET & STICKER) === */}
               <div className="absolute inset-0 flex [transform:rotateY(180deg)] overflow-visible rounded-xl bg-[#F7F4EB] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-black/5 [backface-visibility:hidden]">
-                {/* Sticker (Rückseite) - Brechen cool über die Kante */}
-                <Sticker3 className="absolute -top-6 left-2 z-30 w-24 rotate-[-8deg] sm:-top-8 sm:left-6 sm:w-32" />
-                <Sticker4 className="absolute right-[18%] -bottom-5 z-30 w-24 rotate-[12deg] sm:right-[20%] sm:-bottom-8 sm:w-36" />
+                {/* Pilates-To-Do Sticker weit nach links außen gezogen */}
+                <Sticker3 className="absolute -top-10 -left-6 z-30 w-28 rotate-[-12deg] sm:-top-14 sm:-left-12 sm:w-40" />
+
+                {/* Kirschen-Reformer unten rechts über der Abrisskante */}
+                <Sticker4 className="absolute right-[15%] -bottom-6 z-30 w-32 rotate-[8deg] sm:right-[18%] sm:-bottom-10 sm:w-48" />
 
                 {/* Stanzungen (Cutouts) */}
                 <div className="absolute -top-4 right-[25%] z-20 h-8 w-8 rounded-full bg-[#09150F] shadow-inner" />
@@ -184,7 +185,7 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
                 <div className="relative flex w-[75%] flex-col justify-between overflow-hidden rounded-l-xl border-r-2 border-dashed border-[#5C1A21]/30 p-5 sm:p-7">
                   <div className="relative z-10 mt-2 flex items-start justify-between sm:mt-0">
                     <div className="space-y-1">
-                      <h3 className="font-serif text-2xl leading-none font-bold text-[#5C1A21] sm:text-4xl">
+                      <h3 className="mt-1 font-serif text-2xl leading-none font-bold text-[#5C1A21] sm:mt-2 sm:text-4xl">
                         PILATES
                       </h3>
                       <p className="text-[7px] font-bold tracking-[0.3em] text-[#5C1A21]/70 uppercase sm:text-[10px]">
