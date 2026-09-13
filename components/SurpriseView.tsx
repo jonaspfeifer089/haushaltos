@@ -9,42 +9,34 @@ interface SurpriseViewProps {
 
 // --- EIGENE BILD-STICKER-KOMPONENTEN ---
 const Sticker2 = ({ className }: { className?: string }) => (
-  <motion.img
-    animate={{ rotate: [11, 13, 11] }}
-    transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+  <img
     src="/stickers/Sticker2.png"
     alt="Snoopy Matcha"
-    className={`pointer-events-none object-contain drop-shadow-2xl ${className}`}
+    className={`pointer-events-none object-contain drop-shadow-xl ${className}`}
   />
 );
 
 const Sticker3 = ({ className }: { className?: string }) => (
-  <motion.img
-    animate={{ rotate: [-15, -12, -15] }}
-    transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
+  <img
     src="/stickers/Sticker3.png"
     alt="To Do Pilates"
-    className={`pointer-events-none object-contain drop-shadow-2xl ${className}`}
+    className={`pointer-events-none object-contain drop-shadow-xl ${className}`}
   />
 );
 
 const Sticker4 = ({ className }: { className?: string }) => (
-  <motion.img
-    animate={{ rotate: [4, 7, 4], y: [0, -2, 0] }}
-    transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
+  <img
     src="/stickers/Sticker4.png"
     alt="Cherry Reformer"
-    className={`pointer-events-none object-contain drop-shadow-2xl ${className}`}
+    className={`pointer-events-none object-contain drop-shadow-xl ${className}`}
   />
 );
 
 const Sticker5 = ({ className }: { className?: string }) => (
-  <motion.img
-    animate={{ rotate: [-16, -13, -16] }}
-    transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+  <img
     src="/stickers/Sticker5.png"
     alt="Tulips Envelope"
-    className={`pointer-events-none object-contain drop-shadow-2xl ${className}`}
+    className={`pointer-events-none object-contain drop-shadow-xl ${className}`}
   />
 );
 
@@ -89,86 +81,30 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
   };
 
   return (
-    // DYNAMISCHER HINTERGRUND
-    <div className="relative flex min-h-[85vh] w-full flex-col items-center justify-center overflow-hidden rounded-3xl bg-gradient-to-b from-[#081710] via-[#040E0A] to-[#020705]">
-      {/* 1. WEICHE, ANIMIERTE MESH-GLOWS */}
-      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
-        <motion.div
-          animate={{
-            x: [0, 40, -20, 0],
-            y: [0, -30, 20, 0],
-            scale: [1, 1.25, 0.95, 1]
-          }}
-          transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -top-[20%] -left-[10%] h-[600px] w-[600px] rounded-full bg-[#1B4332]/40 blur-[130px]"
-        />
-
-        <motion.div
-          animate={{
-            x: [0, -35, 25, 0],
-            y: [0, 35, -25, 0],
-            scale: [1, 1.2, 1, 1]
-          }}
-          transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute -right-[10%] -bottom-[20%] h-[550px] w-[550px] rounded-full bg-[#F7D6D9]/15 blur-[140px]"
-        />
-
-        <motion.div
-          animate={{
-            scale: [0.9, 1.2, 0.9],
-            opacity: [0.1, 0.25, 0.1]
-          }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-[25%] left-[30%] h-[400px] w-[400px] rounded-full bg-[#D4AF37]/10 blur-[120px]"
-        />
-      </div>
-
-      {/* 2. ZARTE STERNENSTAUB-LICHTPUNKTE */}
-      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
-        {[
-          { left: "15%", top: "80%", delay: 0, duration: 8 },
-          { left: "30%", top: "90%", delay: 2, duration: 10 },
-          { left: "55%", top: "85%", delay: 1, duration: 9 },
-          { left: "75%", top: "75%", delay: 3, duration: 11 },
-          { left: "88%", top: "88%", delay: 0.5, duration: 7 }
-        ].map((pt, i) => (
-          <motion.div
-            key={i}
-            initial={{ opacity: 0, y: 0 }}
-            animate={{
-              opacity: [0, 0.8, 0],
-              y: [-20, -320],
-              scale: [0.8, 1.4, 0.8]
-            }}
-            transition={{
-              duration: pt.duration,
-              repeat: Infinity,
-              delay: pt.delay,
-              ease: "linear"
-            }}
-            style={{ left: pt.left, top: pt.top }}
-            className="absolute flex items-center justify-center"
-          >
-            <div className="h-1.5 w-1.5 rounded-full bg-[#F7D6D9] shadow-[0_0_8px_#F7D6D9] blur-[0.5px]" />
-          </motion.div>
-        ))}
-      </div>
-
+    <div
+      className="relative flex min-h-[85vh] w-full flex-col items-center justify-center overflow-hidden rounded-3xl"
+      style={{
+        background: `
+          radial-gradient(circle at 50% 45%, rgba(27, 67, 50, 0.45) 0%, transparent 60%),
+          radial-gradient(circle at 85% 80%, rgba(247, 214, 217, 0.08) 0%, transparent 45%),
+          linear-gradient(180deg, #09150F 0%, #050E0A 50%, #030806 100%)
+        `
+      }}
+    >
       <div className="relative z-10 flex w-full flex-col items-center px-4">
         {!isRevealed ? (
-          // --- STARTBILDSCHIRM MIT NERVÖS-ZAPPELNDEM BUTTON ---
+          // --- STARTBILDSCHIRM MIT NERVÖS ZITTERNDEM BUTTON ---
           <motion.div
             initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.6, ease: "easeOut" }}
+            transition={{ duration: 0.5, ease: "easeOut" }}
             className="flex flex-col items-center space-y-7 text-center select-none"
           >
             <div className="relative">
-              {/* Zappelnder/pulsierender Hintergrund-Glow (Herzschlag) */}
               <motion.div
                 animate={{
-                  scale: [1, 1.35, 1.1, 1.4, 1],
-                  opacity: [0.35, 0.85, 0.5, 0.9, 0.35]
+                  scale: [1, 1.25, 1.05, 1.3, 1],
+                  opacity: [0.3, 0.75, 0.4, 0.8, 0.3]
                 }}
                 transition={{
                   repeat: Infinity,
@@ -176,15 +112,14 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
                   ease: "easeInOut",
                   times: [0, 0.15, 0.3, 0.45, 1]
                 }}
-                className="absolute -inset-3 rounded-full bg-[#F7D6D9]/30 blur-2xl"
+                className="pointer-events-none absolute -inset-3 rounded-full bg-[#F7D6D9]/25 blur-2xl"
               />
 
-              {/* Der nervös vibrierende Button */}
               <motion.button
                 onClick={handleReveal}
                 animate={{
                   rotate: [0, -4, 4, -4, 3, -1, 0, 0, 0],
-                  scale: [1, 1.05, 1, 1.07, 1, 1, 1, 1, 1],
+                  scale: [1, 1.04, 1, 1.06, 1, 1, 1, 1, 1],
                   x: [0, -1.5, 1.5, -1, 1, 0, 0, 0, 0]
                 }}
                 transition={{
@@ -193,9 +128,9 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
                   ease: "easeInOut",
                   times: [0, 0.08, 0.16, 0.24, 0.32, 0.4, 0.5, 0.8, 1]
                 }}
-                whileHover={{ scale: 1.15, rotate: 0 }}
+                whileHover={{ scale: 1.12, rotate: 0 }}
                 whileTap={{ scale: 0.92 }}
-                className="group relative flex h-24 w-24 items-center justify-center rounded-full border border-[#F7D6D9]/50 bg-[#113022]/90 shadow-[0_15px_35px_rgba(0,0,0,0.5),0_0_40px_rgba(247,214,217,0.25)] backdrop-blur-xl transition-colors duration-300 hover:border-[#F7D6D9]"
+                className="group relative flex h-24 w-24 items-center justify-center rounded-full border border-[#F7D6D9]/50 bg-[#113022]/90 shadow-[0_15px_35px_rgba(0,0,0,0.5),0_0_35px_rgba(247,214,217,0.25)] backdrop-blur-xl transition-colors duration-300 hover:border-[#F7D6D9]"
               >
                 <Heart className="h-9 w-9 fill-[#F7D6D9] text-[#F7D6D9] transition-transform duration-200 group-hover:scale-110" />
               </motion.button>
@@ -206,26 +141,18 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
                 for lucky girl Lena
               </h2>
 
-              <motion.div
-                animate={{ y: [0, -2, 0] }}
-                transition={{ repeat: Infinity, duration: 2.6, times: [0, 0.18, 0.4] }}
-                className="flex items-center justify-center gap-2"
-              >
+              <div className="flex items-center justify-center gap-2">
                 <Sparkles className="h-3 w-3 animate-pulse text-[#D4AF37]" />
                 <p className="text-[11px] font-bold tracking-[0.25em] text-[#F8F5EE]/60 uppercase">
                   Tap to unwrap
                 </p>
                 <Sparkles className="h-3 w-3 animate-pulse text-[#D4AF37]" />
-              </motion.div>
+              </div>
             </div>
           </motion.div>
         ) : (
-          // --- DER GUTSCHEIN (QUERFORMAT MIT SCHWEBENDEM FLOATING-EFFEKT) ---
-          <motion.div
-            animate={{ y: [0, -6, 0], rotateZ: [-0.3, 0.3, -0.3] }}
-            transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
-            className="flex flex-col items-center [perspective:1400px]"
-          >
+          // --- DER GUTSCHEIN (QUERFORMAT) ---
+          <div className="flex flex-col items-center [perspective:1400px]">
             <motion.div
               initial={{ opacity: 0, scale: 0.2, rotateZ: -160, rotateY: -720 }}
               animate={{ opacity: 1, scale: 1, rotateZ: 0, rotateY: isFlipped ? 180 : 0 }}
@@ -235,18 +162,27 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
             >
               {/* === VORDERSEITE === */}
               <div
-                className={`absolute inset-0 flex flex-col items-center justify-center overflow-visible rounded-2xl bg-[#113022] shadow-[0_30px_70px_rgba(0,0,0,0.7),0_0_40px_rgba(17,48,34,0.3)] ring-1 ring-white/20 transition-opacity duration-200 [backface-visibility:hidden] ${
+                className={`absolute inset-0 flex flex-col items-center justify-center overflow-visible rounded-2xl bg-[#113022] shadow-[0_25px_60px_rgba(0,0,0,0.65)] ring-1 ring-white/15 transition-opacity duration-200 [backface-visibility:hidden] ${
                   isFlipped ? "pointer-events-none opacity-0" : "opacity-100"
                 }`}
               >
-                {/* Wandernder feiner Lichtschimmer */}
-                <motion.div
-                  animate={{ x: ["-100%", "200%"] }}
-                  transition={{ duration: 5, repeat: Infinity, repeatDelay: 3, ease: "easeInOut" }}
-                  className="pointer-events-none absolute inset-0 z-10 w-1/2 -skew-x-12 bg-gradient-to-r from-transparent via-white/[0.08] to-transparent"
-                />
+                {/* SAUBERER GLANZ-CONTAINER (EXAKT AN DEN KARTENRÄNDERN BESCHNITTEN) */}
+                <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden rounded-2xl">
+                  <motion.div
+                    animate={{
+                      x: ["-130%", "230%"]
+                    }}
+                    transition={{
+                      duration: 3,
+                      repeat: Infinity,
+                      repeatDelay: 3.5,
+                      ease: "easeInOut"
+                    }}
+                    className="h-full w-40 -skew-x-25 bg-gradient-to-r from-transparent via-white/15 to-transparent blur-[1px]"
+                  />
+                </div>
 
-                {/* Sticker Vorderseite */}
+                {/* Sticker Vorderseite (überstehen ohne Glanz-Probleme) */}
                 <Sticker2 className="absolute -top-12 -right-8 z-20 w-40 sm:-top-20 sm:-right-12 sm:w-60" />
                 <Sticker5 className="absolute -bottom-6 -left-6 z-20 w-32 sm:-bottom-10 sm:-left-8 sm:w-48" />
 
@@ -267,10 +203,7 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
                 </div>
 
                 <div className="pointer-events-none absolute bottom-3 flex items-center gap-2 opacity-60 sm:bottom-4">
-                  <RefreshCcw
-                    className="h-3 w-3 animate-spin text-[#F8F5EE]"
-                    style={{ animationDuration: "6s" }}
-                  />
+                  <RefreshCcw className="h-3 w-3 text-[#F8F5EE]" />
                   <span className="text-[8px] font-bold tracking-[0.25em] text-[#F8F5EE] uppercase">
                     Tap to turn
                   </span>
@@ -279,7 +212,7 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
 
               {/* === RÜCKSEITE === */}
               <div
-                className={`absolute inset-0 flex [transform:rotateY(180deg)] overflow-visible rounded-2xl bg-[#F8F5EE] shadow-[0_30px_70px_rgba(0,0,0,0.7)] ring-1 ring-black/10 transition-opacity duration-200 [backface-visibility:hidden] ${
+                className={`absolute inset-0 flex [transform:rotateY(180deg)] overflow-visible rounded-2xl bg-[#F8F5EE] shadow-[0_25px_60px_rgba(0,0,0,0.65)] ring-1 ring-black/10 transition-opacity duration-200 [backface-visibility:hidden] ${
                   isFlipped ? "opacity-100" : "pointer-events-none opacity-0"
                 }`}
               >
@@ -288,8 +221,8 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
                 <Sticker4 className="absolute -right-6 -bottom-8 z-30 w-36 sm:-right-8 sm:-bottom-10 sm:w-52" />
 
                 {/* Stanzungen (Cutouts) */}
-                <div className="absolute -top-4 right-[25%] z-20 h-8 w-8 rounded-full bg-[#040E0A] shadow-inner" />
-                <div className="absolute right-[25%] -bottom-4 z-20 h-8 w-8 rounded-full bg-[#040E0A] shadow-inner" />
+                <div className="absolute -top-4 right-[25%] z-20 h-8 w-8 rounded-full bg-[#07130E] shadow-inner" />
+                <div className="absolute right-[25%] -bottom-4 z-20 h-8 w-8 rounded-full bg-[#07130E] shadow-inner" />
 
                 {/* Linker Bereich (75%) */}
                 <div className="relative flex w-[75%] flex-col justify-between overflow-hidden rounded-l-2xl border-r-2 border-dashed border-[#5C1A21]/25 p-5 sm:p-7">
@@ -358,7 +291,7 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
                 </div>
               </div>
             </motion.div>
-          </motion.div>
+          </div>
         )}
       </div>
     </div>
