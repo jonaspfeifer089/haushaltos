@@ -12,7 +12,7 @@ const Sticker2 = ({ className }: { className?: string }) => (
   <img
     src="/stickers/Sticker2.png"
     alt="Snoopy Matcha"
-    className={`pointer-events-none object-contain drop-shadow-xl [backface-visibility:hidden] ${className}`}
+    className={`pointer-events-none object-contain drop-shadow-xl ${className}`}
   />
 );
 
@@ -20,7 +20,7 @@ const Sticker3 = ({ className }: { className?: string }) => (
   <img
     src="/stickers/Sticker3.png"
     alt="To Do Pilates"
-    className={`pointer-events-none object-contain drop-shadow-xl [backface-visibility:hidden] ${className}`}
+    className={`pointer-events-none object-contain drop-shadow-xl ${className}`}
   />
 );
 
@@ -28,7 +28,7 @@ const Sticker4 = ({ className }: { className?: string }) => (
   <img
     src="/stickers/Sticker4.png"
     alt="Cherry Reformer"
-    className={`pointer-events-none object-contain drop-shadow-xl [backface-visibility:hidden] ${className}`}
+    className={`pointer-events-none object-contain drop-shadow-xl ${className}`}
   />
 );
 
@@ -36,7 +36,7 @@ const Sticker5 = ({ className }: { className?: string }) => (
   <img
     src="/stickers/Sticker5.png"
     alt="Tulips Envelope"
-    className={`pointer-events-none object-contain drop-shadow-xl [backface-visibility:hidden] ${className}`}
+    className={`pointer-events-none object-contain drop-shadow-xl ${className}`}
   />
 );
 
@@ -137,7 +137,7 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
               className="relative h-[180px] w-[350px] cursor-pointer select-none [transform-style:preserve-3d] sm:h-[240px] sm:w-[550px]"
               onClick={() => setIsFlipped(!isFlipped)}
             >
-              {/* === VORDERSEITE (PERFEKT: DUNKELGRÜN, SNOOPY, TULPEN) === */}
+              {/* === VORDERSEITE (DUNKELGRÜN - BACKFACE HIDDEN) === */}
               <div className="absolute inset-0 flex flex-col items-center justify-center overflow-visible rounded-xl bg-[#113022] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-[#F7F4EB]/20 [backface-visibility:hidden]">
                 <Sticker2 className="absolute -top-12 -right-8 z-20 w-40 rotate-[12deg] sm:-top-20 sm:-right-12 sm:w-60" />
                 <Sticker5 className="absolute -bottom-6 -left-6 z-20 w-32 rotate-[-15deg] sm:-bottom-10 sm:-left-8 sm:w-48" />
@@ -165,7 +165,7 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
                 </div>
               </div>
 
-              {/* === RÜCKSEITE (NUR PILATES TO-DO OBEN LINKS & REFORMER UNTEN RECHTS) === */}
+              {/* === RÜCKSEITE (CREME TICKET - BACKFACE HIDDEN & 180 DEG ROTATED) === */}
               <div className="absolute inset-0 flex [transform:rotateY(180deg)] overflow-visible rounded-xl bg-[#F7F4EB] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-black/5 [backface-visibility:hidden]">
                 {/* Oben links: Hände mit To-Do List */}
                 <Sticker3 className="absolute -top-12 -left-8 z-30 w-28 rotate-[-12deg] sm:-top-20 sm:-left-12 sm:w-40" />
