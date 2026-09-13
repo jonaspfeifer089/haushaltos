@@ -81,18 +81,36 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
   };
 
   return (
-    <div className="relative flex min-h-[85vh] w-full flex-col items-center justify-center overflow-hidden rounded-3xl bg-[#09150F]">
-      {/* Ambient-Schatten */}
+    <div className="relative flex min-h-[85vh] w-full flex-col items-center justify-center overflow-hidden rounded-3xl bg-radial from-[#0F2A1D] via-[#081710] to-[#040B07]">
+      {/* Dynamische Mesh-Glows */}
       <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
         <motion.div
-          animate={{ x: [0, 30, 0], y: [0, 20, 0], scale: [1, 1.1, 1] }}
-          transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-[10%] left-[10%] h-[300px] w-[300px] rounded-full bg-[#F7D6D9]/10 blur-[120px]"
+          animate={{
+            x: [0, 50, -20, 0],
+            y: [0, -30, 20, 0],
+            scale: [1, 1.2, 0.9, 1]
+          }}
+          transition={{ duration: 16, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute -top-[15%] -left-[10%] h-[550px] w-[550px] rounded-full bg-[#1B4332]/45 blur-[120px]"
         />
+
         <motion.div
-          animate={{ x: [0, -30, 0], y: [0, -20, 0], scale: [1, 1.2, 1] }}
+          animate={{
+            x: [0, -40, 30, 0],
+            y: [0, 40, -20, 0],
+            scale: [1, 1.15, 1.05, 1]
+          }}
           transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute right-[10%] bottom-[20%] h-[400px] w-[400px] rounded-full bg-[#113022]/40 blur-[100px]"
+          className="absolute -right-[10%] -bottom-[15%] h-[500px] w-[500px] rounded-full bg-[#F7D6D9]/20 blur-[130px]"
+        />
+
+        <motion.div
+          animate={{
+            scale: [0.9, 1.25, 0.9],
+            opacity: [0.15, 0.3, 0.15]
+          }}
+          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute top-[30%] left-[25%] h-[420px] w-[420px] rounded-full bg-[#D4AF37]/15 blur-[140px]"
         />
       </div>
 
@@ -106,20 +124,20 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
           >
             <div className="relative">
               <motion.div
-                animate={{ scale: [1, 1.15, 1], opacity: [0.5, 0.8, 0.5] }}
+                animate={{ scale: [1, 1.2, 1], opacity: [0.4, 0.85, 0.4] }}
                 transition={{ repeat: Infinity, duration: 2.5, ease: "easeInOut" }}
-                className="absolute inset-0 rounded-full bg-[#F7D6D9]/20 blur-xl"
+                className="absolute inset-0 rounded-full bg-[#F7D6D9]/30 blur-2xl"
               />
               <button
                 onClick={handleReveal}
-                className="group relative flex h-24 w-24 items-center justify-center rounded-full border-2 border-[#F7D6D9]/50 bg-[#113022]/80 shadow-[0_0_40px_-10px_rgba(247,214,217,0.2)] backdrop-blur-md transition-all hover:scale-110 hover:border-[#F7D6D9]"
+                className="group relative flex h-24 w-24 items-center justify-center rounded-full border-2 border-[#F7D6D9]/50 bg-[#113022]/90 shadow-[0_0_50px_rgba(247,214,217,0.3)] backdrop-blur-md transition-all hover:scale-110 hover:border-[#F7D6D9]"
               >
                 <Heart className="h-8 w-8 fill-[#F7D6D9] text-[#F7D6D9] transition-transform group-hover:scale-110" />
               </button>
             </div>
             <div className="space-y-2">
               <h2 className="font-serif text-2xl text-[#F7D6D9] italic">for lucky girl Lena</h2>
-              <p className="text-xs font-bold tracking-[0.2em] text-[#F7F4EB]/50 uppercase">
+              <p className="text-xs font-bold tracking-[0.2em] text-[#F7F4EB]/60 uppercase">
                 Tap to open
               </p>
             </div>
@@ -134,31 +152,53 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
               className="relative h-[180px] w-[350px] cursor-pointer select-none [transform-style:preserve-3d] sm:h-[240px] sm:w-[550px]"
               onClick={() => setIsFlipped(!isFlipped)}
             >
-              {/* === VORDERSEITE === */}
+              {/* === VORDERSEITE: DUNKELGRÜN MIT LETTERPRESS/PRÄGE-EFFEKT === */}
               <div
-                className={`absolute inset-0 flex flex-col items-center justify-center overflow-visible rounded-xl bg-[#113022] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-[#F7F4EB]/20 transition-opacity duration-200 [backface-visibility:hidden] ${
+                className={`absolute inset-0 flex flex-col items-center justify-center overflow-visible rounded-xl bg-[#113022] shadow-[0_25px_60px_rgba(0,0,0,0.65),inset_0_1px_1px_rgba(255,255,255,0.15),inset_0_-2px_4px_rgba(0,0,0,0.5)] ring-1 ring-[#F7F4EB]/25 transition-opacity duration-200 [backface-visibility:hidden] ${
                   isFlipped ? "pointer-events-none opacity-0" : "opacity-100"
                 }`}
               >
+                {/* HIER STICKER-GRÖSSEN VORDERSEITE ANPASSEN (z. B. w-40 sm:w-60) */}
                 <Sticker2 className="absolute -top-12 -right-8 z-20 w-40 rotate-[12deg] sm:-top-20 sm:-right-12 sm:w-60" />
                 <Sticker5 className="absolute -bottom-6 -left-6 z-20 w-32 rotate-[-15deg] sm:-bottom-10 sm:-left-8 sm:w-48" />
 
+                {/* Diagonale Typografie mit Letterpress-Tiefprägung */}
                 <div className="pointer-events-none mt-2 flex w-full -rotate-6 flex-col px-8 sm:-rotate-[8deg] sm:px-12">
-                  <span className="ml-[5%] self-start font-serif text-xl tracking-tight text-[#F7F4EB] sm:text-3xl">
+                  <span
+                    style={{
+                      textShadow: "0 -1px 1px rgba(0,0,0,0.8), 0 1px 1px rgba(247,214,217,0.3)"
+                    }}
+                    className="ml-[5%] self-start font-serif text-xl tracking-tight text-[#F7F4EB] sm:text-3xl"
+                  >
                     it&apos;s a
                   </span>
-                  <span className="-ml-[15%] self-center font-serif text-5xl leading-tight text-[#F7D6D9] italic drop-shadow-md sm:-ml-[20%] sm:text-[5.5rem]">
+                  <span
+                    style={{
+                      textShadow: "0 -2px 3px rgba(0,0,0,0.9), 0 1.5px 1px rgba(255,255,255,0.4)"
+                    }}
+                    className="-ml-[15%] self-center font-serif text-5xl leading-tight text-[#F7D6D9] italic sm:-ml-[20%] sm:text-[5.5rem]"
+                  >
                     gift
                   </span>
-                  <span className="mt-0 ml-[15%] self-center font-serif text-lg tracking-tight text-[#F7F4EB] sm:mt-2 sm:ml-[25%] sm:text-2xl">
+                  <span
+                    style={{
+                      textShadow: "0 -1px 1px rgba(0,0,0,0.8), 0 1px 1px rgba(247,214,217,0.3)"
+                    }}
+                    className="mt-0 ml-[15%] self-center font-serif text-lg tracking-tight text-[#F7F4EB] sm:mt-2 sm:ml-[25%] sm:text-2xl"
+                  >
                     to have
                   </span>
-                  <span className="mr-[5%] self-end font-serif text-4xl leading-none text-[#F7D6D9] italic drop-shadow-md sm:text-[4.5rem]">
+                  <span
+                    style={{
+                      textShadow: "0 -2px 3px rgba(0,0,0,0.9), 0 1.5px 1px rgba(255,255,255,0.4)"
+                    }}
+                    className="mr-[5%] self-end font-serif text-4xl leading-none text-[#F7D6D9] italic sm:text-[4.5rem]"
+                  >
                     you.
                   </span>
                 </div>
 
-                <div className="pointer-events-none absolute bottom-3 flex flex-col items-center gap-1.5 opacity-50 sm:bottom-5">
+                <div className="pointer-events-none absolute bottom-3 flex flex-col items-center gap-1.5 opacity-60 sm:bottom-5">
                   <RefreshCcw className="h-3 w-3 animate-pulse text-[#F7F4EB]" />
                   <span className="text-[7px] font-bold tracking-widest text-[#F7F4EB] uppercase sm:text-[8px]">
                     Tap to turn
@@ -166,27 +206,30 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
                 </div>
               </div>
 
-              {/* === RÜCKSEITE === */}
+              {/* === RÜCKSEITE: CREME TICKET MIT PAPIER-KANTENPRÄGUNG === */}
               <div
-                className={`absolute inset-0 flex [transform:rotateY(180deg)] overflow-visible rounded-xl bg-[#F7F4EB] shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-black/5 transition-opacity duration-200 [backface-visibility:hidden] ${
+                className={`absolute inset-0 flex [transform:rotateY(180deg)] overflow-visible rounded-xl bg-[#F7F4EB] shadow-[0_25px_60px_rgba(0,0,0,0.65),inset_0_1px_2px_rgba(255,255,255,0.9),inset_0_-2px_4px_rgba(70,43,40,0.12)] ring-1 ring-black/5 transition-opacity duration-200 [backface-visibility:hidden] ${
                   isFlipped ? "opacity-100" : "pointer-events-none opacity-0"
                 }`}
               >
-                {/* Oben links: Hände mit To-Do List - deutlich höher gesetzt */}
+                {/* HIER STICKER-GRÖSSEN RÜCKSEITE ANPASSEN */}
                 <Sticker3 className="absolute -top-16 -left-10 z-30 w-32 rotate-[-14deg] sm:-top-24 sm:-left-16 sm:w-44" />
+                <Sticker4 className="absolute -right-6 -bottom-8 z-30 w-3 rotate-[6deg] sm:-right-8 sm:-bottom-10 sm:w-44" />
 
-                {/* Unten rechts: Reformer-Kirsche ganz in der Ecke */}
-                <Sticker4 className="absolute -right-6 -bottom-8 z-30 w-36 rotate-[6deg] sm:-right-8 sm:-bottom-10 sm:w-52" />
+                {/* Stanzungen mit eingeprägtem Innenschatten */}
+                <div className="absolute -top-4 right-[25%] z-20 h-8 w-8 rounded-full bg-[#081710] shadow-[inset_0_-2px_3px_rgba(0,0,0,0.7)]" />
+                <div className="absolute right-[25%] -bottom-4 z-20 h-8 w-8 rounded-full bg-[#081710] shadow-[inset_0_2px_3px_rgba(0,0,0,0.7)]" />
 
-                {/* Stanzungen (Cutouts) */}
-                <div className="absolute -top-4 right-[25%] z-20 h-8 w-8 rounded-full bg-[#09150F] shadow-inner" />
-                <div className="absolute right-[25%] -bottom-4 z-20 h-8 w-8 rounded-full bg-[#09150F] shadow-inner" />
-
-                {/* Linker Bereich (75%) */}
+                {/* Linker Bereich (75%) mit geprägter Schrift */}
                 <div className="relative flex w-[75%] flex-col justify-between overflow-hidden rounded-l-xl border-r-2 border-dashed border-[#5C1A21]/30 p-5 sm:p-7">
                   <div className="relative z-10 mt-2 flex items-start justify-between sm:mt-0">
                     <div className="space-y-1">
-                      <h3 className="mt-1 font-serif text-2xl leading-none font-bold text-[#5C1A21] sm:mt-2 sm:text-4xl">
+                      <h3
+                        style={{
+                          textShadow: "0 1px 0 rgba(255,255,255,0.8), 0 -1px 1px rgba(92,26,33,0.3)"
+                        }}
+                        className="mt-1 font-serif text-2xl leading-none font-bold text-[#5C1A21] sm:mt-2 sm:text-4xl"
+                      >
                         PILATES
                       </h3>
                       <p className="text-[7px] font-bold tracking-[0.3em] text-[#5C1A21]/70 uppercase sm:text-[10px]">
@@ -230,7 +273,7 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
                     Happy Birthday
                   </span>
 
-                  {/* Minimalistischer Barcode */}
+                  {/* Barcode mit dezenter Rillen-Tiefenoptik */}
                   <div className="flex h-10 w-full items-end justify-center gap-[2px] pb-1 opacity-70 sm:h-14 sm:gap-[3px]">
                     <div className="w-1 bg-[#5C1A21]"></div>
                     <div className="w-0.5 bg-[#5C1A21]"></div>
