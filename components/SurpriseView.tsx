@@ -7,9 +7,11 @@ interface SurpriseViewProps {
   theme: any;
 }
 
-// --- EIGENE BILD-STICKER-KOMPONENTEN ---
+// --- EIGENE BILD-STICKER-KOMPONENTEN (MIT FEINER BEWEGUNG) ---
 const Sticker2 = ({ className }: { className?: string }) => (
-  <img
+  <motion.img
+    animate={{ rotate: [11, 13, 11] }}
+    transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
     src="/stickers/Sticker2.png"
     alt="Snoopy Matcha"
     className={`pointer-events-none object-contain drop-shadow-xl ${className}`}
@@ -17,7 +19,9 @@ const Sticker2 = ({ className }: { className?: string }) => (
 );
 
 const Sticker3 = ({ className }: { className?: string }) => (
-  <img
+  <motion.img
+    animate={{ rotate: [-15, -12, -15] }}
+    transition={{ duration: 4.5, repeat: Infinity, ease: "easeInOut" }}
     src="/stickers/Sticker3.png"
     alt="To Do Pilates"
     className={`pointer-events-none object-contain drop-shadow-xl ${className}`}
@@ -25,7 +29,9 @@ const Sticker3 = ({ className }: { className?: string }) => (
 );
 
 const Sticker4 = ({ className }: { className?: string }) => (
-  <img
+  <motion.img
+    animate={{ rotate: [4, 7, 4], y: [0, -2, 0] }}
+    transition={{ duration: 3.5, repeat: Infinity, ease: "easeInOut" }}
     src="/stickers/Sticker4.png"
     alt="Cherry Reformer"
     className={`pointer-events-none object-contain drop-shadow-xl ${className}`}
@@ -33,7 +39,9 @@ const Sticker4 = ({ className }: { className?: string }) => (
 );
 
 const Sticker5 = ({ className }: { className?: string }) => (
-  <img
+  <motion.img
+    animate={{ rotate: [-16, -13, -16] }}
+    transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
     src="/stickers/Sticker5.png"
     alt="Tulips Envelope"
     className={`pointer-events-none object-contain drop-shadow-xl ${className}`}
@@ -93,7 +101,7 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
     >
       <div className="relative z-10 flex w-full flex-col items-center px-4">
         {!isRevealed ? (
-          // --- STARTBILDSCHIRM MIT NERVÖS ZITTERNDEM BUTTON ---
+          // --- STARTBILDSCHIRM MIT ZITTERNDEM BUTTON ---
           <motion.div
             initial={{ opacity: 0, scale: 0.92 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -160,29 +168,13 @@ export function SurpriseView({ theme }: SurpriseViewProps) {
               className="relative h-[180px] w-[350px] cursor-pointer select-none [transform-style:preserve-3d] sm:h-[240px] sm:w-[550px]"
               onClick={() => setIsFlipped(!isFlipped)}
             >
-              {/* === VORDERSEITE === */}
+              {/* === VORDERSEITE (CLEAN, OHNE GLOW/SCHWEIF) === */}
               <div
                 className={`absolute inset-0 flex flex-col items-center justify-center overflow-visible rounded-2xl bg-[#113022] shadow-[0_25px_60px_rgba(0,0,0,0.65)] ring-1 ring-white/15 transition-opacity duration-200 [backface-visibility:hidden] ${
                   isFlipped ? "pointer-events-none opacity-0" : "opacity-100"
                 }`}
               >
-                {/* SAUBERER GLANZ-CONTAINER (EXAKT AN DEN KARTENRÄNDERN BESCHNITTEN) */}
-                <div className="pointer-events-none absolute inset-0 z-10 overflow-hidden rounded-2xl">
-                  <motion.div
-                    animate={{
-                      x: ["-130%", "230%"]
-                    }}
-                    transition={{
-                      duration: 3,
-                      repeat: Infinity,
-                      repeatDelay: 3.5,
-                      ease: "easeInOut"
-                    }}
-                    className="h-full w-40 -skew-x-25 bg-gradient-to-r from-transparent via-white/15 to-transparent blur-[1px]"
-                  />
-                </div>
-
-                {/* Sticker Vorderseite (überstehen ohne Glanz-Probleme) */}
+                {/* Sticker Vorderseite */}
                 <Sticker2 className="absolute -top-12 -right-8 z-20 w-40 sm:-top-20 sm:-right-12 sm:w-60" />
                 <Sticker5 className="absolute -bottom-6 -left-6 z-20 w-32 sm:-bottom-10 sm:-left-8 sm:w-48" />
 
