@@ -20,7 +20,8 @@ import {
   Dumbbell,
   Activity,
   ChevronUp,
-  Mic
+  Mic,
+  Wallet
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "../lib/supabaseClient";
@@ -29,6 +30,7 @@ import { FinanceView } from "../components/FinanceView";
 import { SurpriseView } from "../components/SurpriseView";
 import { Gift } from "lucide-react";
 import { SleepCalculator } from "../components/SleepCalculator";
+import { FinanceBoard } from "../components/FinanceBoard";
 
 import {
   Departure,
@@ -428,7 +430,8 @@ export default function DashboardPage() {
     { id: "putzplan", icon: ClipboardList, label: "Putzplan" },
     { id: "vorrat", icon: Package, label: "Vorrat" },
     { id: "notizen", icon: StickyNote, label: "Pinnwand" },
-    { id: "kalender", icon: CalendarIcon, label: "Kalender" }
+    { id: "kalender", icon: CalendarIcon, label: "Kalender" },
+    { id: "haushaltsbuch", icon: Wallet, label: "Haushaltsbuch" }
   ];
 
   if (workout.isWorkoutActive && !workout.isWorkoutMinimized) {
@@ -608,6 +611,8 @@ export default function DashboardPage() {
           )}
 
           {activeTab === "finanzen" && <FinanceView theme={themeProps} />}
+
+          {activeTab === "haushaltsbuch" && <FinanceBoard />}
 
           {activeTab === "putzplan" && (
             <PutzplanView
