@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Receipt, Wallet, ArrowRightLeft, Plus, Trash2, Scale } from "lucide-react";
+import { Receipt, Wallet, Plus, Trash2, Scale } from "lucide-react";
+import { supabase } from "../lib/supabaseClient"; // <-- Dein Supabase Client
 
 export interface Expense {
   id: string;
@@ -16,21 +17,20 @@ export function FinanceBoard() {
   const [amount, setAmount] = useState("");
   const [payer, setPayer] = useState<"Lena" | "Jonas">("Jonas");
 
-  // 1. Daten beim Laden der Seite aus der DB holen
+  // 1. Daten beim Laden aus Supabase holen
   useEffect(() => {
-    fetch("/api/finance")
-      .then((res) => res.json())
-      .then((data) => setExpenses(data));
-  }, []);
+    const fetchAusgaben = async () => {
+      const { data, error } = await supabase
+        .from("ausgaben")
+        .select("*")
+        .order("date", { ascending: false });
 
-  // 2. Hilfsfunktion: State aktualisieren UND im Hintergrund in DB speichern
-  const saveToDB = async (newExpenses: Expense[]) => {
-    setExpenses(newExpenses);
-    await fetch("/api/finance", {
-      method: "POST",
-      body: JSON.stringify(newExpenses)
-    });
-  };
+      if (data) {
+        setExpenses(data);
+      }
+    };
+    fetchAusgaben();
+  }, []);
 
   const total = expenses.reduce((sum, exp) => sum + exp.amount, 0);
   const lenaPaid = expenses
@@ -46,26 +46,32 @@ export function FinanceBoard() {
   const formatEuro = (num: number) =>
     new Intl.NumberFormat("de-DE", { style: "currency", currency: "EUR" }).format(num);
 
-  const addExpense = (e: React.FormEvent) => {
+  // 2. Neue Ausgabe in Supabase speichern
+  const addExpense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!description.trim() || !amount || isNaN(Number(amount.replace(",", ".")))) return;
 
     const newExpense: Expense = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       description: description.trim(),
       amount: parseFloat(amount.replace(",", ".")),
       payer,
       date: new Date().toISOString()
     };
 
-    // Statt nur setExpenses rufen wir saveToDB auf
-    saveToDB([newExpense, ...expenses]);
+    // Sofort im UI anzeigen (Optimistic Update)
+    setExpenses([newExpense, ...expenses]);
     setDescription("");
     setAmount("");
+
+    // In DB schreiben
+    await supabase.from("ausgaben").insert([newExpense]);
   };
 
-  const deleteExpense = (id: string) => {
-    saveToDB(expenses.filter((exp) => exp.id !== id));
+  // 3. Ausgabe aus Supabase löschen
+  const deleteExpense = async (id: string) => {
+    setExpenses(expenses.filter((exp) => exp.id !== id));
+    await supabase.from("ausgaben").delete().eq("id", id);
   };
 
   return (
@@ -88,7 +94,6 @@ export function FinanceBoard() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* LINKE SPALTE: DASHBOARD & ABRECHNUNG */}
         <div className="space-y-6 lg:col-span-1">
-          {/* Abrechnungs-Highlight */}
           <div className="relative overflow-hidden rounded-2xl border border-[#F7D6D9]/30 bg-gradient-to-br from-[#1B3627] to-[#11241A] p-6 shadow-[0_0_30px_rgba(247,214,217,0.05)]">
             <div className="absolute top-0 right-0 p-4 opacity-10">
               <Scale className="h-24 w-24" />
@@ -115,7 +120,6 @@ export function FinanceBoard() {
             </div>
           </div>
 
-          {/* Mini-Stats */}
           <div className="grid grid-cols-2 gap-4">
             <div className="rounded-xl border border-white/10 bg-[#11241A]/80 p-4 backdrop-blur-sm">
               <p className="mb-1 text-[10px] tracking-widest text-white/50 uppercase">Gesamt</p>
@@ -142,7 +146,6 @@ export function FinanceBoard() {
 
         {/* RECHTE SPALTE: EINGABE & LISTE */}
         <div className="flex flex-col gap-6 lg:col-span-2">
-          {/* Eingabe-Formular */}
           <form
             onSubmit={addExpense}
             className="flex flex-col items-end gap-4 rounded-2xl border border-white/10 bg-[#11241A]/80 p-5 backdrop-blur-sm sm:flex-row"
@@ -197,7 +200,6 @@ export function FinanceBoard() {
             </button>
           </form>
 
-          {/* Ausgaben-Liste */}
           <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-white/5 bg-[#11241A]/40 p-5">
             <h3 className="mb-4 flex items-center gap-2 text-xs font-bold tracking-widest text-white/50 uppercase">
               <Receipt className="h-4 w-4" /> Verlauf
