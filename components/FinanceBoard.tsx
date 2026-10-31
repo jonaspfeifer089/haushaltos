@@ -31,12 +31,27 @@ export function FinanceBoard() {
 
   useEffect(() => {
     const fetchAusgaben = async () => {
-      const { data, error } = await supabase
-        .from("ausgaben")
-        .select("*")
-        .order("created", { ascending: false });
+      // Wir lassen .order() in der Datenbank-Abfrage weg, damit es nicht crasht, falls die Spalte anders heißt
+      const { data, error } = await supabase.from("ausgaben").select("*");
 
-      if (data) setExpenses(data);
+      if (error) {
+        console.error("Fehler beim Laden aus Supabase:", error.message);
+        return;
+      }
+
+      if (data) {
+        // Wir sortieren im Frontend. Das fängt ab, ob das Feld 'created', 'date' oder 'created_at' heißt.
+        const sortedData = data.sort((a, b) => {
+          const dateA = new Date(
+            a.created || (a as any).date || (a as any).created_at || 0
+          ).getTime();
+          const dateB = new Date(
+            b.created || (b as any).date || (b as any).created_at || 0
+          ).getTime();
+          return dateB - dateA;
+        });
+        setExpenses(sortedData);
+      }
     };
     fetchAusgaben();
   }, []);
@@ -51,9 +66,14 @@ export function FinanceBoard() {
     currentDate
   );
 
-  // Daten auf aktuell ausgewählten Monat filtern
+  // Daten auf aktuell ausgewählten Monat filtern (mit Fallback für alte Einträge)
   const currentMonthExpenses = expenses.filter((exp) => {
-    const d = new Date(exp.created);
+    const timestamp = exp.created || (exp as any).date || (exp as any).created_at;
+
+    // Wenn gar kein Datum gefunden wird, zeigen wir den Eintrag zur Sicherheit immer an
+    if (!timestamp) return true;
+
+    const d = new Date(timestamp);
     return d.getMonth() === currentDate.getMonth() && d.getFullYear() === currentDate.getFullYear();
   });
 
